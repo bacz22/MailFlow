@@ -1,0 +1,38 @@
+# Root .gitignore for MailFlow
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+*.tmp
+
+# IDE / Editor Files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Gemini / Agents metadata
+.gemini/
+.agents/
+
+# Backend Build & Temp
+**/target/
+**/.mvn/wrapper/maven-wrapper.jar
+
+# Frontend Build & Dependencies
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/*.local
+**/logs/
+**/*.log
+
+# Environment variables
+.env
+.env.*.local
+
+# Documentation & Prompt files
+docs/
+*.docx
+prompt.txt

@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/mailflow_db}
+    username: ${DB_USERNAME:mailflow}
+    password: ${DB_PASSWORD:123456a@}
+
+mailflow:
+  auth:
+    issuer: mailflow-api
+    audience: mailflow-api
+    refresh-cookie-name: mf_refresh

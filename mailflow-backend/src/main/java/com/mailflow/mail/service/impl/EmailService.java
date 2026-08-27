@@ -1,0 +1,144 @@
+package com.mailflow.mail.service.impl;
+
+import com.mailflow.mail.service.IEmailService;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailException;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.stereotype.Service;
+
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
+
+@Slf4j
+@Service
+public class EmailService implements IEmailService {
+
+    @Autowired(required = false)
+    private JavaMailSender mailSender;
+
+    @Value("${mailflow.app.client-url:http://localhost:5173}")
+    private String clientUrl;
+
+    @Value("${mailflow.mail.from-email:no-reply@mailflow.dev}")
+    private String fromEmail;
+
+    @Value("${mailflow.mail.from-name:MailFlow Platform}")
+    private String fromName;
+
+    @Value("${spring.mail.username:}")
+    private String smtpUsername;
+
+    @Override
+    public void sendVerificationEmail(String toEmail, String recipientName, String rawToken) {
+        String verificationUrl = clientUrl + "/verify-email?token=" + rawToken + "&email=" + toEmail;
+
+        log.info("Chuẩn bị gửi email xác thực tới [{}] với link: [{}]", toEmail, verificationUrl);
+
+        // Nếu chưa cấu hình tài khoản SMTP thực tế hoặc không có JavaMailSender, log rõ ràng ra console
+        if (mailSender == null || smtpUsername == null || smtpUsername.isBlank()) {
+            log.warn(
+                    "⚠️ [DEV MODE] Chưa cấu hình SMTP_USERNAME trong application.yaml/Environment. " +
+                    "Email sẽ không gửi qua Internet. Token kích hoạt của [{}] là: [{}] | Link: [{}]",
+                    toEmail,
+                    rawToken,
+                    verificationUrl
+            );
+            return;
+        }
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(
+                    message,
+                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
+                    StandardCharsets.UTF_8.name()
+            );
+
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("MailFlow - Kích hoạt tài khoản của bạn");
+
+            String htmlContent = buildVerificationEmailHtml(recipientName, verificationUrl, rawToken);
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+            log.info("✅ Đã gửi thành công email xác thực tài khoản tới [{}]", toEmail);
+
+        } catch (MessagingException | UnsupportedEncodingException | MailException e) {
+            log.error(
+                    "❌ Không thể gửi email qua máy chủ SMTP tới [{}]: {}. " +
+                    "Fallback -> Token kích hoạt: [{}] | Link: [{}]",
+                    toEmail,
+                    e.getMessage(),
+                    rawToken,
+                    verificationUrl,
+                    e
+            );
+        }
+    }
+
+    private String buildVerificationEmailHtml(String recipientName, String verificationUrl, String rawToken) {
+        String name = (recipientName != null && !recipientName.isBlank()) ? recipientName.trim() : "bạn";
+
+        return """
+            <!DOCTYPE html>
+            <html lang="vi">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Xác thực tài khoản MailFlow</title>
+              <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
+                .container { max-width: 560px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+                .header { background: linear-gradient(135deg, #2563eb, #1d4ed8); padding: 32px 24px; text-align: center; color: #ffffff; }
+                .header h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+                .header p { margin: 6px 0 0; font-size: 13px; opacity: 0.9; }
+                .body { padding: 32px 28px; }
+                .greeting { font-size: 16px; font-weight: 600; color: #0f172a; margin-bottom: 12px; }
+                .text { font-size: 14px; line-height: 1.6; color: #475569; margin: 0 0 20px; }
+                .cta-wrapper { text-align: center; margin: 28px 0; }
+                .btn { display: inline-block; background-color: #2563eb; color: #ffffff !important; font-size: 14px; font-weight: 700; padding: 12px 32px; text-decoration: none; border-radius: 8px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25); }
+                .token-box { background-color: #f1f5f9; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 14px; margin: 20px 0; text-align: center; }
+                .token-label { font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; }
+                .token-code { font-family: monospace; font-size: 15px; font-weight: 700; color: #1e293b; letter-spacing: 1px; word-break: break-all; }
+                .note { font-size: 12px; color: #94a3b8; line-height: 1.5; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 16px; }
+                .footer { background-color: #f8fafc; padding: 16px 24px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h1>MailFlow</h1>
+                  <p>Enterprise Email Automation Platform</p>
+                </div>
+                <div class="body">
+                  <div class="greeting">Xin chào %s,</div>
+                  <p class="text">
+                    Cảm ơn bạn đã đăng ký tài khoản tại <strong>MailFlow</strong>. Vui lòng bấm vào nút bên dưới để hoàn tất xác thực và kích hoạt không gian làm việc của bạn:
+                  </p>
+                  <div class="cta-wrapper">
+                    <a href="%s" target="_blank" class="btn">Kích Hoạt Tài Khoản Ngay &rarr;</a>
+                  </div>
+                  <div class="token-box">
+                    <div class="token-label">Hoặc nhập mã Token xác thực trực tiếp trên trình duyệt:</div>
+                    <div class="token-code">%s</div>
+                  </div>
+                  <p class="note">
+                    * Lưu ý: Liên kết và mã xác thực trên chỉ có hiệu lực trong vòng <strong>24 giờ</strong>.<br>
+                    Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này hoặc liên hệ hỗ trợ kỹ thuật.
+                  </p>
+                </div>
+                <div class="footer">
+                  &copy; 2026 MailFlow Inc. All rights reserved. &bull; ISO 27001 & RFC 8058 Certified
+                </div>
+              </div>
+            </body>
+            </html>
+            """.formatted(name, verificationUrl, rawToken);
+    }
+}
