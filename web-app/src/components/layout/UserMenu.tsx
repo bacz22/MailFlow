@@ -3,8 +3,6 @@ import {
   User,
   Settings,
   LogOut,
-  Moon,
-  Sun,
   CreditCard,
 } from 'lucide-react'
 import { cn } from '../../utils/cn'
@@ -20,12 +18,11 @@ import {
   DropdownMenuShortcut,
 } from '../ui/DropdownMenu'
 import { useToast } from '../ui/Toast'
+import { useAuth } from '../../context/AuthContext'
+import { displayName, formatAccountRole } from '../../services/user.service'
 
 export interface UserMenuProps {
   collapsed?: boolean
-  userName?: string
-  userEmail?: string
-  userRole?: string
   avatarUrl?: string
   isDark?: boolean
   onToggleTheme?: () => void
@@ -36,28 +33,30 @@ export interface UserMenuProps {
 
 export const UserMenu: React.FC<UserMenuProps> = ({
   collapsed = false,
-  userName = 'Nguyễn Văn An',
-  userEmail = 'an.nguyen@techcorp.vn',
-  userRole = 'Marketing Manager',
   avatarUrl,
-  isDark = true,
-  onToggleTheme,
   onNavigate,
   onLogout,
   className,
 }) => {
   const { showToast } = useToast()
+  const { user } = useAuth()
 
-  const handleLogout = () => {
+  const userName = user ? displayName(user) : 'Người dùng MailFlow'
+  const userEmail = user?.email ?? 'user@mailflow.vn'
+  const userRole = user ? formatAccountRole(user.roles) : 'Member'
+  const resolvedAvatar = user?.avatarUrl || avatarUrl
+
+  const handleLogout = async () => {
     if (onLogout) {
       onLogout()
-    } else {
-      showToast({
-        type: 'info',
-        title: 'Đăng xuất',
-        description: 'Bạn đã đăng xuất khỏi phiên làm việc hiện tại.',
-      })
+      return
     }
+    showToast({
+      type: 'info',
+      title: 'Đăng xuất',
+      description: 'Bạn đã đăng xuất khỏi phiên làm việc hiện tại.',
+    })
+    onNavigate?.('/login')
   }
 
   return (
@@ -74,8 +73,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({
           aria-label="Menu tài khoản người dùng"
         >
           <Avatar
-            src={avatarUrl}
-            fallbackText={userName}
+            src={resolvedAvatar}
+            fallbackText={user?.firstName || userName}
             size={collapsed ? 'sm' : 'md'}
             status="online"
           />
@@ -86,7 +85,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                 <span className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">
                   {userName}
                 </span>
-                <Badge size="sm" variant="default" className="text-[10px] px-1.5 py-0 h-4">
+                <Badge size="sm" variant="default" className="text-[10px] px-1.5 py-0 h-4 uppercase">
                   {userRole}
                 </Badge>
               </div>
@@ -102,7 +101,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
           <div className="font-bold text-xs text-slate-900 dark:text-slate-100">{userName}</div>
           <div className="text-[11px] text-slate-500 truncate font-mono mt-0.5">{userEmail}</div>
           <div className="mt-1.5 flex items-center gap-1.5">
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold border border-blue-200 dark:border-blue-800/80">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold border border-blue-200 dark:border-blue-800/80 uppercase">
               {userRole}
             </span>
           </div>
@@ -138,25 +137,6 @@ export const UserMenu: React.FC<UserMenuProps> = ({
           <CreditCard className="w-4 h-4 mr-2 text-slate-400" />
           <span>Gói cước & Thanh toán</span>
         </DropdownMenuItem>
-
-        <DropdownMenuSeparator />
-
-        {/* Theme Toggle in Menu */}
-        {onToggleTheme && (
-          <DropdownMenuItem onClick={onToggleTheme}>
-            {isDark ? (
-              <>
-                <Sun className="w-4 h-4 mr-2 text-amber-400" />
-                <span>Chuyển sang Giao diện Sáng</span>
-              </>
-            ) : (
-              <>
-                <Moon className="w-4 h-4 mr-2 text-indigo-400" />
-                <span>Chuyển sang Giao diện Tối</span>
-              </>
-            )}
-          </DropdownMenuItem>
-        )}
 
         <DropdownMenuSeparator />
 

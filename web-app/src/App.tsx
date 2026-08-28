@@ -43,6 +43,7 @@ import { WorkspaceSettingsPage } from './views/WorkspaceSettingsPage'
 import { NotificationsPage } from './views/NotificationsPage'
 import { ProfilePage } from './views/ProfilePage'
 import { NotificationProvider } from './context/NotificationContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import {
   LoginPage,
   RegisterPage,
@@ -175,6 +176,7 @@ const ROUTE_CONFIGS: Record<string, RouteConfig> = {
 
 export function AppContent() {
   const { showToast } = useToast()
+  const { loading: authLoading, logout } = useAuth()
   const { roleMetadata } = usePermission()
 
   // Track active browser path
@@ -215,8 +217,35 @@ export function AppContent() {
     window.history.pushState({}, '', path)
   }
 
+  const handleLogout = async () => {
+    try {
+      await logout()
+      showToast({
+        type: 'success',
+        title: 'Đăng xuất thành công',
+        description: 'Bạn đã đăng xuất an toàn khỏi hệ thống.',
+      })
+    } catch {
+      showToast({
+        type: 'info',
+        title: 'Đã đăng xuất',
+        description: 'Phiên làm việc đã kết thúc.',
+      })
+    } finally {
+      handleNavigate('/login')
+    }
+  }
+
   // Tách base path bỏ qua query params (?email=... hoặc ?token=...)
   const basePath = currentPath.split('?')[0]
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center">
+        <div className="text-sm font-medium text-slate-500">Đang tải phiên làm việc…</div>
+      </div>
+    )
+  }
 
   // 1. AUTHENTICATION SCREENS (Full-page clean layout)
   if (basePath === '/login') {
@@ -275,6 +304,7 @@ export function AppContent() {
       isDark={isDark}
       onToggleTheme={() => setIsDark(!isDark)}
       onNavigate={handleNavigate}
+      onLogout={handleLogout}
     >
       <PageContainer variant="wide" className="py-6">
         <ProtectedRoute path={basePath} onNavigateHome={() => handleNavigate('/dashboard')}>
@@ -522,7 +552,9 @@ export function App() {
     <ToastProvider>
       <NotificationProvider>
         <PermissionProvider initialRole={ROLES.OWNER}>
-          <AppContent />
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
         </PermissionProvider>
       </NotificationProvider>
     </ToastProvider>

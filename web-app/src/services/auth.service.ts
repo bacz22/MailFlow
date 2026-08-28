@@ -4,6 +4,7 @@ import type {
   LoginResponse,
   RefreshResponse,
   RegisterResponse,
+  ResetPasswordResponse,
   SessionResponse,
   VerifyEmailResponse,
 } from '../types/auth.types'
@@ -119,5 +120,37 @@ export const authService = {
         email: email.trim().toLowerCase(),
       }),
     })
+  },
+
+  /**
+   * Gọi API yêu cầu đặt lại mật khẩu POST /auth/forgot-password
+   */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    return apiClient<{ message: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+      }),
+    })
+  },
+
+  /**
+   * Gọi API đặt lại mật khẩu POST /auth/reset-password
+   */
+  async resetPassword(
+    token: string,
+    password: string,
+    confirmPassword: string
+  ): Promise<ResetPasswordResponse> {
+    const res = await apiClient<ResetPasswordResponse>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        token: token.trim(),
+        password,
+        confirmPassword,
+      }),
+    })
+    setAccessToken(null)
+    return res
   },
 }

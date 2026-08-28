@@ -1,16 +1,16 @@
 package com.mailflow.auth;
 
-import com.mailflow.auth.dto.AuthRefreshResult;
-import com.mailflow.auth.service.RefreshTokenGenerator;
-import com.mailflow.auth.service.impl.AuthService;
+import com.mailflow.auth.application.result.RefreshResult;
+import com.mailflow.auth.infrastructure.token.SecureTokenGenerator;
+import com.mailflow.auth.application.RefreshTokenService;
 import com.mailflow.common.exception.AppException;
-import com.mailflow.entity.AuthSession;
-import com.mailflow.entity.RefreshToken;
-import com.mailflow.entity.User;
-import com.mailflow.entity.UserStatus;
-import com.mailflow.repository.AuthSessionRepository;
-import com.mailflow.repository.RefreshTokenRepository;
-import com.mailflow.repository.UserRepository;
+import com.mailflow.auth.domain.model.AuthSession;
+import com.mailflow.auth.domain.model.RefreshToken;
+import com.mailflow.user.domain.model.User;
+import com.mailflow.user.domain.model.UserStatus;
+import com.mailflow.auth.domain.repository.AuthSessionRepository;
+import com.mailflow.auth.domain.repository.RefreshTokenRepository;
+import com.mailflow.user.domain.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,7 +25,6 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -44,13 +43,13 @@ class ConcurrentRefreshIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
-    private RefreshTokenGenerator refreshTokenGenerator;
+    private SecureTokenGenerator refreshTokenGenerator;
 
     @Autowired
-    private AuthService authService;
+    private RefreshTokenService refreshTokenService;
 
     @Test
-    @DisplayName("Kiểm thử đồng thời (Concurrency Test): Hai request refresh cùng lúc chỉ 1 request thành công, request còn lại bị Reuse Detection và Session bị revoke vĩnh viễn")
+    @DisplayName("Hai request refresh đồng thời trong grace window đều thành công và session không bị revoke")
     void concurrentRefresh_onlyOneSucceeds_andReuseDetected() throws Exception {
         // 1. Tạo user & session & refresh token hợp lệ trong database
         String email = "concurrent." + UUID.randomUUID() + "@mailflow.dev";
@@ -94,7 +93,7 @@ class ConcurrentRefreshIntegrationTest {
             executor.submit(() -> {
                 try {
                     startLatch.await(); // Chờ hiệu lệnh xuất phát đồng thời
-                    AuthRefreshResult result = authService.refresh(tokenToRefresh, null);
+                    RefreshResult result = refreshTokenService.refresh(tokenToRefresh);
                     if (result != null && result.getResponse() != null) {
                         successCount.incrementAndGet();
                     }
@@ -122,16 +121,15 @@ class ConcurrentRefreshIntegrationTest {
 
         // 3. Khẳng định: Chính xác 1 request thành công và 1 request bị phát hiện reuse
         assertThat(successCount.get())
-                .as("Chính xác 1 request refresh phải thành công")
-                .isEqualTo(1);
+                .as("Cả hai request refresh trong grace window phải thành công")
+                .isEqualTo(2);
 
         assertThat(reuseDetectedCount.get())
-                .as("Request thứ hai đến sau phải bị chặn bởi REFRESH_TOKEN_REUSE_DETECTED")
-                .isEqualTo(1);
+                .as("Không được coi refresh đồng thời trong grace là reuse")
+                .isZero();
 
-        // 4. Khẳng định: Session bị thu hồi trong database do phát hiện hành vi reuse
+        // Session vẫn còn hiệu lực — không bị thu hồi vì race hai tab
         AuthSession reloadedSession = authSessionRepository.findById(sessionId).orElseThrow();
-        assertThat(reloadedSession.isRevoked()).isTrue();
-        assertThat(reloadedSession.getRevokeReason()).isEqualTo("REUSE_DETECTED");
+        assertThat(reloadedSession.isRevoked()).isFalse();
     }
 }

@@ -1,7 +1,7 @@
 package com.mailflow.common.exception;
 
-import com.mailflow.common.dto.ApiErrorResponse;
-import com.mailflow.common.dto.FieldErrorDetail;
+import com.mailflow.common.api.ApiErrorResponse;
+import com.mailflow.common.api.FieldErrorDetail;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -90,6 +90,25 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.BAD_REQUEST.value())
                 .code("BAD_REQUEST")
                 .detail(ex.getMessage())
+                .instance(request.getRequestURI())
+                .requestId(getOrCreateRequestId(request))
+                .timestamp(Instant.now())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponse> handleMaxUploadSize(
+            org.springframework.web.multipart.MaxUploadSizeExceededException ex,
+            HttpServletRequest request
+    ) {
+        ApiErrorResponse response = ApiErrorResponse.builder()
+                .type("https://mailflow.dev/problems/avatar-too-large")
+                .title("File quá lớn")
+                .status(HttpStatus.BAD_REQUEST.value())
+                .code("AVATAR_TOO_LARGE")
+                .detail("Ảnh đại diện tối đa 2MB.")
                 .instance(request.getRequestURI())
                 .requestId(getOrCreateRequestId(request))
                 .timestamp(Instant.now())

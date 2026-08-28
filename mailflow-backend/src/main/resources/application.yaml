@@ -5,7 +5,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5433/mailflow_db}
     username: ${DB_USERNAME:mailflow}
-    password: ${DB_PASSWORD:}
+    password: ${DB_PASSWORD:123456a@}
     driver-class-name: org.postgresql.Driver
 
     hikari:
@@ -34,11 +34,23 @@ spring:
     validate-on-migrate: true
     clean-disabled: true
 
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 2MB
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      repositories:
+        enabled: false
+
   mail:
     host: ${SMTP_HOST:smtp.gmail.com}
     port: ${SMTP_PORT:587}
-    username: ${SMTP_USERNAME:}
-    password: ${SMTP_PASSWORD:}
+    username: ${SMTP_USERNAME:mailflow.bac.dev@gmail.com}
+    password: ${SMTP_PASSWORD:rrng xsar lvfn tyat}
     properties:
       mail:
         smtp:
@@ -53,8 +65,10 @@ spring:
 mailflow:
   app:
     client-url: ${APP_CLIENT_URL:http://localhost:5173}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
   mail:
-    from-email: ${MAIL_FROM_EMAIL:no-reply@mailflow.dev}
+    from-email: ${MAIL_FROM_EMAIL:mailflow.bac.dev@gmail.com}
     from-name: ${MAIL_FROM_NAME:MailFlow Platform}
   auth:
     issuer: ${JWT_ISSUER:mailflow-api}
@@ -64,12 +78,20 @@ mailflow:
     remember-me-refresh-token-ttl: ${JWT_REMEMBER_ME_REFRESH_TOKEN_TTL:30d}
     refresh-cookie-name: ${REFRESH_COOKIE_NAME:mf_refresh}
     refresh-cookie-secure: ${REFRESH_COOKIE_SECURE:false}
+    refresh-grace-ttl: ${REFRESH_GRACE_TTL:10s}
+    refresh-grace-store: ${REFRESH_GRACE_STORE:redis}
     key-id: ${JWT_KEY_ID:mailflow-auth-local}
     private-key: ${JWT_PRIVATE_KEY:}
     public-key: ${JWT_PUBLIC_KEY:}
+  cloudinary:
+    cloud-name: ${CLOUDINARY_CLOUD_NAME:dusx4ymdy}
+    api-key: ${CLOUDINARY_API_KEY:458343336469922}
+    api-secret: ${CLOUDINARY_API_SECRET:dWGPXlmWLzOB88F-6A6Zb3ik5_k}
+    folder: ${CLOUDINARY_FOLDER:mailflow/avatars}
 
 server:
   port: 8080
+  forward-headers-strategy: framework
 
 management:
   endpoints:

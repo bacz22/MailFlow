@@ -74,8 +74,11 @@ export async function apiClient<T>(
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
 
   const defaultHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
     Accept: 'application/json',
+  }
+
+  if (!(options.body instanceof FormData)) {
+    defaultHeaders['Content-Type'] = 'application/json'
   }
 
   if (inMemoryAccessToken) {
@@ -96,8 +99,17 @@ export async function apiClient<T>(
     return {} as T
   }
 
-  // Handle 401 Unauthorized with Single-flight Refresh (trừ các endpoint auth)
-  if (response.status === 401 && !isRetry && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/refresh') && !endpoint.includes('/auth/register')) {
+  const isPublicAuthEndpoint = [
+    '/auth/login',
+    '/auth/refresh',
+    '/auth/register',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+    '/auth/verify-email',
+    '/auth/resend-verification',
+  ].some((path) => endpoint.includes(path))
+
+  if (response.status === 401 && !isRetry && !isPublicAuthEndpoint) {
     const newAccessToken = await performTokenRefresh()
     if (newAccessToken) {
       return apiClient<T>(endpoint, options, true)

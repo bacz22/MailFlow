@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Mail, ArrowLeft, CheckCircle2, RefreshCw, Send } from 'lucide-react'
+import { Mail, ArrowLeft, CheckCircle2, RefreshCw, Send, KeyRound } from 'lucide-react'
 import { AuthLayout } from './AuthLayout'
 import { forgotPasswordSchema } from '../../schemas/auth.schemas'
 import type { ForgotPasswordFormData } from '../../schemas/auth.schemas'
@@ -9,6 +9,8 @@ import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { FormField, FormLabel, FormMessage } from '../../components/ui/FormGroup'
 import { useToast } from '../../components/ui/Toast'
+import { authService } from '../../services/auth.service'
+import { ApiError } from '../../services/apiClient'
 
 export interface ForgotPasswordPageProps {
   onNavigate?: (path: string) => void
@@ -18,6 +20,8 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNaviga
   const { showToast } = useToast()
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null)
   const [countdown, setCountdown] = useState(0)
+  const [isResending, setIsResending] = useState(false)
+  const [manualToken, setManualToken] = useState('')
 
   const {
     register,
@@ -37,26 +41,72 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNaviga
     }
   }, [countdown])
 
-  const onSubmit = async (data: ForgotPasswordFormData) => {
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    setSubmittedEmail(data.email)
+  const requestReset = async (email: string) => {
+    const response = await authService.forgotPassword(email)
+    setSubmittedEmail(email.trim().toLowerCase())
     setCountdown(60)
     showToast({
       type: 'success',
       title: 'Đã gửi email',
-      description: `Đã gửi liên kết khôi phục tới ${data.email}.`,
+      description: response.message || `Đã gửi liên kết khôi phục tới ${email}.`,
     })
   }
 
+  const onSubmit = async (data: ForgotPasswordFormData) => {
+    try {
+      await requestReset(data.email)
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        showToast({
+          type: 'error',
+          title: err.code === 'RATE_LIMITED' ? 'Quá nhiều yêu cầu' : 'Gửi liên kết thất bại',
+          description: err.detail || err.message,
+        })
+      } else {
+        showToast({
+          type: 'error',
+          title: 'Lỗi kết nối',
+          description: 'Không thể kết nối đến máy chủ. Vui lòng thử lại sau.',
+        })
+      }
+    }
+  }
+
   const handleResend = async () => {
-    if (countdown > 0 || !submittedEmail) return
-    await new Promise((resolve) => setTimeout(resolve, 600))
-    setCountdown(60)
-    showToast({
-      type: 'info',
-      title: 'Đã gửi lại',
-      description: `Đã gửi lại email khôi phục mật khẩu.`,
-    })
+    if (countdown > 0 || !submittedEmail || isResending) return
+    setIsResending(true)
+    try {
+      await requestReset(submittedEmail)
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        showToast({
+          type: 'error',
+          title: err.code === 'RATE_LIMITED' ? 'Quá nhiều yêu cầu' : 'Gửi lại thất bại',
+          description: err.detail || err.message,
+        })
+      } else {
+        showToast({
+          type: 'error',
+          title: 'Lỗi kết nối',
+          description: 'Không thể kết nối đến máy chủ.',
+        })
+      }
+    } finally {
+      setIsResending(false)
+    }
+  }
+
+  const handleContinueWithToken = () => {
+    const token = manualToken.trim()
+    if (!token) {
+      showToast({
+        type: 'error',
+        title: 'Chưa có mã',
+        description: 'Vui lòng dán mã đặt lại mật khẩu nhận được trong email.',
+      })
+      return
+    }
+    onNavigate?.(`/reset-password?token=${encodeURIComponent(token)}`)
   }
 
   return (
@@ -69,7 +119,6 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNaviga
       }
     >
       {!submittedEmail ? (
-        /* Form State */
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
           <FormField>
             <FormLabel required>Email tài khoản</FormLabel>
@@ -108,7 +157,6 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNaviga
           </div>
         </form>
       ) : (
-        /* Success State */
         <div className="space-y-5 text-center animate-in fade-in-0">
           <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400 mx-auto shadow-md">
             <CheckCircle2 className="w-7 h-7" />
@@ -119,9 +167,41 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNaviga
               Đã Gửi Hướng Dẫn Khôi Phục
             </h3>
             <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-              Chúng tôi đã gửi một email chứa liên kết bảo mật để đặt lại mật khẩu đến địa chỉ{' '}
-              <strong className="font-mono text-blue-600 dark:text-blue-400 font-bold">{submittedEmail}</strong>.
+              Nếu địa chỉ{' '}
+              <strong className="font-mono text-blue-600 dark:text-blue-400 font-bold">{submittedEmail}</strong>
+              {' '}đã được đăng ký, chúng tôi đã gửi mã bảo mật để đặt lại mật khẩu.
             </p>
+          </div>
+
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/80 text-left space-y-2">
+            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+              <KeyRound className="w-3.5 h-3.5 text-blue-600" />
+              Hoặc nhập mã Token đặt lại mật khẩu trực tiếp:
+            </label>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <Input
+                  placeholder="Dán mã token tại đây..."
+                  value={manualToken}
+                  onChange={(e) => setManualToken(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleContinueWithToken()
+                    }
+                  }}
+                  className="text-xs font-mono w-full"
+                />
+              </div>
+              <Button
+                size="sm"
+                variant="primary"
+                className="shrink-0 px-3.5 font-semibold text-xs h-[38px]"
+                onClick={handleContinueWithToken}
+              >
+                Tiếp tục
+              </Button>
+            </div>
           </div>
 
           <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-500 text-left space-y-1">
@@ -132,7 +212,6 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNaviga
             </ul>
           </div>
 
-          {/* Action buttons */}
           <div className="space-y-2 pt-1">
             <Button
               type="button"
@@ -140,7 +219,8 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNaviga
               size="md"
               className="w-full justify-center text-xs"
               onClick={handleResend}
-              disabled={countdown > 0}
+              disabled={countdown > 0 || isResending}
+              isLoading={isResending}
               leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${countdown > 0 ? '' : 'text-blue-600'}`} />}
             >
               {countdown > 0 ? `Gửi lại sau (${countdown}s)` : 'Gửi lại email'}

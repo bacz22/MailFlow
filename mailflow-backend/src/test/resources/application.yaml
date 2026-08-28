@@ -1,11 +1,29 @@
 spring:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5433/mailflow_db}
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/mailflow_test}
     username: ${DB_USERNAME:mailflow}
     password: ${DB_PASSWORD:123456a@}
+  data:
+    redis:
+      repositories:
+        enabled: false
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisReactiveAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.health.DataRedisHealthContributorAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.health.DataRedisReactiveHealthContributorAutoConfiguration
 
 mailflow:
   auth:
     issuer: mailflow-api
     audience: mailflow-api
     refresh-cookie-name: mf_refresh
+    refresh-grace-ttl: 10s
+    refresh-grace-store: memory
+
+management:
+  health:
+    redis:
+      enabled: false

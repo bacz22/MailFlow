@@ -22,6 +22,7 @@ export interface HeaderProps {
   isDark?: boolean
   onToggleTheme?: () => void
   onNavigate?: (path: string) => void
+  onLogout?: () => void
   onQuickSearchClick?: () => void
   onCreateClick?: () => void
   className?: string
@@ -36,6 +37,7 @@ export const Header: React.FC<HeaderProps> = ({
   isDark = true,
   onToggleTheme,
   onNavigate,
+  onLogout,
   onQuickSearchClick,
   onCreateClick,
   className,
@@ -144,6 +146,7 @@ export const Header: React.FC<HeaderProps> = ({
             isDark={isDark}
             onToggleTheme={onToggleTheme}
             onNavigate={onNavigate}
+            onLogout={onLogout}
           />
         </div>
       </div>

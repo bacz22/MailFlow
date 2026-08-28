@@ -12,6 +12,7 @@ import { FormField, FormLabel, FormMessage } from '../../components/ui/FormGroup
 import { useToast } from '../../components/ui/Toast'
 import { authService } from '../../services/auth.service'
 import { ApiError } from '../../services/apiClient'
+import { useAuth } from '../../context/AuthContext'
 
 export interface LoginPageProps {
   onNavigate?: (path: string) => void
@@ -23,6 +24,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   onLoginSuccess,
 }) => {
   const { showToast } = useToast()
+  const { refreshUser } = useAuth()
   const [serverError, setServerError] = useState<string | null>(null)
 
   const {
@@ -47,6 +49,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
     try {
       const response = await authService.login(data)
+      await refreshUser()
 
       showToast({
         type: 'success',

@@ -1,0 +1,3 @@
+ALTER TABLE users
+    ADD COLUMN phone VARCHAR(30),
+    ADD COLUMN job_title VARCHAR(120);

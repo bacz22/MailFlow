@@ -28,6 +28,7 @@ export interface SidebarProps {
   collapsed?: boolean
   onToggleCollapse?: () => void
   onNavigate?: (path: string) => void
+  onLogout?: () => void
   isDark?: boolean
   onToggleTheme?: () => void
   className?: string
@@ -38,11 +39,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   collapsed = false,
   onToggleCollapse,
   onNavigate,
+  onLogout,
   isDark = true,
   onToggleTheme,
   className,
 }) => {
-  const { canAccessRoute, roleMetadata } = usePermission()
+  const { canAccessRoute } = usePermission()
 
   const handleNav = (path: string) => {
     onNavigate?.(path)
@@ -228,10 +230,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-2 border-t border-slate-100 dark:border-slate-800 space-y-1 bg-slate-50/50 dark:bg-slate-900/50">
         <UserMenu
           collapsed={collapsed}
-          userRole={roleMetadata.name}
           isDark={isDark}
           onToggleTheme={onToggleTheme}
           onNavigate={handleNav}
+          onLogout={onLogout}
         />
 
         {onToggleCollapse && (

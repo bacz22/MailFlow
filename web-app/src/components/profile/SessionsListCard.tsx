@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Laptop,
   Smartphone,
   LogOut,
   ShieldAlert,
+  Loader2,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/Card'
 import { Button } from '../ui/Button'
@@ -17,68 +18,123 @@ import {
 } from '../ui/Dialog'
 import { useToast } from '../ui/Toast'
 import type { UserSession } from '../../types/profile.types'
+import { authService } from '../../services/auth.service'
 
-const INITIAL_SESSIONS: UserSession[] = [
+function formatSessionIp(ip: string | null | undefined): string {
+  if (!ip || !ip.trim()) {
+    return 'Không xác định'
+  }
+  const value = ip.trim()
+  if (
+    value === '::1' ||
+    value === '0:0:0:0:0:0:0:1' ||
+    value.toLowerCase() === 'https://example.net/id/garnet'
+  ) {
+    return '127.0.0.1'
+  }
+  return value
+}
+
+const DEFAULT_SESSIONS: UserSession[] = [
   {
-    id: 'sess-1',
-    device: 'Máy Tính Để Bàn (Windows PC)',
-    browser: 'Chrome 128.0',
-    os: 'Windows 11 Pro',
-    location: 'Hà Nội, Việt Nam',
-    ipAddress: '113.190.234.12',
+    id: 'sess-current',
+    device: 'Thiết Bị Này',
+    browser: 'Trình duyệt hiện tại',
+    os: 'Hệ điều hành',
+    location: 'Việt Nam',
+    ipAddress: '127.0.0.1',
     lastActive: 'Đang hoạt động (Hiện tại)',
     isCurrent: true,
-  },
-  {
-    id: 'sess-2',
-    device: 'MacBook Pro 16"',
-    browser: 'Safari 17.4',
-    os: 'macOS Sonoma',
-    location: 'TP. Hồ Chí Minh, Việt Nam',
-    ipAddress: '14.161.45.88',
-    lastActive: '2 giờ trước',
-    isCurrent: false,
-  },
-  {
-    id: 'sess-3',
-    device: 'iPhone 15 Pro Max',
-    browser: 'MailFlow Mobile iOS App',
-    os: 'iOS 17.5',
-    location: 'Hà Nội, Việt Nam',
-    ipAddress: '113.190.234.12',
-    lastActive: 'Hôm qua lúc 19:40',
-    isCurrent: false,
   },
 ]
 
 export const SessionsListCard: React.FC = () => {
   const { showToast } = useToast()
-  const [sessions, setSessions] = useState<UserSession[]>(INITIAL_SESSIONS)
+  const [sessions, setSessions] = useState<UserSession[]>(DEFAULT_SESSIONS)
+  const [isLoading, setIsLoading] = useState<boolean>(true)
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isLoggingOutOthers, setIsLoggingOutOthers] = useState(false)
+
+  const fetchSessions = async () => {
+    try {
+      const data = await authService.getSessions()
+      if (data && Array.isArray(data) && data.length > 0) {
+        setSessions(
+          data.map((s) => {
+            const isCurrent = !!(s.isCurrent ?? s.current)
+            return {
+              id: s.id,
+              device: isCurrent ? 'Thiết Bị Này' : s.device || 'Máy tính / Thiết bị',
+              browser: s.browser || 'Trình duyệt Web',
+              os: s.operatingSystem || 'Hệ điều hành',
+              location: 'Việt Nam',
+              ipAddress: formatSessionIp(s.ipAddress),
+              lastActive: isCurrent
+                ? 'Đang hoạt động (Hiện tại)'
+                : new Date(s.lastActiveAt).toLocaleString('vi-VN'),
+              isCurrent,
+            }
+          })
+        )
+      }
+    } catch {
+      // Fallback giữ nguyên session hiện tại nếu lỗi kết nối
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchSessions()
+  }, [])
 
   const otherSessionsCount = sessions.filter((s) => !s.isCurrent).length
 
   const handleLogoutOthers = async () => {
     setIsLoggingOutOthers(true)
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    setIsLoggingOutOthers(false)
-    setSessions((prev) => prev.filter((s) => s.isCurrent))
-    setIsConfirmOpen(false)
-    showToast({
-      type: 'success',
-      title: 'Đã đăng xuất khỏi các thiết bị khác',
-      description: 'Tất cả các phiên làm việc trên các thiết bị khác đã bị vô hiệu hóa an toàn.',
-    })
+    try {
+      const otherSessions = sessions.filter((s) => !s.isCurrent)
+      for (const s of otherSessions) {
+        await authService.revokeSession(s.id)
+      }
+      setSessions((prev) => prev.filter((s) => s.isCurrent))
+      setIsConfirmOpen(false)
+      showToast({
+        type: 'success',
+        title: 'Đã đăng xuất khỏi các thiết bị khác',
+        description: 'Tất cả các phiên làm việc trên các thiết bị khác đã bị vô hiệu hóa an toàn.',
+      })
+    } catch {
+      showToast({
+        type: 'error',
+        title: 'Lỗi',
+        description: 'Không thể đăng xuất tất cả các thiết bị khác.',
+      })
+    } finally {
+      setIsLoggingOutOthers(false)
+    }
   }
 
-  const handleLogoutSingleSession = (sessionId: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== sessionId))
-    showToast({
-      type: 'success',
-      title: 'Đã đóng phiên làm việc',
-      description: 'Thiết bị đã được đăng xuất thành công.',
-    })
+  const handleLogoutSingleSession = async (sessionId: string) => {
+    const target = sessions.find((s) => s.id === sessionId)
+    if (!target || target.isCurrent) {
+      return
+    }
+    try {
+      await authService.revokeSession(sessionId)
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId))
+      showToast({
+        type: 'success',
+        title: 'Đã đóng phiên làm việc',
+        description: 'Thiết bị đã được đăng xuất thành công.',
+      })
+    } catch {
+      showToast({
+        type: 'error',
+        title: 'Lỗi thu hồi',
+        description: 'Không thể đăng xuất phiên làm việc.',
+      })
+    }
   }
 
   return (
@@ -109,66 +165,73 @@ export const SessionsListCard: React.FC = () => {
       </CardHeader>
 
       <CardContent className="p-5 divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-        {sessions.map((sess) => (
-          <div
-            key={sess.id}
-            className="py-3.5 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-          >
-            <div className="flex items-start gap-3.5">
-              <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
-                  sess.isCurrent
-                    ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-600 border-blue-200 dark:border-blue-900'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'
-                }`}
-              >
-                {sess.device.includes('iPhone') || sess.device.includes('Mobile') ? (
-                  <Smartphone className="w-5 h-5" />
-                ) : (
-                  <Laptop className="w-5 h-5" />
-                )}
-              </div>
-
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-slate-900 dark:text-slate-100">
-                    {sess.device}
-                  </span>
-                  {sess.isCurrent && (
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
-                      Thiết Bị Này
-                    </span>
+        {isLoading ? (
+          <div className="py-8 flex items-center justify-center gap-2 text-slate-500">
+            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+            <span>Đang tải danh sách phiên đăng nhập...</span>
+          </div>
+        ) : (
+          sessions.map((sess) => (
+            <div
+              key={sess.id}
+              className="py-3.5 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            >
+              <div className="flex items-start gap-3.5">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                    sess.isCurrent
+                      ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-600 border-blue-200 dark:border-blue-900'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  {sess.device.includes('iPhone') || sess.device.includes('Mobile') || sess.device.includes('Android') ? (
+                    <Smartphone className="w-5 h-5" />
+                  ) : (
+                    <Laptop className="w-5 h-5" />
                   )}
                 </div>
 
-                <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
-                  <span>{sess.browser} • {sess.os}</span>
-                  <span>• {sess.location}</span>
-                  <span className="font-mono">({sess.ipAddress})</span>
-                </div>
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-slate-900 dark:text-slate-100">
+                      {sess.device}
+                    </span>
+                    {sess.isCurrent && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                        Thiết Bị Này
+                      </span>
+                    )}
+                  </div>
 
-                <div className="text-[10px] text-slate-400 font-mono pt-0.5">
-                  {sess.lastActive}
+                  <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
+                    <span>{sess.browser} • {sess.os}</span>
+                    <span>• {sess.location}</span>
+                    <span className="font-mono">({sess.ipAddress})</span>
+                  </div>
+
+                  <div className="text-[10px] text-slate-400 font-mono pt-0.5">
+                    {sess.lastActive}
+                  </div>
                 </div>
               </div>
+
+              {/* Action button */}
+              {!sess.isCurrent && (
+                <div className="sm:self-center">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-rose-600 hover:bg-rose-50 text-xs h-7 px-2.5"
+                    onClick={() => handleLogoutSingleSession(sess.id)}
+                  >
+                    Đăng Xuất
+                  </Button>
+                </div>
+              )}
             </div>
-
-            {/* Action button */}
-            {!sess.isCurrent && (
-              <div className="sm:self-center">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-rose-600 hover:bg-rose-50 text-xs h-7 px-2.5"
-                  onClick={() => handleLogoutSingleSession(sess.id)}
-                >
-                  Đăng Xuất
-                </Button>
-              </div>
-            )}
-          </div>
-        ))}
+          ))
+        )}
       </CardContent>
 
       {/* Confirmation Modal */}

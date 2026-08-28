@@ -1,16 +1,16 @@
 package com.mailflow.auth;
 
-import com.mailflow.auth.service.AuthSessionRevocationService;
-import com.mailflow.auth.service.RefreshTokenGenerator;
-import com.mailflow.auth.service.impl.AuthService;
+import com.mailflow.auth.application.AuthSessionRevocationService;
+import com.mailflow.auth.infrastructure.token.SecureTokenGenerator;
+import com.mailflow.auth.application.RefreshTokenService;
 import com.mailflow.common.exception.AppException;
-import com.mailflow.entity.AuthSession;
-import com.mailflow.entity.RefreshToken;
-import com.mailflow.entity.User;
-import com.mailflow.entity.UserStatus;
-import com.mailflow.repository.AuthSessionRepository;
-import com.mailflow.repository.RefreshTokenRepository;
-import com.mailflow.repository.UserRepository;
+import com.mailflow.auth.domain.model.AuthSession;
+import com.mailflow.auth.domain.model.RefreshToken;
+import com.mailflow.user.domain.model.User;
+import com.mailflow.user.domain.model.UserStatus;
+import com.mailflow.auth.domain.repository.AuthSessionRepository;
+import com.mailflow.auth.domain.repository.RefreshTokenRepository;
+import com.mailflow.user.domain.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,10 +36,10 @@ class AuthSessionRevocationIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
-    private RefreshTokenGenerator refreshTokenGenerator;
+    private SecureTokenGenerator refreshTokenGenerator;
 
     @Autowired
-    private AuthService authService;
+    private RefreshTokenService refreshTokenService;
 
     @Test
     @DisplayName("Tích hợp DB: Khi phát hiện token reuse, việc revoke Session PHẢI được commit vào DB dù AuthService ném RuntimeException")
@@ -75,7 +75,7 @@ class AuthSessionRevocationIntegrationTest {
         final UUID tokenId = consumedToken.getId();
 
         // 2. Gọi refresh() với token đã bị consumed -> Phải ném AppException REFRESH_TOKEN_REUSE_DETECTED
-        assertThatThrownBy(() -> authService.refresh(rawToken, null))
+        assertThatThrownBy(() -> refreshTokenService.refresh(rawToken))
                 .isInstanceOf(AppException.class)
                 .hasFieldOrPropertyWithValue("code", "REFRESH_TOKEN_REUSE_DETECTED");
 

@@ -11,6 +11,7 @@ export interface AppShellProps {
   isDark?: boolean
   onToggleTheme?: () => void
   onNavigate?: (path: string) => void
+  onLogout?: () => void
   children: React.ReactNode
   className?: string
 }
@@ -21,6 +22,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   isDark = true,
   onToggleTheme,
   onNavigate,
+  onLogout,
   children,
   className,
 }) => {
@@ -72,6 +74,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           collapsed={isSidebarCollapsed}
           onToggleCollapse={toggleSidebarCollapse}
           onNavigate={handleNavigate}
+          onLogout={onLogout}
           isDark={isDark}
           onToggleTheme={onToggleTheme}
         />
@@ -84,6 +87,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             currentPath={currentPath}
             collapsed={false}
             onNavigate={handleNavigate}
+            onLogout={onLogout}
             isDark={isDark}
             onToggleTheme={onToggleTheme}
             className="border-r-0 w-full h-full"
@@ -100,6 +104,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           isDark={isDark}
           onToggleTheme={onToggleTheme}
           onNavigate={handleNavigate}
+          onLogout={onLogout}
         />
 
         {/* Page Content Viewport */}

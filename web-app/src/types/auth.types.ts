@@ -24,6 +24,27 @@ export interface UserSummaryDto {
   status: 'PENDING' | 'ACTIVE' | 'LOCKED' | 'DISABLED'
 }
 
+export interface CurrentUserResponse {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  status: 'PENDING' | 'ACTIVE' | 'LOCKED' | 'DISABLED'
+  emailVerified: boolean
+  phone: string | null
+  jobTitle: string | null
+  roles: string[]
+  twoFactorEnabled: boolean
+  avatarUrl: string | null
+}
+
+export interface UpdateProfileRequest {
+  firstName: string
+  lastName: string
+  phone?: string | null
+  jobTitle?: string | null
+}
+
 export interface RegisterResponse {
   id: string
   email: string
@@ -56,7 +77,8 @@ export interface SessionResponse {
   ipAddress: string
   lastActiveAt: string
   createdAt: string
-  isCurrent: boolean
+  isCurrent?: boolean
+  current?: boolean
 }
 
 export interface VerifyEmailRequest {
@@ -71,4 +93,22 @@ export interface VerifyEmailResponse {
 
 export interface ResendVerificationRequest {
   email: string
+}
+
+export interface ForgotPasswordRequest {
+  email: string
+}
+
+export interface ForgotPasswordResponse {
+  message: string
+}
+
+export interface ResetPasswordRequest {
+  token: string
+  password: string
+  confirmPassword: string
+}
+
+export interface ResetPasswordResponse {
+  message: string
 }
