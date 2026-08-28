@@ -15,7 +15,7 @@ export interface RemoveMemberDialogProps {
   isOpen: boolean
   onClose: () => void
   member: WorkspaceMember | null
-  onConfirmRemove: (memberId: string) => void
+  onConfirmRemove: (memberId: string) => void | Promise<void>
 }
 
 export const RemoveMemberDialog: React.FC<RemoveMemberDialogProps> = ({
@@ -30,10 +30,12 @@ export const RemoveMemberDialog: React.FC<RemoveMemberDialogProps> = ({
 
   const handleConfirm = async () => {
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    setIsSubmitting(false)
-    onConfirmRemove(member.id)
-    onClose()
+    try {
+      await onConfirmRemove(member.id)
+      onClose()
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo } from 'react'
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import type { Permission } from './permissions'
 import { ROLES, ROLES_METADATA } from './roles'
 import type { WorkspaceRole, RoleMetadata } from './roles'
@@ -23,62 +23,67 @@ export interface PermissionProviderProps {
 }
 
 export const PermissionProvider: React.FC<PermissionProviderProps> = ({
-  initialRole = ROLES.MARKETING_MANAGER,
+  initialRole = ROLES.VIEWER,
   children,
 }) => {
-  const [currentRole, setCurrentRole] = useState<WorkspaceRole>(() => {
-    try {
-      const saved = localStorage.getItem('mailflow_active_role') as WorkspaceRole
-      if (saved && saved in ROLES) return saved
-    } catch {}
-    return initialRole
-  })
+  const [currentRole, setCurrentRole] = useState<WorkspaceRole>(initialRole)
 
-  const switchRole = (role: WorkspaceRole) => {
+  const switchRole = useCallback((role: WorkspaceRole) => {
     setCurrentRole(role)
-    try {
-      localStorage.setItem('mailflow_active_role', role)
-    } catch {}
-  }
+  }, [])
 
   const roleMetadata = useMemo(() => ROLES_METADATA[currentRole], [currentRole])
   const permissions = useMemo(() => ROLE_PERMISSIONS[currentRole] || [], [currentRole])
   const permissionSet = useMemo(() => new Set(permissions), [permissions])
 
-  const hasPermission = (permission: Permission): boolean => {
-    return permissionSet.has(permission)
-  }
-
-  const hasAllPermissions = (perms: Permission[]): boolean => {
-    return perms.every((p) => permissionSet.has(p))
-  }
-
-  const hasAnyPermission = (perms: Permission[]): boolean => {
-    return perms.some((p) => permissionSet.has(p))
-  }
-
-  const canAccessRoute = (routePath: string): boolean => {
-    const requiredPermission = ROUTE_REQUIRED_PERMISSIONS[routePath]
-    if (!requiredPermission) return true // Unprotected / public route
-    return permissionSet.has(requiredPermission)
-  }
-
-  const value: PermissionContextValue = {
-    currentRole,
-    roleMetadata,
-    permissions,
-    hasPermission,
-    hasAllPermissions,
-    hasAnyPermission,
-    canAccessRoute,
-    switchRole,
-  }
-
-  return (
-    <PermissionContext.Provider value={value}>
-      {children}
-    </PermissionContext.Provider>
+  const hasPermission = useCallback(
+    (permission: Permission): boolean => permissionSet.has(permission),
+    [permissionSet]
   )
+
+  const hasAllPermissions = useCallback(
+    (perms: Permission[]): boolean => perms.every((p) => permissionSet.has(p)),
+    [permissionSet]
+  )
+
+  const hasAnyPermission = useCallback(
+    (perms: Permission[]): boolean => perms.some((p) => permissionSet.has(p)),
+    [permissionSet]
+  )
+
+  const canAccessRoute = useCallback(
+    (routePath: string): boolean => {
+      const requiredPermission = ROUTE_REQUIRED_PERMISSIONS[routePath]
+      if (!requiredPermission) return true
+      return permissionSet.has(requiredPermission)
+    },
+    [permissionSet]
+  )
+
+  const value: PermissionContextValue = useMemo(
+    () => ({
+      currentRole,
+      roleMetadata,
+      permissions,
+      hasPermission,
+      hasAllPermissions,
+      hasAnyPermission,
+      canAccessRoute,
+      switchRole,
+    }),
+    [
+      currentRole,
+      roleMetadata,
+      permissions,
+      hasPermission,
+      hasAllPermissions,
+      hasAnyPermission,
+      canAccessRoute,
+      switchRole,
+    ]
+  )
+
+  return <PermissionContext.Provider value={value}>{children}</PermissionContext.Provider>
 }
 
 export function usePermission(): PermissionContextValue {

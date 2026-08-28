@@ -18,7 +18,7 @@ export interface ChangeRoleDialogProps {
   isOpen: boolean
   onClose: () => void
   member: WorkspaceMember | null
-  onConfirmChange: (memberId: string, newRole: WorkspaceRole) => void
+  onConfirmChange: (memberId: string, newRole: WorkspaceRole) => void | Promise<void>
 }
 
 const ROLE_PERMISSIONS_SUMMARY: Record<WorkspaceRole, { keyAbilities: string[] }> = {
@@ -95,10 +95,12 @@ export const ChangeRoleDialog: React.FC<ChangeRoleDialogProps> = ({
   const handleConfirm = async () => {
     if (isSameRole) return
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    setIsSubmitting(false)
-    onConfirmChange(member.id, newRole)
-    onClose()
+    try {
+      await onConfirmChange(member.id, newRole)
+      onClose()
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (

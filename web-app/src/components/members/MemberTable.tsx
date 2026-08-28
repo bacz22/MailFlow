@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import {
   MoreVertical,
   ShieldAlert,
@@ -12,6 +12,13 @@ import {
 } from 'lucide-react'
 import { RoleBadge } from './RoleBadge'
 import { Button } from '../ui/Button'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '../ui/DropdownMenu'
 import { usePermission, PERMISSIONS } from '../../permissions'
 import type { WorkspaceMember } from '../../types/member.types'
 
@@ -35,7 +42,6 @@ export const MemberTable: React.FC<MemberTableProps> = ({
   onTransferOwnership,
 }) => {
   const { hasPermission } = usePermission()
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
 
   const isOwner = currentUserRole === 'OWNER'
   const canUpdate = hasPermission(PERMISSIONS.MEMBER_UPDATE)
@@ -119,7 +125,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                 <td className="py-3 px-4 text-slate-500 font-mono">{m.lastActiveAt}</td>
 
                 {/* Actions Context Menu */}
-                <td className="py-3 px-4 text-center relative">
+                <td className="py-3 px-4 text-center">
                   {isPending ? (
                     <div className="flex items-center justify-center gap-1">
                       <Button
@@ -150,58 +156,42 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                   ) : isSelf ? (
                     <span className="text-[11px] text-slate-400 italic">Tài khoản của bạn</span>
                   ) : (
-                    <div className="relative inline-block text-left">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0"
-                        onClick={() => setActiveMenuId(activeMenuId === m.id ? null : m.id)}
-                      >
-                        <MoreVertical className="w-4 h-4 text-slate-500" />
-                      </Button>
-
-                      {/* Dropdown Menu */}
-                      {activeMenuId === m.id && (
-                        <div
-                          className="absolute right-0 mt-1 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-30 py-1 text-xs animate-in fade-in-0"
-                          onClick={() => setActiveMenuId(null)}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer"
+                          aria-label="Tùy chọn thao tác"
                         >
-                          {canUpdate && (
-                            <button
-                              type="button"
-                              className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center gap-2 text-slate-700 dark:text-slate-200 cursor-pointer"
-                              onClick={() => onChangeRole(m)}
-                            >
-                              <ShieldAlert className="w-3.5 h-3.5 text-blue-600" />
-                              <span>Đổi Vai Trò</span>
-                            </button>
-                          )}
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        {canUpdate && (
+                          <DropdownMenuItem onClick={() => onChangeRole(m)}>
+                            <ShieldAlert className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
+                            <span>Đổi Vai Trò</span>
+                          </DropdownMenuItem>
+                        )}
 
-                          {isOwner && onTransferOwnership && (
-                            <button
-                              type="button"
-                              className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center gap-2 text-amber-700 dark:text-amber-300 cursor-pointer"
-                              onClick={() => onTransferOwnership(m)}
-                            >
-                              <Crown className="w-3.5 h-3.5 text-amber-500" />
-                              <span>Chuyển Quyền Owner</span>
-                            </button>
-                          )}
+                        {isOwner && onTransferOwnership && (
+                          <DropdownMenuItem onClick={() => onTransferOwnership(m)}>
+                            <Crown className="w-4 h-4 mr-2 text-amber-500" />
+                            <span>Chuyển Quyền Owner</span>
+                          </DropdownMenuItem>
+                        )}
 
-                          {canDelete && (
-                            <button
-                              type="button"
-                              className="w-full text-left px-3.5 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 text-rose-600 cursor-pointer border-t border-slate-100 dark:border-slate-800"
-                              onClick={() => onRemoveMember(m)}
-                            >
-                              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        {canDelete && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem variant="danger" onClick={() => onRemoveMember(m)}>
+                              <Trash2 className="w-4 h-4 mr-2" />
                               <span>Xóa Thành Viên</span>
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </td>
               </tr>

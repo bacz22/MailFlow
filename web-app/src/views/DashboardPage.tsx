@@ -13,6 +13,8 @@ import {
   CreditCard,
 } from 'lucide-react'
 import { PageHeader } from '../components/layout/PageHeader'
+import { Card, CardContent } from '../components/ui/Card'
+import { AcceptInviteForm } from '../components/workspace/AcceptInviteForm'
 import {
   MetricWidget,
   ChartCard,
@@ -88,6 +90,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </div>
         }
       />
+
+      <Card className="border-dashed border-blue-200 dark:border-blue-900/60 bg-blue-50/40 dark:bg-blue-950/20">
+        <CardContent className="p-4 space-y-2">
+          <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+            Được mời tham gia workspace?
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Dán mã token trong email thư mời (không cần bấm nút “Chấp nhận lời mời”) sau khi đã đăng nhập đúng email được mời.
+          </p>
+          <AcceptInviteForm />
+        </CardContent>
+      </Card>
 
       {/* 2. DYNAMIC METRIC CARDS (Based on Role) */}
 

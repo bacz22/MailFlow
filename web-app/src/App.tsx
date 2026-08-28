@@ -44,6 +44,7 @@ import { NotificationsPage } from './views/NotificationsPage'
 import { ProfilePage } from './views/ProfilePage'
 import { NotificationProvider } from './context/NotificationContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { WorkspaceProvider, useWorkspace } from './context/WorkspaceContext'
 import {
   LoginPage,
   RegisterPage,
@@ -63,7 +64,6 @@ import {
   PermissionGate,
   ProtectedRoute,
   PERMISSIONS,
-  ROLES,
 } from './permissions'
 
 // Page route configuration map
@@ -178,6 +178,7 @@ export function AppContent() {
   const { showToast } = useToast()
   const { loading: authLoading, logout } = useAuth()
   const { roleMetadata } = usePermission()
+  const { inviteNotice, clearInviteNotice } = useWorkspace()
 
   // Track active browser path
   const [currentPath, setCurrentPath] = useState<string>(() => {
@@ -201,6 +202,14 @@ export function AppContent() {
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
+
+  useEffect(() => {
+    if (!inviteNotice) {
+      return
+    }
+    showToast(inviteNotice)
+    clearInviteNotice()
+  }, [inviteNotice, showToast, clearInviteNotice])
 
   useEffect(() => {
     if (isDark) {
@@ -551,9 +560,11 @@ export function App() {
   return (
     <ToastProvider>
       <NotificationProvider>
-        <PermissionProvider initialRole={ROLES.OWNER}>
+        <PermissionProvider>
           <AuthProvider>
-            <AppContent />
+            <WorkspaceProvider>
+              <AppContent />
+            </WorkspaceProvider>
           </AuthProvider>
         </PermissionProvider>
       </NotificationProvider>

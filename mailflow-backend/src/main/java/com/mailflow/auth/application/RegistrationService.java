@@ -15,6 +15,7 @@ import com.mailflow.user.domain.model.User;
 import com.mailflow.user.domain.model.UserStatus;
 import com.mailflow.user.domain.repository.RoleRepository;
 import com.mailflow.user.domain.repository.UserRepository;
+import com.mailflow.workspace.application.WorkspaceBootstrapService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -45,6 +46,7 @@ public class RegistrationService {
     private final PasswordEncoder passwordEncoder;
     private final SecureTokenGenerator tokenGenerator;
     private final ApplicationEventPublisher eventPublisher;
+    private final WorkspaceBootstrapService workspaceBootstrapService;
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
@@ -74,6 +76,7 @@ public class RegistrationService {
             throw ex;
         }
 
+        workspaceBootstrapService.createOwnedWorkspace(savedUser, null);
         publishVerificationToken(savedUser);
         Set<String> roles = savedUser.getRoles().stream().map(Role::getName).collect(Collectors.toSet());
         return RegisterResponse.builder()

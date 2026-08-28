@@ -20,10 +20,29 @@ public class CloudinaryImageStorageService implements ImageStorageService {
 
     @Override
     public StoredImage uploadAvatar(UUID userId, byte[] content, String contentType) {
+        return upload(
+                cloudinaryProperties.getFolder() + "/" + userId,
+                content,
+                "user " + userId,
+                "AVATAR"
+        );
+    }
+
+    @Override
+    public StoredImage uploadWorkspaceLogo(UUID workspaceId, byte[] content, String contentType) {
+        return upload(
+                cloudinaryProperties.getLogoFolder() + "/" + workspaceId,
+                content,
+                "workspace " + workspaceId,
+                "LOGO"
+        );
+    }
+
+    private StoredImage upload(String publicId, byte[] content, String subject, String errorPrefix) {
         if (!cloudinaryProperties.isConfigured()) {
             throw new AppException(
                     HttpStatus.SERVICE_UNAVAILABLE,
-                    "AVATAR_STORAGE_UNAVAILABLE",
+                    errorPrefix + "_STORAGE_UNAVAILABLE",
                     "Chưa cấu hình Cloudinary. Hãy đặt CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY và CLOUDINARY_API_SECRET."
             );
         }
@@ -35,7 +54,6 @@ public class CloudinaryImageStorageService implements ImageStorageService {
                 "secure", true
         ));
 
-        String publicId = cloudinaryProperties.getFolder() + "/" + userId;
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> result = cloudinary.uploader().upload(content, ObjectUtils.asMap(
@@ -50,19 +68,19 @@ public class CloudinaryImageStorageService implements ImageStorageService {
             if (url == null || url.isBlank()) {
                 throw new AppException(
                         HttpStatus.BAD_GATEWAY,
-                        "AVATAR_UPLOAD_FAILED",
+                        errorPrefix + "_UPLOAD_FAILED",
                         "Cloudinary không trả về URL ảnh."
                 );
             }
-            log.info("Đã tải avatar lên Cloudinary cho user [{}]", userId);
+            log.info("Đã tải ảnh lên Cloudinary cho [{}]", subject);
             return new StoredImage(url, storedPublicId != null ? storedPublicId : publicId);
         } catch (AppException ex) {
             throw ex;
         } catch (Exception ex) {
-            log.warn("Cloudinary upload thất bại cho user [{}]: {}", userId, ex.getMessage());
+            log.warn("Cloudinary upload thất bại cho [{}]: {}", subject, ex.getMessage());
             throw new AppException(
                     HttpStatus.BAD_GATEWAY,
-                    "AVATAR_UPLOAD_FAILED",
+                    errorPrefix + "_UPLOAD_FAILED",
                     "Không tải được ảnh lên Cloudinary. Vui lòng thử lại."
             );
         }

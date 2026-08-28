@@ -27,6 +27,14 @@ public class AccessTokenService {
      * (Không chứa global roles; roles sẽ được cấp theo từng workspace sau khi user switch-workspace).
      */
     public String issueAccessToken(User user, UUID sessionId) {
+        return encode(user, sessionId, null, List.of());
+    }
+
+    public String issueWorkspaceAccessToken(User user, UUID sessionId, UUID workspaceId, List<String> roles) {
+        return encode(user, sessionId, workspaceId, roles == null ? List.of() : roles);
+    }
+
+    private String encode(User user, UUID sessionId, UUID workspaceId, List<String> roles) {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(jwtProperties.getAccessTokenTtl());
         String jti = UUID.randomUUID().toString();
@@ -36,7 +44,7 @@ public class AccessTokenService {
                 .type("at+JWT")
                 .build();
 
-        JwtClaimsSet claims = JwtClaimsSet.builder()
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
                 .issuer(jwtProperties.getIssuer())
                 .subject(user.getId().toString())
                 .audience(List.of(jwtProperties.getAudience()))
@@ -44,11 +52,15 @@ public class AccessTokenService {
                 .notBefore(now)
                 .expiresAt(expiresAt)
                 .id(jti)
-                .claim("sid", sessionId.toString())
-                .claim("token_version", 1)
-                .build();
+                .claim("token_version", 1);
+        if (sessionId != null) {
+            claims.claim("sid", sessionId.toString());
+        }
+        if (workspaceId != null) {
+            claims.claim("wid", workspaceId.toString());
+            claims.claim("roles", roles);
+        }
 
-        JwtEncoderParameters parameters = JwtEncoderParameters.from(jwsHeader, claims);
-        return jwtEncoder.encode(parameters).getTokenValue();
+        return jwtEncoder.encode(JwtEncoderParameters.from(jwsHeader, claims.build())).getTokenValue();
     }
 }

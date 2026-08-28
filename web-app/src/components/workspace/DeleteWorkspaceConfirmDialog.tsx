@@ -16,7 +16,7 @@ export interface DeleteWorkspaceConfirmDialogProps {
   isOpen: boolean
   onClose: () => void
   workspaceName: string
-  onConfirmDelete: () => void
+  onConfirmDelete: () => void | Promise<void>
 }
 
 export const DeleteWorkspaceConfirmDialog: React.FC<DeleteWorkspaceConfirmDialogProps> = ({
@@ -33,10 +33,13 @@ export const DeleteWorkspaceConfirmDialog: React.FC<DeleteWorkspaceConfirmDialog
   const handleDelete = async () => {
     if (!isMatched) return
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 600))
-    setIsSubmitting(false)
-    onConfirmDelete()
-    onClose()
+    try {
+      await onConfirmDelete()
+      setConfirmInput('')
+      onClose()
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (

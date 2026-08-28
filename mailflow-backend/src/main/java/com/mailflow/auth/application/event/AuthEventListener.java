@@ -1,6 +1,9 @@
 package com.mailflow.auth.application.event;
 
+import com.mailflow.auth.application.event.PasswordResetRequestedEvent;
+import com.mailflow.auth.application.event.UserRegisteredEvent;
 import com.mailflow.infrastructure.mail.EmailSender;
+import com.mailflow.workspace.application.event.WorkspaceMemberInvitedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -34,6 +37,18 @@ public class AuthEventListener {
                 event.getEmail(),
                 event.getFullName(),
                 event.getRawToken()
+        );
+    }
+
+    @Async("mailTaskExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleWorkspaceMemberInvitedEvent(WorkspaceMemberInvitedEvent event) {
+        log.info("Bắt đầu gửi thư mời workspace tới [{}]", event.getEmail());
+        emailService.sendWorkspaceInvitationEmail(
+                event.getEmail(),
+                event.getWorkspaceName(),
+                event.getRawToken(),
+                event.getRole()
         );
     }
 }

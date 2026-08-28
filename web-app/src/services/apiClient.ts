@@ -4,6 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 
 let inMemoryAccessToken: string | null = null
 let refreshPromise: Promise<string | null> | null = null
+let afterRefresh: (() => Promise<void>) | null = null
 
 export function setAccessToken(token: string | null) {
   inMemoryAccessToken = token
@@ -11,6 +12,10 @@ export function setAccessToken(token: string | null) {
 
 export function getAccessToken(): string | null {
   return inMemoryAccessToken
+}
+
+export function setAfterTokenRefresh(handler: (() => Promise<void>) | null) {
+  afterRefresh = handler
 }
 
 export class ApiError extends Error {
@@ -54,7 +59,10 @@ async function performTokenRefresh(): Promise<string | null> {
 
       const data = (await response.json()) as RefreshResponse
       setAccessToken(data.accessToken)
-      return data.accessToken
+      if (afterRefresh) {
+        await afterRefresh()
+      }
+      return inMemoryAccessToken
     } catch {
       setAccessToken(null)
       return null
@@ -66,11 +74,14 @@ async function performTokenRefresh(): Promise<string | null> {
   return refreshPromise
 }
 
+type ApiClientOptions = RequestInit & { skipRefresh?: boolean }
+
 export async function apiClient<T>(
   endpoint: string,
-  options: RequestInit = {},
+  options: ApiClientOptions = {},
   isRetry = false
 ): Promise<T> {
+  const { skipRefresh, ...fetchOptions } = options
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
 
   const defaultHeaders: Record<string, string> = {
@@ -86,11 +97,11 @@ export async function apiClient<T>(
   }
 
   const response = await fetch(url, {
-    ...options,
+    ...fetchOptions,
     credentials: 'include',
     headers: {
       ...defaultHeaders,
-      ...options.headers,
+      ...fetchOptions.headers,
     },
   })
 
@@ -109,7 +120,7 @@ export async function apiClient<T>(
     '/auth/resend-verification',
   ].some((path) => endpoint.includes(path))
 
-  if (response.status === 401 && !isRetry && !isPublicAuthEndpoint) {
+  if (response.status === 401 && !isRetry && !isPublicAuthEndpoint && !skipRefresh) {
     const newAccessToken = await performTokenRefresh()
     if (newAccessToken) {
       return apiClient<T>(endpoint, options, true)

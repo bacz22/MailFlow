@@ -19,4 +19,6 @@ public interface EmailSender {
      * @param rawToken      Chuỗi mã token đặt lại mật khẩu chưa băm (raw token)
      */
     void sendPasswordResetEmail(String toEmail, String recipientName, String rawToken);
+
+    void sendWorkspaceInvitationEmail(String toEmail, String workspaceName, String rawToken, String role);
 }

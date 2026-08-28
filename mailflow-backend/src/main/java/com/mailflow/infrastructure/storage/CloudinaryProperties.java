@@ -15,6 +15,7 @@ public class CloudinaryProperties {
     private String apiKey = "";
     private String apiSecret = "";
     private String folder = "mailflow/avatars";
+    private String logoFolder = "mailflow/workspace-logos";
 
     public boolean isConfigured() {
         return cloudName != null && !cloudName.isBlank()

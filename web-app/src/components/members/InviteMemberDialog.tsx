@@ -17,7 +17,7 @@ import type { WorkspaceRole } from '../../permissions/roles'
 export interface InviteMemberDialogProps {
   isOpen: boolean
   onClose: () => void
-  onInvite: (email: string, role: WorkspaceRole) => void
+  onInvite: (email: string, role: WorkspaceRole) => void | Promise<void>
 }
 
 export const InviteMemberDialog: React.FC<InviteMemberDialogProps> = ({
@@ -37,13 +37,17 @@ export const InviteMemberDialog: React.FC<InviteMemberDialogProps> = ({
     }
 
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    setIsSubmitting(false)
-    onInvite(email.trim(), role)
-    setEmail('')
-    setRole('CAMPAIGN_EDITOR')
-    setError(null)
-    onClose()
+    try {
+      await onInvite(email.trim(), role)
+      setEmail('')
+      setRole('CAMPAIGN_EDITOR')
+      setError(null)
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không thể gửi thư mời.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (

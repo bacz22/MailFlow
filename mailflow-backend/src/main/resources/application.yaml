@@ -88,6 +88,7 @@ mailflow:
     api-key: ${CLOUDINARY_API_KEY:458343336469922}
     api-secret: ${CLOUDINARY_API_SECRET:dWGPXlmWLzOB88F-6A6Zb3ik5_k}
     folder: ${CLOUDINARY_FOLDER:mailflow/avatars}
+    logo-folder: ${CLOUDINARY_LOGO_FOLDER:mailflow/workspace-logos}
 
 server:
   port: 8080

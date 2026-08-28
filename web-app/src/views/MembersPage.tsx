@@ -21,68 +21,14 @@ import {
   DialogDescription,
   DialogFooter,
 } from '../components/ui/Dialog'
+import { SimpleSelect } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
 import { usePermission, PERMISSIONS } from '../permissions'
+import { useWorkspace } from '../context/WorkspaceContext'
+import { workspaceService } from '../services/workspace.service'
+import { ApiError } from '../services/apiClient'
 import type { WorkspaceMember } from '../types/member.types'
 import type { WorkspaceRole } from '../permissions/roles'
-
-const INITIAL_MEMBERS: WorkspaceMember[] = [
-  {
-    id: 'mem-1',
-    name: 'Nguyễn Văn Admin',
-    email: 'admin@mailflow.vn',
-    role: 'OWNER',
-    status: 'ACTIVE',
-    joinedAt: '01/01/2026',
-    lastActiveAt: 'Vừa xong',
-    isCurrentUser: true,
-  },
-  {
-    id: 'mem-2',
-    name: 'Trần Minh Marketing',
-    email: 'marketing.manager@mailflow.vn',
-    role: 'MARKETING_MANAGER',
-    status: 'ACTIVE',
-    joinedAt: '10/01/2026',
-    lastActiveAt: '10 phút trước',
-  },
-  {
-    id: 'mem-3',
-    name: 'Lê Hoàng Editor',
-    email: 'editor@mailflow.vn',
-    role: 'CAMPAIGN_EDITOR',
-    status: 'ACTIVE',
-    joinedAt: '15/02/2026',
-    lastActiveAt: '1 giờ trước',
-  },
-  {
-    id: 'mem-4',
-    name: 'Phạm Thu Data Analyst',
-    email: 'analyst@mailflow.vn',
-    role: 'ANALYST',
-    status: 'ACTIVE',
-    joinedAt: '01/03/2026',
-    lastActiveAt: 'Hôm qua',
-  },
-  {
-    id: 'mem-5',
-    name: 'Vũ Đức Thành (Audience Lead)',
-    email: 'contacts.lead@mailflow.vn',
-    role: 'CONTACT_MANAGER',
-    status: 'ACTIVE',
-    joinedAt: '12/04/2026',
-    lastActiveAt: '3 ngày trước',
-  },
-  {
-    id: 'mem-6',
-    name: 'Đặng Thanh Thảo',
-    email: 'thao.dang@partner.com',
-    role: 'CAMPAIGN_EDITOR',
-    status: 'PENDING',
-    joinedAt: '25/08/2026',
-    lastActiveAt: 'Chờ chấp nhận',
-  },
-]
 
 export interface MembersPageProps {
   onNavigate: (path: string) => void
@@ -91,12 +37,12 @@ export interface MembersPageProps {
 export const MembersPage: React.FC<MembersPageProps> = ({ onNavigate: _onNavigate }) => {
   const { showToast } = useToast()
   const { hasPermission } = usePermission()
+  const { currentWorkspaceId, currentRole } = useWorkspace()
 
-  const [members, setMembers] = useState<WorkspaceMember[]>(INITIAL_MEMBERS)
+  const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('all')
 
-  // Modal dialog states
   const [isInviteOpen, setIsInviteOpen] = useState(false)
   const [selectedMemberForRole, setSelectedMemberForRole] = useState<WorkspaceMember | null>(null)
   const [selectedMemberForRemove, setSelectedMemberForRemove] = useState<WorkspaceMember | null>(null)
@@ -104,7 +50,25 @@ export const MembersPage: React.FC<MembersPageProps> = ({ onNavigate: _onNavigat
 
   const canInvite = hasPermission(PERMISSIONS.MEMBER_INVITE)
 
-  // Filtered members list
+  const loadMembers = React.useCallback(async () => {
+    if (!currentWorkspaceId) {
+      setMembers([])
+      return
+    }
+    const rows = await workspaceService.listMembers(currentWorkspaceId)
+    setMembers(rows)
+  }, [currentWorkspaceId])
+
+  React.useEffect(() => {
+    loadMembers().catch((error) => {
+      showToast({
+        type: 'error',
+        title: 'Không tải được danh sách thành viên',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    })
+  }, [loadMembers, showToast])
+
   const filteredMembers = members.filter((m) => {
     if (roleFilter !== 'all' && m.role !== roleFilter) return false
     if (searchQuery) {
@@ -116,77 +80,127 @@ export const MembersPage: React.FC<MembersPageProps> = ({ onNavigate: _onNavigat
     return true
   })
 
-  // Handlers
-  const handleInviteMember = (email: string, role: WorkspaceRole) => {
-    const newMember: WorkspaceMember = {
-      id: `mem-${Date.now()}`,
-      name: email.split('@')[0],
-      email,
-      role,
-      status: 'PENDING',
-      joinedAt: new Date().toLocaleDateString('vi-VN'),
-      lastActiveAt: 'Chờ chấp nhận',
-    }
-
-    setMembers((prev) => [...prev, newMember])
-    showToast({
-      type: 'success',
-      title: 'Đã gửi thư mời',
-      description: `Đã gửi liên kết mời tham gia tới email ${email} với vai trò ${role}.`,
-    })
-  }
-
-  const handleChangeRole = (memberId: string, newRole: WorkspaceRole) => {
-    setMembers((prev) =>
-      prev.map((m) => (m.id === memberId ? { ...m, role: newRole } : m))
-    )
-    showToast({
-      type: 'success',
-      title: 'Đã cập nhật vai trò',
-      description: `Vai trò của thành viên đã được chuyển đổi thành ${newRole}.`,
-    })
-  }
-
-  const handleRemoveMember = (memberId: string) => {
-    setMembers((prev) => prev.filter((m) => m.id !== memberId))
-    showToast({
-      type: 'success',
-      title: 'Đã xóa thành viên',
-      description: 'Thành viên đã bị thu hồi toàn bộ quyền truy cập.',
-    })
-  }
-
-  const handleResendInvite = (member: WorkspaceMember) => {
-    showToast({
-      type: 'success',
-      title: 'Đã gửi lại thư mời',
-      description: `Email thư mời đã được gửi lại tới ${member.email}.`,
-    })
-  }
-
-  const handleCancelInvite = (member: WorkspaceMember) => {
-    setMembers((prev) => prev.filter((m) => m.id !== member.id))
-    showToast({
-      type: 'info',
-      title: 'Đã hủy lời mời',
-      description: `Lời mời gửi tới ${member.email} đã được hủy bỏ.`,
-    })
-  }
-
-  const handleTransferOwnership = (member: WorkspaceMember) => {
-    setMembers((prev) =>
-      prev.map((m) => {
-        if (m.id === member.id) return { ...m, role: 'OWNER' }
-        if (m.role === 'OWNER') return { ...m, role: 'ADMIN' }
-        return m
+  const handleInviteMember = async (email: string, role: WorkspaceRole) => {
+    if (!currentWorkspaceId) return
+    try {
+      await workspaceService.inviteMember(currentWorkspaceId, email, role)
+      await loadMembers()
+      showToast({
+        type: 'success',
+        title: 'Đã gửi thư mời',
+        description: `Đã gửi liên kết mời tham gia tới email ${email} với vai trò ${role}.`,
       })
-    )
-    setSelectedMemberForTransfer(null)
-    showToast({
-      type: 'success',
-      title: 'Đã chuyển quyền Owner',
-      description: `${member.name} hiện là Chủ sở hữu (Owner) mới của Workspace.`,
-    })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không gửi được thư mời',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+      throw error
+    }
+  }
+
+  const handleChangeRole = async (memberId: string, newRole: WorkspaceRole) => {
+    if (!currentWorkspaceId) return
+    try {
+      await workspaceService.updateMemberRole(currentWorkspaceId, memberId, newRole)
+      await loadMembers()
+      showToast({
+        type: 'success',
+        title: 'Đã cập nhật vai trò',
+        description: `Vai trò của thành viên đã được chuyển đổi thành ${newRole}.`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không đổi được vai trò',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+      throw error
+    }
+  }
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!currentWorkspaceId) return
+    const target = members.find((m) => m.id === memberId)
+    try {
+      if (target?.status === 'PENDING') {
+        await workspaceService.cancelInvitation(currentWorkspaceId, memberId)
+      } else {
+        await workspaceService.removeMember(currentWorkspaceId, memberId)
+      }
+      await loadMembers()
+      showToast({
+        type: 'success',
+        title: 'Đã xóa thành viên',
+        description: 'Thành viên đã bị thu hồi toàn bộ quyền truy cập.',
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không xóa được thành viên',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+      throw error
+    }
+  }
+
+  const handleResendInvite = async (member: WorkspaceMember) => {
+    if (!currentWorkspaceId) return
+    try {
+      await workspaceService.inviteMember(currentWorkspaceId, member.email, member.role)
+      await loadMembers()
+      showToast({
+        type: 'success',
+        title: 'Đã gửi lại thư mời',
+        description: `Email thư mời đã được gửi lại tới ${member.email}.`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không gửi lại được thư mời',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    }
+  }
+
+  const handleCancelInvite = async (member: WorkspaceMember) => {
+    if (!currentWorkspaceId) return
+    try {
+      await workspaceService.cancelInvitation(currentWorkspaceId, member.id)
+      await loadMembers()
+      showToast({
+        type: 'info',
+        title: 'Đã hủy lời mời',
+        description: `Lời mời gửi tới ${member.email} đã được hủy bỏ.`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không hủy được lời mời',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    }
+  }
+
+  const handleTransferOwnership = async (member: WorkspaceMember) => {
+    if (!currentWorkspaceId) return
+    try {
+      await workspaceService.updateMemberRole(currentWorkspaceId, member.id, 'OWNER')
+      await loadMembers()
+      setSelectedMemberForTransfer(null)
+      showToast({
+        type: 'success',
+        title: 'Đã chuyển quyền Owner',
+        description: `${member.name} hiện là Chủ sở hữu (Owner) mới của Workspace.`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không chuyển được quyền Owner',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    }
   }
 
   return (
@@ -257,21 +271,25 @@ export const MembersPage: React.FC<MembersPageProps> = ({ onNavigate: _onNavigat
 
           {/* Search & Role Filter */}
           <div className="flex items-center gap-3 flex-wrap">
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-semibold focus-ring cursor-pointer"
-            >
-              <option value="all">Tất cả vai trò</option>
-              <option value="OWNER">Owner</option>
-              <option value="ADMIN">Admin</option>
-              <option value="MARKETING_MANAGER">Marketing Manager</option>
-              <option value="CAMPAIGN_EDITOR">Campaign Editor</option>
-              <option value="CONTACT_MANAGER">Contact Manager</option>
-              <option value="ANALYST">Analyst</option>
-              <option value="BILLING_MANAGER">Billing Manager</option>
-              <option value="VIEWER">Viewer</option>
-            </select>
+            <div className="w-48">
+              <SimpleSelect
+                size="sm"
+                value={roleFilter}
+                onValueChange={(val) => setRoleFilter(val)}
+                options={[
+                  { value: 'all', label: 'Tất cả vai trò' },
+                  { value: 'OWNER', label: 'Owner (Chủ sở hữu)' },
+                  { value: 'ADMIN', label: 'Admin (Quản trị viên)' },
+                  { value: 'MARKETING_MANAGER', label: 'Marketing Manager' },
+                  { value: 'CAMPAIGN_EDITOR', label: 'Campaign Editor' },
+                  { value: 'CONTACT_MANAGER', label: 'Contact Manager' },
+                  { value: 'ANALYST', label: 'Analyst (Chuyên viên PT)' },
+                  { value: 'BILLING_MANAGER', label: 'Billing Manager' },
+                  { value: 'VIEWER', label: 'Viewer (Người xem)' },
+                ]}
+                placeholder="Lọc vai trò..."
+              />
+            </div>
 
             <div className="w-full sm:w-64">
               <Input
@@ -287,7 +305,7 @@ export const MembersPage: React.FC<MembersPageProps> = ({ onNavigate: _onNavigat
         <CardContent className="p-0">
           <MemberTable
             members={filteredMembers}
-            currentUserRole="OWNER"
+            currentUserRole={currentRole}
             onChangeRole={(m) => setSelectedMemberForRole(m)}
             onRemoveMember={(m) => setSelectedMemberForRemove(m)}
             onResendInvite={handleResendInvite}

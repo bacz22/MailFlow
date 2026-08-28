@@ -104,11 +104,15 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         ApiErrorResponse response = ApiErrorResponse.builder()
-                .type("https://mailflow.dev/problems/avatar-too-large")
+                .type("https://mailflow.dev/problems/file-too-large")
                 .title("File quá lớn")
                 .status(HttpStatus.BAD_REQUEST.value())
-                .code("AVATAR_TOO_LARGE")
-                .detail("Ảnh đại diện tối đa 2MB.")
+                .code(request.getRequestURI() != null && request.getRequestURI().contains("/logo")
+                        ? "LOGO_TOO_LARGE"
+                        : "AVATAR_TOO_LARGE")
+                .detail(request.getRequestURI() != null && request.getRequestURI().contains("/logo")
+                        ? "Ảnh logo tối đa 2MB."
+                        : "Ảnh đại diện tối đa 2MB.")
                 .instance(request.getRequestURI())
                 .requestId(getOrCreateRequestId(request))
                 .timestamp(Instant.now())

@@ -123,12 +123,39 @@ public class SmtpEmailSender implements EmailSender {
         }
     }
 
+    @Override
+    public void sendWorkspaceInvitationEmail(String toEmail, String workspaceName, String rawToken, String role) {
+        String inviteUrl = buildWorkspaceInvitationUrl(rawToken);
+        log.info("Chuẩn bị gửi thư mời workspace tới [{}]", toEmail);
+        if (mailSender == null || smtpUsername == null || smtpUsername.isBlank()) {
+            log.warn("Chưa cấu hình SMTP. Thư mời workspace tới [{}] không được gửi qua Internet.", toEmail);
+            return;
+        }
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(
+                    message, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("MailFlow - Lời mời tham gia workspace");
+            helper.setText(buildInvitationEmailHtml(workspaceName, inviteUrl, rawToken, role), true);
+            mailSender.send(message);
+            log.info("Đã gửi thư mời workspace tới [{}]", toEmail);
+        } catch (MessagingException | UnsupportedEncodingException | MailException e) {
+            log.error("Không thể gửi thư mời workspace tới [{}]: {}", toEmail, e.getMessage(), e);
+        }
+    }
+
     public String buildVerificationUrl(String rawToken) {
         return clientBaseUrl() + "/verify-email?token=" + encodeToken(rawToken);
     }
 
     public String buildPasswordResetUrl(String rawToken) {
         return clientBaseUrl() + "/reset-password?token=" + encodeToken(rawToken);
+    }
+
+    public String buildWorkspaceInvitationUrl(String rawToken) {
+        return clientBaseUrl() + "/dashboard?invite=" + encodeToken(rawToken);
     }
 
     private String clientBaseUrl() {
@@ -268,5 +295,27 @@ public class SmtpEmailSender implements EmailSender {
             </body>
             </html>
             """.formatted(safeName, safeUrl, safeToken);
+    }
+
+    private String buildInvitationEmailHtml(String workspaceName, String inviteUrl, String rawToken, String role) {
+        String safeName = HtmlUtils.htmlEscape(workspaceName == null || workspaceName.isBlank() ? "workspace" : workspaceName.trim());
+        String safeUrl = HtmlUtils.htmlEscape(inviteUrl);
+        String safeToken = HtmlUtils.htmlEscape(rawToken);
+        String safeRole = HtmlUtils.htmlEscape(role == null ? "" : role);
+        return """
+            <!DOCTYPE html>
+            <html lang="vi">
+            <body style="font-family: sans-serif; background:#f8fafc; padding:24px; color:#1e293b;">
+              <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e2e8f0;padding:32px;">
+                <h1 style="color:#2563eb;">MailFlow</h1>
+                <p>Bạn được mời tham gia workspace <strong>%s</strong> với vai trò <strong>%s</strong>.</p>
+                <p><a href="%s" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;">Chấp nhận lời mời</a></p>
+                <p style="font-size:12px;color:#64748b;">Hoặc dán mã này sau khi đăng nhập:</p>
+                <p style="font-family:monospace;word-break:break-all;">%s</p>
+                <p style="font-size:12px;color:#94a3b8;">Lời mời có hiệu lực 7 ngày.</p>
+              </div>
+            </body>
+            </html>
+            """.formatted(safeName, safeRole, safeUrl, safeToken);
     }
 }
