@@ -232,11 +232,10 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
           <button
             type="button"
             onClick={() => setViewMode('grid')}
-            className={`p-1.5 rounded-lg transition cursor-pointer ${
-              viewMode === 'grid'
-                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
-                : 'text-slate-400 hover:text-slate-700'
-            }`}
+            className={`p-1.5 rounded-lg transition cursor-pointer ${viewMode === 'grid'
+              ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+              : 'text-slate-400 hover:text-slate-700'
+              }`}
             title="Dạng Lưới (Grid Cards)"
           >
             <LayoutGrid className="w-4 h-4" />
@@ -244,11 +243,10 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
           <button
             type="button"
             onClick={() => setViewMode('table')}
-            className={`p-1.5 rounded-lg transition cursor-pointer ${
-              viewMode === 'table'
-                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
-                : 'text-slate-400 hover:text-slate-700'
-            }`}
+            className={`p-1.5 rounded-lg transition cursor-pointer ${viewMode === 'table'
+              ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+              : 'text-slate-400 hover:text-slate-700'
+              }`}
             title="Dạng Bảng (Table)"
           >
             <ListIcon className="w-4 h-4" />
@@ -300,20 +298,16 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-44 text-xs">
-                        <DropdownMenuItem onClick={() => onNavigate(`/lists/${list.id}`)}>
-                          <Eye className="w-3.5 h-3.5 mr-2 text-slate-500" />
-                          <span>Xem chi tiết & danh bạ</span>
-                        </DropdownMenuItem>
                         <PermissionGate permission={PERMISSIONS.LIST_UPDATE}>
                           <DropdownMenuItem onClick={() => onNavigate(`/lists/${list.id}/edit`)}>
                             <Edit3 className="w-3.5 h-3.5 mr-2 text-blue-600" />
-                            <span>Chỉnh sửa tên danh sách</span>
+                            <span>Chỉnh sửa</span>
                           </DropdownMenuItem>
                         </PermissionGate>
                         <PermissionGate permission={PERMISSIONS.LIST_CREATE}>
                           <DropdownMenuItem onClick={() => void handleDuplicate(list)}>
                             <Copy className="w-3.5 h-3.5 mr-2 text-emerald-600" />
-                            <span>Nhân bản danh sách</span>
+                            <span>Nhân bản</span>
                           </DropdownMenuItem>
                         </PermissionGate>
                         <PermissionGate permission={PERMISSIONS.LIST_DELETE}>
@@ -323,7 +317,7 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
                             className="text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium"
                           >
                             <Trash2 className="w-3.5 h-3.5 mr-2" />
-                            <span>Xóa danh sách</span>
+                            <span>Xóa</span>
                           </DropdownMenuItem>
                         </PermissionGate>
                       </DropdownMenuContent>
@@ -398,7 +392,7 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
                   <th className="py-3 px-3">Thẻ Gắn Liền</th>
                   <th className="py-3 px-3">Ngày Tạo</th>
                   <th className="py-3 px-3">Cập Nhật</th>
-                  <th className="py-3 px-4 text-right">Thao Tác</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -440,14 +434,41 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
                     <td className="py-3 px-3 font-mono text-slate-500">{list.createdAt}</td>
                     <td className="py-3 px-3 font-mono text-slate-500">{list.updatedAt}</td>
                     <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={() => onNavigate(`/lists/${list.id}`)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                        title="Xem chi tiết"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                            title="Tùy chọn khác"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44 text-xs">
+                          <PermissionGate permission={PERMISSIONS.LIST_UPDATE}>
+                            <DropdownMenuItem onClick={() => onNavigate(`/lists/${list.id}/edit`)}>
+                              <Edit3 className="w-3.5 h-3.5 mr-2 text-blue-600" />
+                              <span>Chỉnh sửa</span>
+                            </DropdownMenuItem>
+                          </PermissionGate>
+                          <PermissionGate permission={PERMISSIONS.LIST_CREATE}>
+                            <DropdownMenuItem onClick={() => void handleDuplicate(list)}>
+                              <Copy className="w-3.5 h-3.5 mr-2 text-emerald-600" />
+                              <span>Nhân bản</span>
+                            </DropdownMenuItem>
+                          </PermissionGate>
+                          <PermissionGate permission={PERMISSIONS.LIST_DELETE}>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => void handleDelete(list.id, list.name)}
+                              className="text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 mr-2" />
+                              <span>Xóa</span>
+                            </DropdownMenuItem>
+                          </PermissionGate>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                   </tr>
                 ))}

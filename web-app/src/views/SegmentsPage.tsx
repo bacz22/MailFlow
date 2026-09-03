@@ -201,20 +201,16 @@ export const SegmentsPage: React.FC<SegmentsPageProps> = ({ onNavigate }) => {
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-44 text-xs">
-                        <DropdownMenuItem onClick={() => onNavigate(`/segments/${seg.id}`)}>
-                          <Eye className="w-3.5 h-3.5 mr-2 text-slate-500" />
-                          <span>Xem chi tiết & danh bạ</span>
-                        </DropdownMenuItem>
                         <PermissionGate permission={PERMISSIONS.SEGMENT_UPDATE}>
                           <DropdownMenuItem onClick={() => onNavigate(`/segments/${seg.id}/edit`)}>
                             <Edit3 className="w-3.5 h-3.5 mr-2 text-blue-600" />
-                            <span>Chỉnh sửa điều kiện</span>
+                            <span>Chỉnh sửa</span>
                           </DropdownMenuItem>
                         </PermissionGate>
                         <PermissionGate permission={PERMISSIONS.SEGMENT_CREATE}>
                           <DropdownMenuItem onClick={() => void handleDuplicate(seg)}>
                             <Copy className="w-3.5 h-3.5 mr-2 text-emerald-600" />
-                            <span>Nhân bản phân đoạn</span>
+                            <span>Nhân bản</span>
                           </DropdownMenuItem>
                         </PermissionGate>
                         <PermissionGate permission={PERMISSIONS.SEGMENT_DELETE}>
@@ -224,7 +220,7 @@ export const SegmentsPage: React.FC<SegmentsPageProps> = ({ onNavigate }) => {
                             className="text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium"
                           >
                             <Trash2 className="w-3.5 h-3.5 mr-2" />
-                            <span>Xóa phân đoạn</span>
+                            <span>Xóa</span>
                           </DropdownMenuItem>
                         </PermissionGate>
                       </DropdownMenuContent>

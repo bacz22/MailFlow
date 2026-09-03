@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   Code,
   AlertTriangle,
 } from 'lucide-react'
 import { Input } from '../components/ui/Input'
 import { Textarea } from '../components/ui/Textarea'
+import { SimpleSelect, type SelectOption } from '../components/ui/Select'
 import { FormField, FormLabel } from '../components/ui/FormGroup'
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import {
@@ -14,6 +15,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
+  ConfirmDialog,
 } from '../components/ui/Dialog'
 import { Button } from '../components/ui/Button'
 import { VariablePicker } from '../components/templates/VariablePicker'
@@ -21,11 +23,26 @@ import { TemplateToolbar } from '../components/templates/TemplateToolbar'
 import { TemplatePreview } from '../components/templates/TemplatePreview'
 import { SendTestDialog } from '../components/templates/SendTestDialog'
 import { useToast } from '../components/ui/Toast'
+import { ApiError } from '../services/apiClient'
+import { templateService } from '../services/template.service'
 import type { EmailTemplate } from '../types/template.types'
+import {
+  DEFAULT_BANNER_LABEL,
+  DEFAULT_THUMBNAIL_GRADIENT,
+  TEMPLATE_THUMBNAIL_GRADIENTS,
+} from '../components/templates/thumbnailGradients'
 
 const DEFAULT_SAMPLE_CONTENT = `<p>Xin chào <strong>{{firstName}}</strong>,</p>
 <p>Cảm ơn bạn đã đồng hành cùng MailFlow trong việc tối ưu hóa chiến dịch email marketing của doanh nghiệp <em>{{company}}</em>.</p>
 <p>Dưới đây là một số cập nhật tính năng mới nhất tuần này giúp tăng tỷ lệ mở thư và chuyển đổi khách hàng.</p>`
+
+const TEMPLATE_CATEGORY_OPTIONS: SelectOption[] = [
+  { value: 'Newsletter', label: 'Newsletter' },
+  { value: 'Product', label: 'Product Launch' },
+  { value: 'Promotional', label: 'Promotional' },
+  { value: 'Onboarding', label: 'Onboarding' },
+  { value: 'Transactional', label: 'Transactional' },
+]
 
 export interface TemplateEditorPageProps {
   templateId?: string
@@ -35,7 +52,7 @@ export interface TemplateEditorPageProps {
 }
 
 export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
-  templateId: _templateId,
+  templateId,
   initialData,
   isEdit = false,
   onNavigate,
@@ -43,21 +60,31 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
   const { showToast } = useToast()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Form states
+  const [savedId, setSavedId] = useState<string | undefined>(templateId)
+  const [isLoading, setIsLoading] = useState(!!isEdit && !!templateId)
   const [name, setName] = useState(
-    initialData?.name || (isEdit ? 'Product Launch 2.0' : 'Mẫu Email Chiến Dịch Mới')
+    initialData?.name || (isEdit ? '' : 'Mẫu Email Chiến Dịch Mới')
   )
   const [subject, setSubject] = useState(
-    initialData?.subject || (isEdit ? '🚀 Ra mắt MailFlow 2.0: Trải nghiệm email marketing đỉnh cao' : 'Khám phá giải pháp tối ưu email từ MailFlow')
+    initialData?.subject || (isEdit ? '' : 'Khám phá giải pháp tối ưu email từ MailFlow')
   )
   const [previewText, setPreviewText] = useState(
-    initialData?.previewText || 'Tăng 300% hiệu suất gửi thư với hạ tầng Dedicated IP.'
+    initialData?.previewText || ''
   )
   const [category, setCategory] = useState<EmailTemplate['category']>(
     initialData?.category || 'Newsletter'
   )
   const [content, setContent] = useState(
     initialData?.htmlContent || DEFAULT_SAMPLE_CONTENT
+  )
+  const [thumbnailGradient, setThumbnailGradient] = useState(
+    initialData?.thumbnailGradient || DEFAULT_THUMBNAIL_GRADIENT
+  )
+  const [bannerLabel, setBannerLabel] = useState(
+    initialData?.bannerLabel || DEFAULT_BANNER_LABEL
+  )
+  const [bannerTitle, setBannerTitle] = useState(
+    initialData?.bannerTitle || initialData?.subject || (isEdit ? '' : 'Khám phá giải pháp tối ưu email từ MailFlow')
   )
 
   // UI states
@@ -66,6 +93,42 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSendTestOpen, setIsSendTestOpen] = useState(false)
   const [isExitWarningOpen, setIsExitWarningOpen] = useState(false)
+  const [confirmSaveAction, setConfirmSaveAction] = useState<{ isDraft: boolean } | null>(null)
+
+  useEffect(() => {
+    if (!isEdit || !templateId) return
+    let cancelled = false
+    ;(async () => {
+      setIsLoading(true)
+      try {
+        const data = await templateService.get(templateId)
+        if (cancelled) return
+        setSavedId(data.id)
+        setName(data.name)
+        setSubject(data.subject)
+        setPreviewText(data.previewText || '')
+        setCategory(data.category)
+        setContent(data.htmlContent)
+        setThumbnailGradient(data.thumbnailGradient || DEFAULT_THUMBNAIL_GRADIENT)
+        setBannerLabel(data.bannerLabel || DEFAULT_BANNER_LABEL)
+        setBannerTitle(data.bannerTitle || data.subject)
+        setIsDirty(false)
+      } catch (error) {
+        if (cancelled) return
+        showToast({
+          type: 'error',
+          title: 'Không tải được mẫu email',
+          description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+        })
+        onNavigate('/templates')
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isEdit, templateId, onNavigate, showToast])
 
   // Insert Variable at cursor position
   const handleInsertVariable = (variableKey: string) => {
@@ -96,7 +159,7 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
     })
   }
 
-  const handleSave = async (isDraft = false) => {
+  const handleInitiateSave = (isDraft = false) => {
     if (!name.trim()) {
       showToast({
         type: 'warning',
@@ -122,18 +185,46 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
       return
     }
 
+    setConfirmSaveAction({ isDraft })
+  }
+
+  const executeSave = async (isDraft = false) => {
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 600))
-    setIsSubmitting(false)
-    setIsDirty(false)
-
-    showToast({
-      type: 'success',
-      title: isDraft ? 'Đã lưu bản nháp' : isEdit ? 'Đã cập nhật mẫu' : 'Đã tạo mẫu mới',
-      description: `Mẫu email "${name}" đã được lưu thành công vào thư viện.`,
-    })
-
-    onNavigate('/templates')
+    try {
+      const payload = {
+        name: name.trim(),
+        subject: subject.trim(),
+        previewText: previewText.trim() || undefined,
+        category,
+        status: (isDraft ? 'draft' : 'published') as EmailTemplate['status'],
+        htmlContent: content,
+        thumbnailGradient,
+        bannerLabel: bannerLabel.trim(),
+        bannerTitle: bannerTitle.trim(),
+      }
+      if (savedId) {
+        await templateService.update(savedId, payload)
+      } else {
+        const created = await templateService.create(payload)
+        setSavedId(created.id)
+      }
+      setIsDirty(false)
+      showToast({
+        type: 'success',
+        title: isDraft ? 'Đã lưu bản nháp' : isEdit ? 'Đã cập nhật mẫu' : 'Đã tạo mẫu mới',
+        description: `Mẫu email "${name}" đã được lưu thành công vào thư viện.`,
+      })
+      setConfirmSaveAction(null)
+      onNavigate('/templates')
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không lưu được mẫu',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleAttemptBack = () => {
@@ -142,6 +233,10 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
     } else {
       onNavigate('/templates')
     }
+  }
+
+  if (isLoading) {
+    return <div className="text-sm text-slate-500 py-10 text-center">Đang tải mẫu email...</div>
   }
 
   return (
@@ -154,8 +249,8 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
         isSubmitting={isSubmitting}
         onBack={handleAttemptBack}
         onOpenSendTest={() => setIsSendTestOpen(true)}
-        onSaveDraft={() => handleSave(true)}
-        onSaveTemplate={() => handleSave(false)}
+        onSaveDraft={() => handleInitiateSave(true)}
+        onSaveTemplate={() => handleInitiateSave(false)}
       />
 
       {/* 2. DUAL-PANE WORKSPACE: LEFT EDITOR + RIGHT PREVIEW */}
@@ -186,20 +281,14 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
                 <div>
                   <FormField>
                     <FormLabel>Phân Loại</FormLabel>
-                    <select
+                    <SimpleSelect
                       value={category}
-                      onChange={(e) => {
-                        setCategory(e.target.value as any)
+                      onValueChange={(val) => {
+                        setCategory(val as EmailTemplate['category'])
                         setIsDirty(true)
                       }}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold focus-ring cursor-pointer"
-                    >
-                      <option value="Newsletter">Newsletter</option>
-                      <option value="Product">Product Launch</option>
-                      <option value="Promotional">Promotional</option>
-                      <option value="Onboarding">Onboarding</option>
-                      <option value="Transactional">Transactional</option>
-                    </select>
+                      options={TEMPLATE_CATEGORY_OPTIONS}
+                    />
                   </FormField>
                 </div>
               </div>
@@ -227,6 +316,62 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
                     setIsDirty(true)
                   }}
                 />
+              </FormField>
+
+              <FormField>
+                <FormLabel>Nhãn banner</FormLabel>
+                <Input
+                  placeholder="Ví dụ: MailFlow Communication"
+                  value={bannerLabel}
+                  maxLength={80}
+                  onChange={(e) => {
+                    setBannerLabel(e.target.value)
+                    setIsDirty(true)
+                  }}
+                />
+              </FormField>
+
+              <FormField>
+                <FormLabel>Tiêu đề banner</FormLabel>
+                <Input
+                  placeholder="Chữ lớn trên banner màu — độc lập với tiêu đề hộp thư"
+                  value={bannerTitle}
+                  maxLength={200}
+                  onChange={(e) => {
+                    setBannerTitle(e.target.value)
+                    setIsDirty(true)
+                  }}
+                />
+              </FormField>
+
+              <FormField>
+                <FormLabel>Màu banner (thumbnail)</FormLabel>
+                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Màu banner mẫu email">
+                  {TEMPLATE_THUMBNAIL_GRADIENTS.map((option) => {
+                    const selected = thumbnailGradient === option.className
+                    return (
+                      <button
+                        key={option.className}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        title={option.label}
+                        onClick={() => {
+                          setThumbnailGradient(option.className)
+                          setIsDirty(true)
+                        }}
+                        className={`h-11 w-11 rounded-xl border-2 shadow-inner focus-ring ${option.className} ${
+                          selected
+                            ? 'border-white ring-2 ring-blue-600 ring-offset-2 ring-offset-white dark:ring-offset-slate-900'
+                            : 'border-white/40 hover:scale-105'
+                        }`}
+                      />
+                    )
+                  })}
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1.5">
+                  Lưu vào thumbnail_gradient — dùng cho thẻ thư viện và banner mô phỏng, không nằm trong HTML gửi đi.
+                </p>
               </FormField>
             </CardContent>
           </Card>
@@ -285,6 +430,9 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
             previewText={previewText}
             htmlContent={content}
             device={device}
+            thumbnailGradient={thumbnailGradient}
+            bannerLabel={bannerLabel}
+            bannerTitle={bannerTitle}
           />
         </div>
       </div>
@@ -293,6 +441,7 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
       <SendTestDialog
         isOpen={isSendTestOpen}
         onClose={() => setIsSendTestOpen(false)}
+        templateId={savedId}
         templateName={name}
         subject={subject}
       />
@@ -325,7 +474,7 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
               size="sm"
               onClick={() => {
                 setIsExitWarningOpen(false)
-                handleSave(false)
+                void executeSave(false)
               }}
             >
               Lưu Mẫu Ngay
@@ -333,6 +482,41 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Save Template Confirmation Dialog */}
+      <ConfirmDialog
+        open={confirmSaveAction !== null}
+        onOpenChange={(open) => {
+          if (!open && !isSubmitting) setConfirmSaveAction(null)
+        }}
+        title={
+          confirmSaveAction?.isDraft
+            ? 'Xác nhận lưu bản nháp?'
+            : isEdit
+            ? 'Xác nhận cập nhật mẫu email?'
+            : 'Xác nhận lưu mẫu email mới?'
+        }
+        description={
+          confirmSaveAction?.isDraft
+            ? `Mẫu email "${name}" sẽ được lưu vào hệ thống ở trạng thái bản nháp (Draft). Bạn có thể tiếp tục chỉnh sửa bất cứ lúc nào.`
+            : `Mẫu email "${name}" sẽ được lưu và sẵn sàng để áp dụng vào các chiến dịch gửi thư. Bạn có muốn tiếp tục?`
+        }
+        confirmText={
+          confirmSaveAction?.isDraft
+            ? 'Lưu bản nháp'
+            : isEdit
+            ? 'Cập nhật mẫu'
+            : 'Lưu mẫu email'
+        }
+        cancelText="Hủy"
+        variant="primary"
+        isLoading={isSubmitting}
+        onConfirm={() => {
+          if (confirmSaveAction) {
+            void executeSave(confirmSaveAction.isDraft)
+          }
+        }}
+      />
     </div>
   )
 }

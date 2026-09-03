@@ -321,7 +321,7 @@ export const ContactTable: React.FC<ContactTableProps> = ({
               )}
 
               {!compact && (
-                <th className="py-3 px-4 text-right w-16">
+                <th className="py-3 px-4 text-right whitespace-nowrap">
                   <span>Thao Tác</span>
                 </th>
               )}

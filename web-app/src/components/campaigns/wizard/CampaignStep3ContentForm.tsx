@@ -13,12 +13,21 @@ import { Input } from '../../ui/Input'
 import { Textarea } from '../../ui/Textarea'
 import { Button } from '../../ui/Button'
 import { Badge } from '../../ui/Badge'
+import { SimpleSelect, type SelectOption } from '../../ui/Select'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../ui/Card'
 import { VariablePicker } from '../../templates/VariablePicker'
 import { TemplatePreviewDialog } from '../../templates/TemplatePreviewDialog'
 import { useToast } from '../../ui/Toast'
 import type { CampaignStep3Content } from '../../../types/campaignWizard.types'
 import type { EmailTemplate } from '../../../types/template.types'
+
+const TEMPLATE_FILTER_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'Tất cả phân loại' },
+  { value: 'Product', label: 'Product Launch' },
+  { value: 'Newsletter', label: 'Newsletter' },
+  { value: 'Promotional', label: 'Promotional' },
+  { value: 'Onboarding', label: 'Onboarding' },
+]
 
 const AVAILABLE_TEMPLATES: EmailTemplate[] = [
   {
@@ -229,18 +238,14 @@ export const CampaignStep3ContentForm: React.FC<CampaignStep3ContentFormProps> =
             </div>
 
             {/* Filter */}
-            <div className="flex items-center gap-2">
-              <select
+            <div className="w-48">
+              <SimpleSelect
+                size="sm"
                 value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-semibold focus-ring cursor-pointer"
-              >
-                <option value="all">Tất cả phân loại</option>
-                <option value="Product">Product Launch</option>
-                <option value="Newsletter">Newsletter</option>
-                <option value="Promotional">Promotional</option>
-                <option value="Onboarding">Onboarding</option>
-              </select>
+                onValueChange={setCategoryFilter}
+                options={TEMPLATE_FILTER_OPTIONS}
+                className="rounded-xl font-semibold"
+              />
             </div>
           </CardHeader>
 

@@ -13,4 +13,6 @@ export interface EmailTemplate {
   updatedAt: string
   htmlContent: string
   thumbnailGradient?: string
+  bannerLabel?: string
+  bannerTitle?: string
 }

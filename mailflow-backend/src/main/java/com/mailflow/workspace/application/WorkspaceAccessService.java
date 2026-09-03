@@ -39,6 +39,12 @@ public class WorkspaceAccessService {
     private static final Set<WorkspaceRole> TAG_MUTATE_ROLES = CONTACT_MUTATE_ROLES;
     private static final Set<WorkspaceRole> SEGMENT_READ_ROLES = CONTACT_READ_ROLES;
     private static final Set<WorkspaceRole> SEGMENT_MUTATE_ROLES = CONTACT_MUTATE_ROLES;
+    private static final Set<WorkspaceRole> TEMPLATE_READ_ROLES = CONTACT_READ_ROLES;
+    private static final Set<WorkspaceRole> TEMPLATE_MUTATE_ROLES = Set.of(
+            WorkspaceRole.OWNER,
+            WorkspaceRole.ADMIN,
+            WorkspaceRole.MARKETING_MANAGER,
+            WorkspaceRole.CAMPAIGN_EDITOR);
 
     private final WorkspaceMemberRepository memberRepository;
 
@@ -152,6 +158,21 @@ public class WorkspaceAccessService {
     public WorkspaceMember requireSegmentDelete(UUID userId, UUID workspaceId) {
         return requireRoles(userId, workspaceId, SEGMENT_MUTATE_ROLES,
                 "Bạn không có quyền xóa phân đoạn động workspace này.");
+    }
+
+    public WorkspaceMember requireTemplateRead(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, TEMPLATE_READ_ROLES,
+                "Bạn không có quyền xem mẫu email workspace này.");
+    }
+
+    public WorkspaceMember requireTemplateWrite(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, TEMPLATE_MUTATE_ROLES,
+                "Bạn không có quyền chỉnh sửa mẫu email workspace này.");
+    }
+
+    public WorkspaceMember requireTemplateDelete(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, TEMPLATE_MUTATE_ROLES,
+                "Bạn không có quyền xóa mẫu email workspace này.");
     }
 
     private WorkspaceMember requireRoles(

@@ -372,14 +372,14 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
 
       {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
           {/* Left Column: Contact Attributes */}
-          <div className="lg:col-span-7 space-y-6">
-            <Card>
+          <div className="lg:col-span-7 flex flex-col">
+            <Card className="h-full flex flex-col">
               <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
                 <CardTitle className="text-base">Thông Tin Chi Tiết</CardTitle>
               </CardHeader>
-              <CardContent className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+              <CardContent className="divide-y divide-slate-100 dark:divide-slate-800 text-xs flex-1 flex flex-col justify-between">
                 <div className="py-2.5 flex items-center justify-between">
                   <span className="text-slate-400">Họ và Tên</span>
                   <span className="font-bold text-slate-800 dark:text-slate-200">{contact.fullName}</span>
@@ -408,7 +408,7 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
             </Card>
 
             {/* Opt-in Compliance Card */}
-            <Card>
+            {/* <Card>
               <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
@@ -430,20 +430,20 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
                   <div>Địa chỉ IP ghi nhận: <code className="font-mono">118.70.124.90 (Hà Nội, VN)</code></div>
                 </div>
               </CardContent>
-            </Card>
+            </Card> */}
           </div>
 
           {/* Right Column: Engagement Score */}
-          <div className="lg:col-span-5 space-y-6">
-            <Card>
+          <div className="lg:col-span-5 flex flex-col">
+            <Card className="h-full flex flex-col">
               <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2">
                   <Activity className="w-4 h-4 text-blue-600" />
                   <CardTitle className="text-base">Chỉ Số Tương Tác (Engagement Score)</CardTitle>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4 pt-4">
-                <div className="text-center p-4 rounded-2xl bg-blue-50/50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 space-y-1">
+              <CardContent className="pt-4 flex-1 flex flex-col justify-between gap-4">
+                <div className="text-center p-5 rounded-2xl bg-blue-50/50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 space-y-1">
                   <div className="text-3xl font-extrabold text-blue-600 dark:text-blue-400 font-mono">
                     95 / 100
                   </div>
@@ -453,11 +453,11 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 text-center">
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                     <div className="text-lg font-mono font-bold text-emerald-600">78.5%</div>
                     <div className="text-[10px] text-slate-400 font-semibold">Tỷ Lệ Mở Email</div>
                   </div>
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                     <div className="text-lg font-mono font-bold text-blue-600">32.0%</div>
                     <div className="text-[10px] text-slate-400 font-semibold">Tỷ Lệ Nhấp (CTR)</div>
                   </div>

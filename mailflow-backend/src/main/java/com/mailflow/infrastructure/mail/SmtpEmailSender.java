@@ -1,11 +1,12 @@
 package com.mailflow.infrastructure.mail;
 
-import com.mailflow.infrastructure.mail.EmailSender;
+import com.mailflow.common.exception.AppException;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -143,6 +144,30 @@ public class SmtpEmailSender implements EmailSender {
             log.info("Đã gửi thư mời workspace tới [{}]", toEmail);
         } catch (MessagingException | UnsupportedEncodingException | MailException e) {
             log.error("Không thể gửi thư mời workspace tới [{}]: {}", toEmail, e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void sendHtmlEmail(String toEmail, String subject, String htmlBody) {
+        log.info("Chuẩn bị gửi HTML tới [{}]", toEmail);
+        if (mailSender == null || smtpUsername == null || smtpUsername.isBlank()) {
+            throw new AppException(HttpStatus.SERVICE_UNAVAILABLE, "SMTP_NOT_CONFIGURED",
+                    "Chưa cấu hình SMTP. Không thể gửi email thử nghiệm.");
+        }
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(
+                    message, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject(subject == null ? "" : subject);
+            helper.setText(htmlBody == null ? "" : htmlBody, true);
+            mailSender.send(message);
+            log.info("Đã gửi HTML tới [{}]", toEmail);
+        } catch (MessagingException | UnsupportedEncodingException | MailException e) {
+            log.error("Không thể gửi HTML tới [{}]: {}", toEmail, e.getMessage(), e);
+            throw new AppException(HttpStatus.BAD_GATEWAY, "SMTP_SEND_FAILED",
+                    "Không gửi được email thử nghiệm: " + e.getMessage());
         }
     }
 

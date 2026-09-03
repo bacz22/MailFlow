@@ -12,10 +12,13 @@ import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { FormField, FormLabel } from '../ui/FormGroup'
 import { useToast } from '../ui/Toast'
+import { ApiError } from '../../services/apiClient'
+import { templateService } from '../../services/template.service'
 
 export interface SendTestDialogProps {
   isOpen: boolean
   onClose: () => void
+  templateId?: string
   templateName: string
   subject: string
 }
@@ -23,13 +26,16 @@ export interface SendTestDialogProps {
 export const SendTestDialog: React.FC<SendTestDialogProps> = ({
   isOpen,
   onClose,
+  templateId,
   templateName,
   subject,
 }) => {
   const { showToast } = useToast()
-  const [recipientEmail, setRecipientEmail] = useState('developer@mailflow.vn')
-  const [testFirstName, setTestFirstName] = useState('Thành')
-  const [testCompany, setTestCompany] = useState('V-Corp Global')
+  const [recipientEmail, setRecipientEmail] = useState('')
+  const [testFirstName, setTestFirstName] = useState('')
+  const [testLastName, setTestLastName] = useState('')
+  const [testCompany, setTestCompany] = useState('')
+  const [testPhone, setTestPhone] = useState('')
   const [isSending, setIsSending] = useState(false)
 
   const handleSendTest = async (e: React.FormEvent) => {
@@ -42,18 +48,39 @@ export const SendTestDialog: React.FC<SendTestDialogProps> = ({
       })
       return
     }
+    if (!templateId) {
+      showToast({
+        type: 'warning',
+        title: 'Cần lưu mẫu trước',
+        description: 'Vui lòng lưu mẫu email trước khi gửi thử nghiệm.',
+      })
+      return
+    }
 
     setIsSending(true)
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    setIsSending(false)
-
-    showToast({
-      type: 'success',
-      title: 'Đã gửi email thử nghiệm',
-      description: `Bản test mẫu "${templateName}" đã được gửi tới ${recipientEmail} thành công.`,
-    })
-
-    onClose()
+    try {
+      await templateService.sendTest(templateId, {
+        to: recipientEmail.trim(),
+        firstName: testFirstName.trim() || undefined,
+        lastName: testLastName.trim() || undefined,
+        company: testCompany.trim() || undefined,
+        phone: testPhone.trim() || undefined,
+      })
+      showToast({
+        type: 'success',
+        title: 'Đã gửi email thử nghiệm',
+        description: `Bản test mẫu "${templateName}" đã được gửi tới ${recipientEmail} thành công.`,
+      })
+      onClose()
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không gửi được email thử nghiệm',
+        description: error instanceof ApiError ? error.detail : 'Kiểm tra cấu hình SMTP và thử lại.',
+      })
+    } finally {
+      setIsSending(false)
+    }
   }
 
   return (
@@ -89,7 +116,15 @@ export const SendTestDialog: React.FC<SendTestDialogProps> = ({
                 <Input
                   value={testFirstName}
                   onChange={(e) => setTestFirstName(e.target.value)}
-                  placeholder="Thành"
+                  placeholder="A"
+                />
+              </FormField>
+              <FormField>
+                <FormLabel>Dữ liệu mẫu: Họ</FormLabel>
+                <Input
+                  value={testLastName}
+                  onChange={(e) => setTestLastName(e.target.value)}
+                  placeholder="Nguyễn"
                 />
               </FormField>
               <FormField>
@@ -97,7 +132,15 @@ export const SendTestDialog: React.FC<SendTestDialogProps> = ({
                 <Input
                   value={testCompany}
                   onChange={(e) => setTestCompany(e.target.value)}
-                  placeholder="V-Corp"
+                  placeholder="Company"
+                />
+              </FormField>
+              <FormField>
+                <FormLabel>Dữ liệu mẫu: Điện thoại</FormLabel>
+                <Input
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  placeholder="+84 912 345 678"
                 />
               </FormField>
             </div>

@@ -6,6 +6,9 @@ export interface TemplatePreviewProps {
   previewText?: string
   htmlContent: string
   device: 'desktop' | 'mobile'
+  thumbnailGradient?: string
+  bannerLabel?: string
+  bannerTitle?: string
   sampleRecipient?: {
     firstName: string
     lastName: string
@@ -20,11 +23,14 @@ export const TemplatePreview: React.FC<TemplatePreviewProps> = ({
   previewText,
   htmlContent,
   device,
+  thumbnailGradient,
+  bannerLabel,
+  bannerTitle,
   sampleRecipient = {
-    firstName: 'Thành',
-    lastName: 'Nguyễn Văn',
-    email: 'thanh.nguyen@vcorp.vn',
-    company: 'V-Corp Global',
+    firstName: 'A',
+    lastName: 'B',
+    email: 'a.b@gmail.com',
+    company: 'Company',
     phone: '+84 912 345 678',
   },
 }) => {
@@ -71,12 +77,18 @@ export const TemplatePreview: React.FC<TemplatePreviewProps> = ({
         {/* Email Rendered Canvas Body */}
         <div className="p-5 sm:p-6 space-y-5">
           {/* Top Brand Banner */}
-          <div className="p-5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-center space-y-1">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-blue-200">
-              MailFlow Communication
-            </div>
+          <div
+            className={`p-5 rounded-xl text-white text-center space-y-1 ${
+              thumbnailGradient || 'bg-gradient-to-tr from-blue-600 to-indigo-600'
+            }`}
+          >
+            {bannerLabel?.trim() ? (
+              <div className="text-[10px] font-bold uppercase tracking-wider text-white/80">
+                {bannerLabel}
+              </div>
+            ) : null}
             <h3 className="text-lg font-extrabold tracking-tight">
-              {subject || 'Bản Tin MailFlow'}
+              {bannerTitle?.trim() || 'Bản Tin MailFlow'}
             </h3>
           </div>
 
@@ -91,17 +103,16 @@ export const TemplatePreview: React.FC<TemplatePreviewProps> = ({
           />
 
           {/* Call to Action Button */}
-          <div className="pt-2 text-center">
+          {/* <div className="pt-2 text-center">
             <span className="inline-block px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-600/30 cursor-pointer">
               Truy Cập Nền Tảng
             </span>
-          </div>
+          </div> */}
 
           {/* RFC 8058 1-Click Unsubscribe Footer */}
           <div className="pt-5 border-t border-slate-100 dark:border-slate-800 text-center space-y-1 text-[10px] text-slate-400">
             <div className="flex items-center justify-center gap-1 text-emerald-600 dark:text-emerald-400">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Chuẩn bảo mật xác thực DKIM & RFC 8058 1-Click Unsubscribe</span>
+              {/* <span>Chuẩn bảo mật xác thực DKIM & RFC 8058 1-Click Unsubscribe</span> */}
             </div>
             <p>© 2026 MailFlow Inc. Tất cả quyền được bảo lưu.</p>
             <p>

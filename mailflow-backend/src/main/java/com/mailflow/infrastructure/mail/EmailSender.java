@@ -21,4 +21,10 @@ public interface EmailSender {
     void sendPasswordResetEmail(String toEmail, String recipientName, String rawToken);
 
     void sendWorkspaceInvitationEmail(String toEmail, String workspaceName, String rawToken, String role);
+
+    /**
+     * Gửi HTML tùy ý qua SMTP transactional (send-test mẫu email).
+     * Ném lỗi nếu SMTP chưa cấu hình hoặc gửi thất bại.
+     */
+    void sendHtmlEmail(String toEmail, String subject, String htmlBody);
 }

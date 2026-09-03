@@ -8,10 +8,10 @@ export interface VariableItem {
 }
 
 export const TEMPLATE_VARIABLES: VariableItem[] = [
-  { key: '{{firstName}}', label: 'Tên Khách Hàng', example: 'Thành' },
-  { key: '{{lastName}}', label: 'Họ & Đệm', example: 'Nguyễn Văn' },
-  { key: '{{email}}', label: 'Địa Chỉ Email', example: 'thanh.nguyen@vcorp.vn' },
-  { key: '{{company}}', label: 'Tên Công Ty', example: 'V-Corp Global' },
+  { key: '{{firstName}}', label: 'Tên Khách Hàng', example: 'A' },
+  { key: '{{lastName}}', label: 'Họ & Đệm', example: 'B' },
+  { key: '{{email}}', label: 'Địa Chỉ Email', example: 'a.b@gmail.com' },
+  { key: '{{company}}', label: 'Tên Công Ty', example: 'Company' },
   { key: '{{phone}}', label: 'Số Điện Thoại', example: '+84 912 345 678' },
   { key: '{{unsubscribeUrl}}', label: 'Link Hủy Đăng Ký (RFC 8058)', example: 'https://mailflow.vn/unsub/...' },
 ]

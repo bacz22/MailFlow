@@ -20,7 +20,15 @@ import {
 } from '../components/ui/Dialog'
 import { useToast } from '../components/ui/Toast'
 import { usePermission, PERMISSIONS } from '../permissions'
+import { SimpleSelect, type SelectOption } from '../components/ui/Select'
 import type { DomainItem } from '../types/domain.types'
+
+const DOMAIN_STATUS_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'Tất cả trạng thái' },
+  { value: 'VERIFIED', label: 'Đã xác thực (Verified)' },
+  { value: 'PENDING', label: 'Chờ cập nhật (Pending)' },
+  { value: 'FAILED', label: 'Thất bại (Failed)' },
+]
 
 const INITIAL_DOMAINS: DomainItem[] = [
   {
@@ -245,17 +253,14 @@ export const DomainsPage: React.FC<DomainsPageProps> = ({ onNavigate: _onNavigat
 
       {/* 4. Filter & Search Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <select
+        <div className="w-52">
+          <SimpleSelect
+            size="sm"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-semibold focus-ring cursor-pointer"
-          >
-            <option value="all">Tất cả trạng thái</option>
-            <option value="VERIFIED">Đã xác thực (Verified)</option>
-            <option value="PENDING">Chờ cập nhật (Pending)</option>
-            <option value="FAILED">Thất bại (Failed)</option>
-          </select>
+            onValueChange={setStatusFilter}
+            options={DOMAIN_STATUS_OPTIONS}
+            className="rounded-xl font-semibold"
+          />
         </div>
 
         <div className="w-full sm:w-72">

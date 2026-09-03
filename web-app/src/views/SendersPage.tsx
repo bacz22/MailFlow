@@ -23,7 +23,15 @@ import {
 } from '../components/ui/Dialog'
 import { useToast } from '../components/ui/Toast'
 import { usePermission, PERMISSIONS } from '../permissions'
+import { SimpleSelect, type SelectOption } from '../components/ui/Select'
 import type { VerifiedSender } from '../types/sender.types'
+
+const SENDER_STATUS_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'Tất cả trạng thái' },
+  { value: 'VERIFIED', label: 'Đã xác minh (Verified)' },
+  { value: 'PENDING', label: 'Chờ xác thực (Pending)' },
+  { value: 'FAILED', label: 'Thất bại (Failed)' },
+]
 
 const INITIAL_SENDERS: VerifiedSender[] = [
   {
@@ -269,16 +277,15 @@ export const SendersPage: React.FC<SendersPageProps> = ({ onNavigate }) => {
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-semibold focus-ring cursor-pointer"
-            >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="VERIFIED">Đã xác minh (Verified)</option>
-              <option value="PENDING">Chờ xác thực (Pending)</option>
-              <option value="FAILED">Thất bại (Failed)</option>
-            </select>
+            <div className="w-52">
+              <SimpleSelect
+                size="sm"
+                value={statusFilter}
+                onValueChange={setStatusFilter}
+                options={SENDER_STATUS_OPTIONS}
+                className="rounded-xl font-semibold"
+              />
+            </div>
 
             <div className="w-full sm:w-64">
               <Input
