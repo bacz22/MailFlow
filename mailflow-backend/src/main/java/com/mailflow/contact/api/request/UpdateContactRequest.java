@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -40,4 +41,6 @@ public class UpdateContactRequest {
     private List<String> tags;
 
     private List<ContactCustomField> customFields;
+
+    private List<UUID> listIds;
 }

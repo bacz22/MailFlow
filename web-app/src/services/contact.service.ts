@@ -1,5 +1,10 @@
-import { apiClient, getAccessToken } from './apiClient'
+import { apiClient, getAccessToken, setAccessToken } from './apiClient'
 import type { Contact, ContactStatus } from '../types/contact.types'
+import { parseCsvText } from '../utils/contactCsvImport'
+import {
+  downloadContactExportWorkbook,
+  mapCsvRecordsToExportRows,
+} from '../utils/contactExportWorkbook'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
 
@@ -30,6 +35,8 @@ export interface ContactListParams {
   q?: string
   status?: string
   tag?: string
+  listId?: string
+  segmentId?: string
   page?: number
   size?: number
   sort?: string
@@ -44,6 +51,7 @@ export interface UpsertContactPayload {
   status?: ContactStatus
   tags?: string[]
   customFields?: ContactCustomField[]
+  listIds?: string[]
 }
 
 export interface ImportContactRow {
@@ -59,6 +67,7 @@ export interface ImportContactsPayload {
   duplicateAction: 'SKIP' | 'UPDATE'
   skipInvalid?: boolean
   tags?: string[]
+  listId?: string
   rows: ImportContactRow[]
 }
 
@@ -94,7 +103,7 @@ function formatContactDate(value?: string | null): string {
   return date.toLocaleString('vi-VN')
 }
 
-function mapContact(raw: Record<string, unknown>): Contact {
+export function mapContact(raw: Record<string, unknown>): Contact {
   const id = String(raw.id ?? '')
   return {
     id,
@@ -105,6 +114,7 @@ function mapContact(raw: Record<string, unknown>): Contact {
     company: raw.company ? String(raw.company) : undefined,
     phone: raw.phone ? String(raw.phone) : undefined,
     lists: Array.isArray(raw.lists) ? raw.lists.map(String) : [],
+    listIds: Array.isArray(raw.listIds) ? raw.listIds.map(String) : [],
     tags: Array.isArray(raw.tags) ? raw.tags.map(String) : [],
     status: (raw.status as ContactStatus) ?? 'active',
     customFields: Array.isArray(raw.customFields)
@@ -121,6 +131,8 @@ function buildQuery(params: ContactListParams): string {
   if (params.q) search.set('q', params.q)
   if (params.status && params.status !== 'all') search.set('status', params.status)
   if (params.tag && params.tag !== 'all') search.set('tag', params.tag)
+  if (params.listId && params.listId !== 'all') search.set('listId', params.listId)
+  if (params.segmentId && params.segmentId !== 'all') search.set('segmentId', params.segmentId)
   if (params.page != null) search.set('page', String(params.page))
   if (params.size != null) search.set('size', String(params.size))
   if (params.sort) search.set('sort', params.sort)
@@ -128,7 +140,38 @@ function buildQuery(params: ContactListParams): string {
   return query ? `?${query}` : ''
 }
 
-async function downloadCsv(endpoint: string, filename: string, options: RequestInit = {}): Promise<void> {
+async function refreshAccessToken(): Promise<string | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      setAccessToken(null)
+      return null
+    }
+    const data = (await response.json()) as { accessToken?: string }
+    if (!data.accessToken) {
+      setAccessToken(null)
+      return null
+    }
+    setAccessToken(data.accessToken)
+    return data.accessToken
+  } catch {
+    setAccessToken(null)
+    return null
+  }
+}
+
+async function fetchExportCsvText(
+  endpoint: string,
+  options: RequestInit = {},
+  isRetry = false
+): Promise<string> {
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
   const headers: Record<string, string> = {
     Accept: 'text/csv',
@@ -137,6 +180,7 @@ async function downloadCsv(endpoint: string, filename: string, options: RequestI
   if (token) {
     headers.Authorization = `Bearer ${token}`
   }
+
   const response = await fetch(url, {
     ...options,
     credentials: 'include',
@@ -145,18 +189,30 @@ async function downloadCsv(endpoint: string, filename: string, options: RequestI
       ...(options.headers as Record<string, string> | undefined),
     },
   })
-  if (!response.ok) {
-    throw new Error(`Export failed with status ${response.status}`)
+
+  if (response.status === 401 && !isRetry) {
+    const refreshed = await refreshAccessToken()
+    if (refreshed) {
+      return fetchExportCsvText(endpoint, options, true)
+    }
   }
-  const blob = await response.blob()
-  const objectUrl = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = objectUrl
-  anchor.download = filename
-  document.body.appendChild(anchor)
-  anchor.click()
-  anchor.remove()
-  URL.revokeObjectURL(objectUrl)
+
+  if (!response.ok) {
+    throw new Error(`Xuất danh bạ thất bại (HTTP ${response.status}).`)
+  }
+
+  return response.text()
+}
+
+async function exportContactsAsExcel(endpoint: string, options: RequestInit = {}): Promise<number> {
+  const csvText = await fetchExportCsvText(endpoint, options)
+  const parsed = parseCsvText(csvText)
+  if (parsed.headers.length === 0) {
+    throw new Error('Không có dữ liệu để xuất.')
+  }
+  const records = mapCsvRecordsToExportRows(parsed.headers, parsed.rows)
+  downloadContactExportWorkbook(records)
+  return records.length
 }
 
 export const contactService = {
@@ -223,6 +279,13 @@ export const contactService = {
     })
   },
 
+  async bulkLists(ids: string[], listId: string): Promise<{ added: number }> {
+    return apiClient<{ added: number }>('/contacts/bulk-lists', {
+      method: 'POST',
+      body: JSON.stringify({ ids, listId }),
+    })
+  },
+
   async import(payload: ImportContactsPayload): Promise<ImportContactsResult> {
     return apiClient<ImportContactsResult>('/contacts/import', {
       method: 'POST',
@@ -230,12 +293,12 @@ export const contactService = {
     })
   },
 
-  async exportFiltered(params: ContactListParams = {}): Promise<void> {
-    await downloadCsv(`/contacts/export${buildQuery(params)}`, 'contacts_export.csv', { method: 'GET' })
+  async exportFiltered(params: ContactListParams = {}): Promise<number> {
+    return exportContactsAsExcel(`/contacts/export${buildQuery(params)}`, { method: 'GET' })
   },
 
-  async exportSelected(ids: string[]): Promise<void> {
-    await downloadCsv('/contacts/export', 'contacts_selected_export.csv', {
+  async exportSelected(ids: string[]): Promise<number> {
+    return exportContactsAsExcel('/contacts/export', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids }),

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   ArrowLeft,
   Layers,
@@ -8,76 +8,17 @@ import {
   CheckCircle2,
   UserX,
   Upload,
+  Edit3,
 } from 'lucide-react'
 import { ContactTable } from '../components/contacts/ContactTable'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { PermissionGate, PERMISSIONS } from '../permissions'
 import { useToast } from '../components/ui/Toast'
+import { ApiError } from '../services/apiClient'
+import { listService } from '../services/list.service'
 import type { Contact } from '../types/contact.types'
-
-const SAMPLE_LIST_CONTACTS: Contact[] = [
-  {
-    id: 'cnt-1',
-    firstName: 'Thành',
-    lastName: 'Nguyễn Văn',
-    fullName: 'Nguyễn Văn Thành',
-    email: 'thanh.nguyen@vcorp.vn',
-    company: 'V-Corp Global',
-    phone: '+84 912 345 678',
-    lists: ['VIP Enterprise Clients'],
-    tags: ['Customer', 'High Value'],
-    status: 'active',
-    createdAt: '15/08/2026',
-    updatedAt: '24/08/2026',
-    avatarColor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300',
-  },
-  {
-    id: 'cnt-3',
-    firstName: 'Hương',
-    lastName: 'Phạm Thu',
-    fullName: 'Phạm Thu Hương',
-    email: 'huong.pham@fintech.asia',
-    company: 'Fintech Asia Hub',
-    phone: '+84 903 555 789',
-    lists: ['VIP Enterprise Clients'],
-    tags: ['Customer', 'Decision Maker'],
-    status: 'active',
-    createdAt: '10/08/2026',
-    updatedAt: '22/08/2026',
-    avatarColor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300',
-  },
-  {
-    id: 'cnt-8',
-    firstName: 'Trang',
-    lastName: 'Bùi Thùy',
-    fullName: 'Bùi Thùy Trang',
-    email: 'trang.bui@ecomviet.vn',
-    company: 'EcomViet Mart',
-    phone: '+84 982 777 666',
-    lists: ['VIP Enterprise Clients'],
-    tags: ['Customer', 'Engaged'],
-    status: 'active',
-    createdAt: '14/08/2026',
-    updatedAt: '23/08/2026',
-    avatarColor: 'bg-teal-100 text-teal-700 dark:bg-teal-900/60 dark:text-teal-300',
-  },
-  {
-    id: 'cnt-10',
-    firstName: 'Lan',
-    lastName: 'Dương Thị',
-    fullName: 'Dương Thị Lan',
-    email: 'lan.duong@hospitality.vn',
-    company: 'Hospitality Luxury',
-    phone: '+84 945 666 999',
-    lists: ['VIP Enterprise Clients'],
-    tags: ['Customer'],
-    status: 'active',
-    createdAt: '16/08/2026',
-    updatedAt: '24/08/2026',
-    avatarColor: 'bg-pink-100 text-pink-700 dark:bg-pink-900/60 dark:text-pink-300',
-  },
-]
+import type { AudienceList } from '../types/list.types'
 
 export interface ListDetailPageProps {
   listId: string
@@ -87,18 +28,40 @@ export interface ListDetailPageProps {
 export const ListDetailPage: React.FC<ListDetailPageProps> = ({ listId, onNavigate }) => {
   const { showToast } = useToast()
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [contacts, setContacts] = useState<Contact[]>(SAMPLE_LIST_CONTACTS)
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [listInfo, setListInfo] = useState<AudienceList | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
+  const [totalElements, setTotalElements] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
 
-  const listInfo = {
-    id: listId || 'lst-1',
-    name: 'VIP Enterprise Clients',
-    description: 'Khách hàng doanh nghiệp trọng điểm gói hợp đồng trên $5,000/năm.',
-    contactCount: 5420,
-    activeCount: 5380,
-    unsubscribedCount: 12,
-    createdAt: '10/08/2026',
-    updatedAt: '25/08/2026',
-  }
+  const load = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const [list, members] = await Promise.all([
+        listService.get(listId),
+        listService.listContacts(listId, { page, size: pageSize }),
+      ])
+      setListInfo(list)
+      setContacts(members.content)
+      setTotalElements(members.totalElements)
+      setTotalPages(Math.max(1, members.totalPages))
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không tải được danh sách',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+      onNavigate('/lists')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [listId, onNavigate, page, pageSize, showToast])
+
+  useEffect(() => {
+    void load()
+  }, [load])
 
   const handleSelectRow = (id: string, selected: boolean) => {
     if (selected) {
@@ -116,18 +79,60 @@ export const ListDetailPage: React.FC<ListDetailPageProps> = ({ listId, onNaviga
     }
   }
 
-  const handleDeleteList = () => {
-    showToast({
-      type: 'warning',
-      title: 'Đã xóa danh sách',
-      description: `Đã xóa danh sách "${listInfo.name}". Các liên hệ vẫn được giữ trong danh bạ chung.`,
-    })
-    onNavigate('/lists')
+  const handleRemoveFromList = async (contact: Contact) => {
+    if (!window.confirm(`Gỡ ${contact.fullName} khỏi danh sách? Liên hệ vẫn được giữ trong danh bạ.`)) {
+      return
+    }
+    try {
+      await listService.removeMember(listId, contact.id)
+      setSelectedIds((prev) => prev.filter((id) => id !== contact.id))
+      await load()
+      showToast({
+        type: 'info',
+        title: 'Đã xóa khỏi danh sách',
+        description: `Đã loại ${contact.fullName} khỏi danh sách ${listInfo?.name ?? ''}`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không gỡ được liên hệ',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    }
+  }
+
+  const handleDeleteList = async () => {
+    if (!listInfo) return
+    if (!window.confirm(`Xóa danh sách "${listInfo.name}"? Liên hệ vẫn được giữ trong danh bạ.`)) {
+      return
+    }
+    try {
+      await listService.delete(listId)
+      showToast({
+        type: 'warning',
+        title: 'Đã xóa danh sách',
+        description: `Đã xóa danh sách "${listInfo.name}". Các liên hệ vẫn được giữ trong danh bạ chung.`,
+      })
+      onNavigate('/lists')
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không xóa được danh sách',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    }
+  }
+
+  if (!listInfo) {
+    return (
+      <div className="py-16 text-center text-sm text-slate-500">
+        {isLoading ? 'Đang tải danh sách...' : 'Không tìm thấy danh sách.'}
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
-      {/* 1. Top Breadcrumb & Return */}
       <div className="flex items-center justify-between">
         <Button
           variant="outline"
@@ -139,7 +144,6 @@ export const ListDetailPage: React.FC<ListDetailPageProps> = ({ listId, onNaviga
         </Button>
       </div>
 
-      {/* 2. LIST HERO HEADER CARD */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-3xl p-6 shadow-xs space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
@@ -160,14 +164,13 @@ export const ListDetailPage: React.FC<ListDetailPageProps> = ({ listId, onNaviga
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex items-center gap-2 flex-wrap">
             <PermissionGate permission={PERMISSIONS.CONTACT_CREATE}>
               <Button
                 variant="primary"
                 size="sm"
                 leftIcon={<UserPlus className="w-3.5 h-3.5" />}
-                onClick={() => onNavigate('/contacts/create')}
+                onClick={() => onNavigate(`/contacts/create?listId=${listId}`)}
               >
                 Thêm Liên Hệ
               </Button>
@@ -178,9 +181,20 @@ export const ListDetailPage: React.FC<ListDetailPageProps> = ({ listId, onNaviga
                 variant="outline"
                 size="sm"
                 leftIcon={<Upload className="w-3.5 h-3.5" />}
-                onClick={() => onNavigate('/contacts/import')}
+                onClick={() => onNavigate(`/contacts/import?listId=${listId}`)}
               >
                 Import CSV
+              </Button>
+            </PermissionGate>
+
+            <PermissionGate permission={PERMISSIONS.LIST_UPDATE}>
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<Edit3 className="w-3.5 h-3.5" />}
+                onClick={() => onNavigate(`/lists/${listId}/edit`)}
+              >
+                Chỉnh Sửa
               </Button>
             </PermissionGate>
 
@@ -190,7 +204,7 @@ export const ListDetailPage: React.FC<ListDetailPageProps> = ({ listId, onNaviga
                 size="sm"
                 className="text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                 leftIcon={<Trash2 className="w-3.5 h-3.5" />}
-                onClick={handleDeleteList}
+                onClick={() => void handleDeleteList()}
               >
                 Xóa Danh Sách
               </Button>
@@ -198,7 +212,6 @@ export const ListDetailPage: React.FC<ListDetailPageProps> = ({ listId, onNaviga
           </div>
         </div>
 
-        {/* List KPI Summary Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
           <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex items-center gap-3">
             <Users className="w-4 h-4 text-blue-600" />
@@ -226,14 +239,13 @@ export const ListDetailPage: React.FC<ListDetailPageProps> = ({ listId, onNaviga
         </div>
       </div>
 
-      {/* 3. REUSABLE CONTACT TABLE FOR THIS LIST */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
             Danh Bạ Thành Viên Trong Danh Sách
           </h2>
           <span className="text-xs text-slate-400">
-            Hiển thị {contacts.length} liên hệ mẫu
+            {totalElements.toLocaleString('vi-VN')} liên hệ
           </span>
         </div>
 
@@ -242,15 +254,22 @@ export const ListDetailPage: React.FC<ListDetailPageProps> = ({ listId, onNaviga
           selectedIds={selectedIds}
           onSelectRow={handleSelectRow}
           onSelectAllPage={handleSelectAllPage}
+          isLoading={isLoading}
           onViewContact={(c) => onNavigate(`/contacts/${c.id}`)}
           onEditContact={(c) => onNavigate(`/contacts/${c.id}/edit`)}
-          onDeleteContact={(c) => {
-            setContacts((prev) => prev.filter((item) => item.id !== c.id))
-            showToast({
-              type: 'info',
-              title: 'Đã xóa khỏi danh sách',
-              description: `Đã loại ${c.fullName} khỏi danh sách ${listInfo.name}`,
-            })
+          onDeleteContact={(c) => void handleRemoveFromList(c)}
+          deleteLabel="Gỡ khỏi danh sách"
+          deletePermission={PERMISSIONS.LIST_UPDATE}
+          serverPagination={{
+            page,
+            pageSize,
+            totalElements,
+            totalPages,
+            onPageChange: setPage,
+            onPageSizeChange: (size) => {
+              setPageSize(size)
+              setPage(0)
+            },
           }}
         />
       </div>

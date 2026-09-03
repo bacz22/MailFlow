@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   Layers,
   Plus,
@@ -20,7 +20,7 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card'
-import { TagManagerModal, ACCESSIBLE_TAG_COLORS } from '../components/lists/TagManagerModal'
+import { TagManagerModal } from '../components/lists/TagManagerModal'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -31,63 +31,10 @@ import {
 import { PermissionGate, PERMISSIONS } from '../permissions'
 import { ReadOnlyBanner } from '../components/ui/ReadOnlyBanner'
 import { useToast } from '../components/ui/Toast'
+import { ApiError } from '../services/apiClient'
+import { listService } from '../services/list.service'
+import { tagService } from '../services/tag.service'
 import type { AudienceList, AudienceTag } from '../types/list.types'
-
-const INITIAL_LISTS: AudienceList[] = [
-  {
-    id: 'lst-1',
-    name: 'VIP Enterprise Clients',
-    description: 'Khách hàng doanh nghiệp trọng điểm gói hợp đồng trên $5,000/năm.',
-    contactCount: 5420,
-    activeCount: 5380,
-    unsubscribedCount: 12,
-    createdAt: '10/08/2026',
-    updatedAt: '25/08/2026',
-    tags: ['Customer', 'High Value', 'Decision Maker'],
-  },
-  {
-    id: 'lst-2',
-    name: 'Webinar Leads Q3',
-    description: 'Danh sách đăng ký tham dự chuỗi hội thảo trực tuyến Tối ưu Inbox Rate 2026.',
-    contactCount: 3850,
-    activeCount: 3790,
-    unsubscribedCount: 18,
-    createdAt: '15/08/2026',
-    updatedAt: '24/08/2026',
-    tags: ['Lead', 'Engaged'],
-  },
-  {
-    id: 'lst-3',
-    name: 'General Newsletter Subscribers',
-    description: 'Độc giả nhận bản tin kiến thức email marketing và tự động hóa hàng tuần.',
-    contactCount: 8900,
-    activeCount: 8650,
-    unsubscribedCount: 45,
-    createdAt: '01/08/2026',
-    updatedAt: '25/08/2026',
-    tags: ['Newsletter'],
-  },
-  {
-    id: 'lst-4',
-    name: '14-Day Free Trial Users',
-    description: 'Người dùng mới đăng ký tài khoản trải nghiệm nền tảng trong 14 ngày qua.',
-    contactCount: 1240,
-    activeCount: 1210,
-    unsubscribedCount: 4,
-    createdAt: '18/08/2026',
-    updatedAt: '25/08/2026',
-    tags: ['Trial', 'Lead'],
-  },
-]
-
-const INITIAL_TAGS: AudienceTag[] = [
-  { id: 'tag-1', name: 'Customer', color: ACCESSIBLE_TAG_COLORS[0].value, contactCount: 5420, createdAt: '01/08/2026' },
-  { id: 'tag-2', name: 'High Value', color: ACCESSIBLE_TAG_COLORS[1].value, contactCount: 2150, createdAt: '05/08/2026' },
-  { id: 'tag-3', name: 'Lead', color: ACCESSIBLE_TAG_COLORS[2].value, contactCount: 4890, createdAt: '10/08/2026' },
-  { id: 'tag-4', name: 'Decision Maker', color: ACCESSIBLE_TAG_COLORS[3].value, contactCount: 1820, createdAt: '12/08/2026' },
-  { id: 'tag-5', name: 'Engaged', color: ACCESSIBLE_TAG_COLORS[4].value, contactCount: 3400, createdAt: '15/08/2026' },
-  { id: 'tag-6', name: 'Trial', color: ACCESSIBLE_TAG_COLORS[5].value, contactCount: 1240, createdAt: '18/08/2026' },
-]
 
 export interface ListsPageProps {
   onNavigate: (path: string) => void
@@ -95,41 +42,92 @@ export interface ListsPageProps {
 
 export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
   const { showToast } = useToast()
-  const [lists, setLists] = useState<AudienceList[]>(INITIAL_LISTS)
-  const [tags, setTags] = useState<AudienceTag[]>(INITIAL_TAGS)
+  const [lists, setLists] = useState<AudienceList[]>([])
+  const [tags, setTags] = useState<AudienceTag[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
   const [isTagModalOpen, setIsTagModalOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
-  const filteredLists = lists.filter(
-    (l) =>
-      l.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      l.description.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
-  const handleDuplicate = (list: AudienceList) => {
-    const duplicated: AudienceList = {
-      ...list,
-      id: `lst-${Date.now()}`,
-      name: `${list.name} (Bản sao)`,
-      createdAt: 'Hôm nay',
-      updatedAt: 'Hôm nay',
+  const loadLists = useCallback(async (q?: string) => {
+    setIsLoading(true)
+    try {
+      const data = await listService.list(q)
+      setLists(data)
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không tải được danh sách',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    } finally {
+      setIsLoading(false)
     }
-    setLists((prev) => [duplicated, ...prev])
-    showToast({
-      type: 'success',
-      title: 'Đã nhân bản danh sách',
-      description: `Đã tạo bản sao "${duplicated.name}".`,
-    })
+  }, [showToast])
+
+  const loadTags = useCallback(async () => {
+    try {
+      const data = await tagService.list()
+      setTags(data)
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không tải được thẻ',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    }
+  }, [showToast])
+
+  useEffect(() => {
+    void loadTags()
+  }, [loadTags])
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      void loadLists(searchQuery.trim() || undefined)
+    }, 250)
+    return () => window.clearTimeout(handle)
+  }, [loadLists, searchQuery])
+
+  const filteredLists = lists
+
+  const handleDuplicate = async (list: AudienceList) => {
+    try {
+      const duplicated = await listService.duplicate(list.id)
+      setLists((prev) => [duplicated, ...prev])
+      showToast({
+        type: 'success',
+        title: 'Đã nhân bản danh sách',
+        description: `Đã tạo bản sao "${duplicated.name}".`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không nhân bản được danh sách',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    }
   }
 
-  const handleDelete = (id: string, name: string) => {
-    setLists((prev) => prev.filter((l) => l.id !== id))
-    showToast({
-      type: 'warning',
-      title: 'Đã xóa danh sách',
-      description: `Đã xóa danh sách "${name}".`,
-    })
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Xóa danh sách "${name}"? Liên hệ vẫn được giữ trong danh bạ.`)) {
+      return
+    }
+    try {
+      await listService.delete(id)
+      setLists((prev) => prev.filter((l) => l.id !== id))
+      showToast({
+        type: 'warning',
+        title: 'Đã xóa danh sách',
+        description: `Đã xóa danh sách "${name}".`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không xóa được danh sách',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    }
   }
 
   return (
@@ -184,15 +182,19 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
           <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Thẻ Phổ Biến:</span>
         </div>
         <div className="flex items-center gap-2 overflow-x-auto">
-          {tags.map((t) => (
-            <span
-              key={t.id}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold shrink-0 ${t.color}`}
-            >
-              <span>#{t.name}</span>
-              <span className="opacity-70 text-[10px] font-mono">({t.contactCount})</span>
-            </span>
-          ))}
+          {tags.length === 0 ? (
+            <span className="text-xs text-slate-400">Chưa có thẻ — mở Quản Lý Thẻ để tạo hoặc đồng bộ.</span>
+          ) : (
+            tags.map((t) => (
+              <span
+                key={t.id}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold shrink-0 ${t.color}`}
+              >
+                <span>#{t.name}</span>
+                <span className="opacity-70 text-[10px] font-mono">({t.contactCount})</span>
+              </span>
+            ))
+          )}
         </div>
         <Button
           variant="ghost"
@@ -247,6 +249,13 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
       {/* 4. LISTS RENDER: GRID VIEW */}
       {viewMode === 'grid' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {isLoading && lists.length === 0 ? (
+            <div className="col-span-full text-center text-sm text-slate-500 py-10">Đang tải danh sách...</div>
+          ) : filteredLists.length === 0 ? (
+            <div className="col-span-full text-center text-sm text-slate-500 py-10">
+              Chưa có danh sách nào. Tạo danh sách đầu tiên để gom nhóm liên hệ.
+            </div>
+          ) : null}
           {filteredLists.map((list) => (
             <Card
               key={list.id}
@@ -292,7 +301,7 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
                           </DropdownMenuItem>
                         </PermissionGate>
                         <PermissionGate permission={PERMISSIONS.LIST_CREATE}>
-                          <DropdownMenuItem onClick={() => handleDuplicate(list)}>
+                          <DropdownMenuItem onClick={() => void handleDuplicate(list)}>
                             <Copy className="w-3.5 h-3.5 mr-2 text-emerald-600" />
                             <span>Nhân bản danh sách</span>
                           </DropdownMenuItem>
@@ -300,7 +309,7 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
                         <PermissionGate permission={PERMISSIONS.LIST_DELETE}>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            onClick={() => handleDelete(list.id, list.name)}
+                            onClick={() => void handleDelete(list.id, list.name)}
                             className="text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium"
                           >
                             <Trash2 className="w-3.5 h-3.5 mr-2" />
@@ -383,6 +392,13 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {filteredLists.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-10 text-center text-sm text-slate-500">
+                      {isLoading ? 'Đang tải danh sách...' : 'Chưa có danh sách nào.'}
+                    </td>
+                  </tr>
+                ) : null}
                 {filteredLists.map((list) => (
                   <tr
                     key={list.id}
@@ -436,7 +452,22 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
         isOpen={isTagModalOpen}
         onClose={() => setIsTagModalOpen(false)}
         tags={tags}
-        onUpdateTags={setTags}
+        onCreateTag={async (payload) => {
+          const created = await tagService.create(payload)
+          setTags((prev) => [created, ...prev])
+        }}
+        onRenameTag={async (tagId, name) => {
+          const updated = await tagService.update(tagId, { name })
+          setTags((prev) => prev.map((tag) => (tag.id === tagId ? updated : tag)))
+        }}
+        onDeleteTag={async (tagId) => {
+          await tagService.delete(tagId)
+          setTags((prev) => prev.filter((tag) => tag.id !== tagId))
+        }}
+        onSyncFromContacts={async () => {
+          const result = await tagService.syncFromContacts()
+          setTags(result.tags)
+        }}
       />
     </div>
   )

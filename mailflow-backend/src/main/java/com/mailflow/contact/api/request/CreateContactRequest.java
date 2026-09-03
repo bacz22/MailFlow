@@ -13,6 +13,7 @@ import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -47,4 +48,7 @@ public class CreateContactRequest {
 
     @Builder.Default
     private List<ContactCustomField> customFields = new ArrayList<>();
+
+    @Builder.Default
+    private List<UUID> listIds = new ArrayList<>();
 }

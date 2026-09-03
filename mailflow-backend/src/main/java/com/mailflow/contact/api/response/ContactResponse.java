@@ -30,6 +30,8 @@ public class ContactResponse {
     @Builder.Default
     private List<String> lists = new ArrayList<>();
     @Builder.Default
+    private List<UUID> listIds = new ArrayList<>();
+    @Builder.Default
     private List<String> tags = new ArrayList<>();
     private ContactStatus status;
     @Builder.Default

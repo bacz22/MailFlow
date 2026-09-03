@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   LayoutDashboard,
   Users,
@@ -22,6 +22,22 @@ import { SidebarItem } from './SidebarItem'
 import { UserMenu } from './UserMenu'
 import { Tooltip } from '../ui/Tooltip'
 import { usePermission } from '../../permissions/PermissionContext'
+import { useWorkspace } from '../../context/WorkspaceContext'
+import { contactService } from '../../services/contact.service'
+
+function formatNavCount(value: number): string {
+  if (value < 1000) {
+    return String(value)
+  }
+  if (value < 1_000_000) {
+    const thousands = value / 1000
+    const compact = (thousands >= 10 ? thousands.toFixed(0) : thousands.toFixed(1)).replace(/\.0$/, '')
+    return `${compact}k`
+  }
+  const millions = value / 1_000_000
+  const compact = (millions >= 10 ? millions.toFixed(0) : millions.toFixed(1)).replace(/\.0$/, '')
+  return `${compact}m`
+}
 
 export interface SidebarProps {
   currentPath?: string
@@ -45,6 +61,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   className,
 }) => {
   const { canAccessRoute } = usePermission()
+  const { currentWorkspaceId } = useWorkspace()
+  const [contactCount, setContactCount] = useState<number | null>(null)
 
   const handleNav = (path: string) => {
     onNavigate?.(path)
@@ -67,6 +85,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const hasAudienceGroup = canContacts || canLists || canSegments
   const hasCampaignsGroup = canCampaigns || canTemplates
   const hasSettingsGroup = canSenders || canDomains || canBilling || canWorkspace
+
+  useEffect(() => {
+    if (!canContacts || !currentWorkspaceId) {
+      setContactCount(null)
+      return
+    }
+    let cancelled = false
+    contactService
+      .stats()
+      .then((stats) => {
+        if (!cancelled) {
+          setContactCount(stats.total)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setContactCount(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [canContacts, currentWorkspaceId, currentPath])
 
   return (
     <aside
@@ -105,7 +146,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 icon={<Users className="w-4 h-4" />}
                 label="Contacts"
                 active={currentPath === '/contacts'}
-                badge="14.2k"
+                badge={contactCount == null ? undefined : formatNavCount(contactCount)}
                 collapsed={collapsed}
                 onClick={() => handleNav('/contacts')}
               />

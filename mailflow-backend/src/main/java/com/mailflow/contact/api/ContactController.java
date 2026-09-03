@@ -1,5 +1,7 @@
 package com.mailflow.contact.api;
 
+import com.mailflow.audiencelist.api.request.BulkListsRequest;
+import com.mailflow.audiencelist.api.response.AddedMembersResponse;
 import com.mailflow.contact.api.request.BulkIdsRequest;
 import com.mailflow.contact.api.request.BulkTagsRequest;
 import com.mailflow.contact.api.request.CreateContactRequest;
@@ -49,6 +51,8 @@ public class ContactController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String tag,
+            @RequestParam(required = false) String listId,
+            @RequestParam(required = false) String segmentId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String sort
@@ -56,7 +60,7 @@ public class ContactController {
         return ResponseEntity.ok(contactService.list(
                 UUID.fromString(jwt.getSubject()),
                 WorkspaceService.requireCurrentWorkspaceId(jwt),
-                q, status, tag, page, size, sort
+                q, status, tag, page, size, sort, listId, segmentId
         ));
     }
 
@@ -73,12 +77,13 @@ public class ContactController {
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) String tag
+            @RequestParam(required = false) String tag,
+            @RequestParam(required = false) String listId
     ) {
         String csv = contactService.exportCsv(
                 UUID.fromString(jwt.getSubject()),
                 WorkspaceService.requireCurrentWorkspaceId(jwt),
-                q, status, tag, null
+                q, status, tag, listId, null
         );
         return csvResponse(csv);
     }
@@ -131,6 +136,18 @@ public class ContactController {
                 request
         );
         return ResponseEntity.ok(Map.of("updated", updated));
+    }
+
+    @PostMapping("/bulk-lists")
+    public ResponseEntity<AddedMembersResponse> bulkLists(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody BulkListsRequest request
+    ) {
+        return ResponseEntity.ok(contactService.bulkLists(
+                UUID.fromString(jwt.getSubject()),
+                WorkspaceService.requireCurrentWorkspaceId(jwt),
+                request
+        ));
     }
 
     @PostMapping

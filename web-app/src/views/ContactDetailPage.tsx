@@ -20,11 +20,16 @@ import { ContactStatusBadge } from '../components/contacts/ContactStatusBadge'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
+import { ConfirmDialog } from '../components/ui/Dialog'
 import { PermissionGate, PERMISSIONS } from '../permissions'
+import { AddToListDialog } from '../components/contacts/AddToListDialog'
+import { AssignTagsDialog } from '../components/contacts/AssignTagsDialog'
 import { useToast } from '../components/ui/Toast'
 import { ApiError } from '../services/apiClient'
 import { contactService } from '../services/contact.service'
+import { listService } from '../services/list.service'
 import type { Contact } from '../types/contact.types'
+import type { AudienceList } from '../types/list.types'
 
 export interface ContactDetailPageProps {
   contactId: string
@@ -40,6 +45,12 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
   const [activeTab, setActiveTab] = useState<'overview' | 'lists_tags' | 'activity' | 'custom_fields'>('overview')
   const [contact, setContact] = useState<Contact | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isAddToListOpen, setIsAddToListOpen] = useState(false)
+  const [isAssignTagsOpen, setIsAssignTagsOpen] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [availableLists, setAvailableLists] = useState<AudienceList[]>([])
+  const [isLoadingLists, setIsLoadingLists] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -97,12 +108,18 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
     })
   }
 
-  const handleDelete = async () => {
-    if (!window.confirm(`Xóa vĩnh viễn liên hệ ${contact.fullName}?`)) {
+  const handleDelete = () => {
+    setIsDeleteOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!contact) {
       return
     }
+    setIsDeleting(true)
     try {
       await contactService.delete(contact.id)
+      setIsDeleteOpen(false)
       showToast({
         type: 'warning',
         title: 'Đã xóa liên hệ',
@@ -115,6 +132,76 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
         title: 'Không xóa được liên hệ',
         description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
       })
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const openAddToList = async () => {
+    setIsLoadingLists(true)
+    try {
+      const lists = await listService.list()
+      if (lists.length === 0) {
+        showToast({
+          type: 'warning',
+          title: 'Chưa có danh sách',
+          description: 'Tạo danh sách người nhận trước khi gán liên hệ.',
+        })
+        return
+      }
+      setAvailableLists(lists)
+      setIsAddToListOpen(true)
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không tải được danh sách',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    } finally {
+      setIsLoadingLists(false)
+    }
+  }
+
+  const handleConfirmAddToList = async (list: AudienceList) => {
+    try {
+      await contactService.bulkLists([contact.id], list.id)
+      const refreshed = await contactService.get(contact.id)
+      setContact(refreshed)
+      showToast({
+        type: 'success',
+        title: 'Đã thêm vào danh sách',
+        description: `Đã gán ${contact.fullName} vào "${list.name}".`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không gán được danh sách',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+      throw error
+    }
+  }
+
+  const handleConfirmAssignTags = async (tags: string[]) => {
+    if (!contact) {
+      return
+    }
+    try {
+      await contactService.bulkTags([contact.id], tags)
+      const refreshed = await contactService.get(contact.id)
+      setContact(refreshed)
+      showToast({
+        type: 'success',
+        title: 'Đã gán thẻ',
+        description: `Đã gán ${tags.map((tag) => `#${tag}`).join(', ')} cho ${contact.fullName}.`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không gán được thẻ',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+      throw error
     }
   }
 
@@ -225,13 +312,8 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
                 variant="outline"
                 size="sm"
                 leftIcon={<ListPlus className="w-3.5 h-3.5 text-emerald-600" />}
-                onClick={() =>
-                  showToast({
-                    type: 'info',
-                    title: 'Thêm vào danh sách',
-                    description: `Chọn danh sách cho ${contact.fullName}`,
-                  })
-                }
+                onClick={() => void openAddToList()}
+                isLoading={isLoadingLists}
               >
                 Thêm Vào List
               </Button>
@@ -242,13 +324,7 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
                 variant="outline"
                 size="sm"
                 leftIcon={<Tag className="w-3.5 h-3.5 text-indigo-600" />}
-                onClick={() =>
-                  showToast({
-                    type: 'info',
-                    title: 'Gán thẻ tag',
-                    description: `Gán thêm thẻ phân loại cho ${contact.fullName}`,
-                  })
-                }
+                onClick={() => setIsAssignTagsOpen(true)}
               >
                 Gán Thẻ
               </Button>
@@ -406,7 +482,7 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
             <CardContent className="space-y-3 pt-4">
               {contact.lists.length === 0 ? (
                 <div className="p-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-xs text-slate-500">
-                  Liên hệ chưa thuộc danh sách nào. Gán danh sách sẽ có ở phase Lists.
+                  Liên hệ chưa thuộc danh sách nào.
                 </div>
               ) : (
                 contact.lists.map((l, idx) => (
@@ -534,6 +610,37 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
           </CardContent>
         </Card>
       )}
+
+      <AddToListDialog
+        isOpen={isAddToListOpen}
+        onClose={() => setIsAddToListOpen(false)}
+        lists={availableLists}
+        contactCount={1}
+        onConfirm={handleConfirmAddToList}
+      />
+
+      <AssignTagsDialog
+        isOpen={isAssignTagsOpen}
+        onClose={() => setIsAssignTagsOpen(false)}
+        contactCount={1}
+        onConfirm={handleConfirmAssignTags}
+      />
+
+      <ConfirmDialog
+        open={isDeleteOpen}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) {
+            setIsDeleteOpen(false)
+          }
+        }}
+        title="Xóa liên hệ vĩnh viễn?"
+        description={`Bạn sắp xóa "${contact.fullName}" khỏi danh bạ. Hành động này không thể hoàn tác.`}
+        confirmText="Xóa vĩnh viễn"
+        cancelText="Hủy"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   )
 }

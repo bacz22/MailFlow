@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
@@ -20,10 +20,14 @@ import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { FormField, FormLabel, FormMessage } from '../ui/FormGroup'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/Card'
+import { SimpleSelect, type SelectOption } from '../ui/Select'
+import { listService } from '../../services/list.service'
 import type { Contact } from '../../types/contact.types'
+import type { AudienceList } from '../../types/list.types'
 
 export interface ContactFormProps {
   initialData?: Partial<Contact>
+  defaultListIds?: string[]
   isEdit?: boolean
   onSubmit: (data: ContactFormData, shouldAddAnother?: boolean) => Promise<void> | void
   onCancel: () => void
@@ -32,14 +36,71 @@ export interface ContactFormProps {
 
 const POPULAR_TAGS = ['Customer', 'Lead', 'High Value', 'Decision Maker', 'Engaged', 'Trial']
 
+const CONTACT_STATUS_OPTIONS: SelectOption[] = [
+  {
+    value: 'active',
+    textValue: 'Hoạt động (Active – Sẵn sàng nhận email)',
+    label: (
+      <span className="flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+        <span>Hoạt động (Active – Sẵn sàng nhận email)</span>
+      </span>
+    ),
+  },
+  {
+    value: 'unsubscribed',
+    textValue: 'Đã hủy đăng ký (Unsubscribed)',
+    label: (
+      <span className="flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+        <span>Đã hủy đăng ký (Unsubscribed)</span>
+      </span>
+    ),
+  },
+  {
+    value: 'bounced',
+    textValue: 'Bounced (Hộp thư bị lỗi trả về)',
+    label: (
+      <span className="flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+        <span>Bounced (Hộp thư bị lỗi trả về)</span>
+      </span>
+    ),
+  },
+  {
+    value: 'invalid',
+    textValue: 'Không hợp lệ (Invalid)',
+    label: (
+      <span className="flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+        <span>Không hợp lệ (Invalid)</span>
+      </span>
+    ),
+  },
+  {
+    value: 'blocked',
+    textValue: 'Đã chặn / Báo cáo spam (Blocked)',
+    label: (
+      <span className="flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+        <span>Đã chặn / Báo cáo spam (Blocked)</span>
+      </span>
+    ),
+  },
+]
+
 export const ContactForm: React.FC<ContactFormProps> = ({
   initialData,
+  defaultListIds = [],
   isEdit = false,
   onSubmit,
   onCancel,
   className,
 }) => {
   const [newTagInput, setNewTagInput] = useState('')
+  const [availableLists, setAvailableLists] = useState<AudienceList[]>([])
+
+  const initialListIds = initialData?.listIds?.length ? initialData.listIds : defaultListIds
 
   const {
     register,
@@ -58,7 +119,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
       phone: initialData?.phone || '',
       company: initialData?.company || '',
       status: initialData?.status || 'active',
-      lists: initialData?.lists || [],
+      lists: initialListIds,
       tags: initialData?.tags || (isEdit ? [] : ['Lead']),
       customFields: initialData?.customFields?.length
         ? initialData.customFields
@@ -72,6 +133,39 @@ export const ContactForm: React.FC<ContactFormProps> = ({
   })
 
   const selectedTags = watch('tags') || []
+  const selectedLists = watch('lists') || []
+  const currentStatus = watch('status') || 'active'
+
+  useEffect(() => {
+    register('status')
+  }, [register])
+
+  useEffect(() => {
+    let cancelled = false
+    listService
+      .list()
+      .then((rows) => {
+        if (!cancelled) setAvailableLists(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setAvailableLists([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const toggleList = (listId: string) => {
+    if (selectedLists.includes(listId)) {
+      setValue(
+        'lists',
+        selectedLists.filter((id) => id !== listId),
+        { shouldValidate: true }
+      )
+    } else {
+      setValue('lists', [...selectedLists, listId], { shouldValidate: true })
+    }
+  }
 
   const addTag = (tagToAdd: string) => {
     const trimmed = tagToAdd.trim()
@@ -103,7 +197,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
       phone: '',
       company: '',
       status: 'active',
-      lists: ['Newsletter Subscribers'],
+      lists: defaultListIds,
       tags: ['Lead'],
       customFields: [],
     })
@@ -188,16 +282,19 @@ export const ContactForm: React.FC<ContactFormProps> = ({
 
             <FormField>
               <FormLabel required>Trạng Thái Gửi Thư</FormLabel>
-              <select
-                {...register('status')}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus-ring cursor-pointer"
-              >
-                <option value="active">Hoạt động (Active - Sẵn sàng nhận email)</option>
-                <option value="unsubscribed">Đã hủy đăng ký (Unsubscribed)</option>
-                <option value="bounced">Bounced (Hộp thư bị lỗi trả về)</option>
-                <option value="invalid">Không hợp lệ (Invalid)</option>
-                <option value="blocked">Đã chặn / Báo cáo spam (Blocked)</option>
-              </select>
+              <SimpleSelect
+                value={currentStatus}
+                onValueChange={(val) => {
+                  setValue('status', val as ContactFormData['status'], {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                  })
+                }}
+                hasError={!!errors.status}
+                options={CONTACT_STATUS_OPTIONS}
+                placeholder="Chọn trạng thái gửi thư..."
+              />
+              {errors.status && <FormMessage error={errors.status.message} />}
             </FormField>
           </div>
         </CardContent>
@@ -219,9 +316,31 @@ export const ContactForm: React.FC<ContactFormProps> = ({
           {/* Lists Selection */}
           <div className="space-y-2">
             <FormLabel>Danh Sách Gửi (Contact Lists)</FormLabel>
-            <div className="p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/40 text-xs text-slate-500">
-              Danh sách tĩnh sẽ có ở phase Lists. Hiện tại bạn có thể gán thẻ tag cho liên hệ.
-            </div>
+            {availableLists.length === 0 ? (
+              <div className="p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/40 text-xs text-slate-500">
+                Chưa có danh sách nào. Tạo danh sách ở mục Audience Lists rồi quay lại để gán.
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {availableLists.map((list) => {
+                  const selected = selectedLists.includes(list.id)
+                  return (
+                    <button
+                      key={list.id}
+                      type="button"
+                      onClick={() => toggleList(list.id)}
+                      className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition cursor-pointer ${
+                        selected
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-300'
+                      }`}
+                    >
+                      {list.name}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Tags Selection & Input */}

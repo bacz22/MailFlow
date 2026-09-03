@@ -1,4 +1,5 @@
 import type { ImportContactRow } from '../services/contact.service'
+import * as XLSX from 'xlsx'
 
 export interface ParsedCsvFile {
   headers: string[]
@@ -46,6 +47,68 @@ export function parseCsvText(text: string): ParsedCsvFile {
   const headers = splitCsvLine(lines[0])
   const rows = lines.slice(1).map(splitCsvLine)
   return { headers, rows }
+}
+
+function normalizeSheetMatrix(matrix: unknown[][]): ParsedCsvFile {
+  if (!matrix.length) {
+    return { headers: [], rows: [] }
+  }
+
+  const headers = (matrix[0] ?? []).map((cell) => String(cell ?? '').trim())
+  while (headers.length > 0 && headers[headers.length - 1] === '') {
+    headers.pop()
+  }
+  if (headers.length === 0) {
+    return { headers: [], rows: [] }
+  }
+
+  const rows = matrix
+    .slice(1)
+    .map((row) => headers.map((_, index) => String((row as unknown[])[index] ?? '').trim()))
+    .filter((row) => row.some((cell) => cell.length > 0))
+
+  return { headers, rows }
+}
+
+/** Parse SpreadsheetML / XLS / XLSX into the same shape as CSV. */
+export function parseExcelArrayBuffer(buffer: ArrayBuffer): ParsedCsvFile {
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: false, raw: false })
+  const preferred =
+    workbook.SheetNames.find((name) => {
+      const normalized = name.trim().toLowerCase()
+      return normalized === 'danh ba' || normalized === 'contacts' || normalized === 'sheet1'
+    }) ?? workbook.SheetNames.find((name) => !/huong dan|hướng dẫn|guide|readme/i.test(name))
+
+  const sheetName = preferred ?? workbook.SheetNames[0]
+  if (!sheetName) {
+    return { headers: [], rows: [] }
+  }
+
+  const sheet = workbook.Sheets[sheetName]
+  const matrix = XLSX.utils.sheet_to_json<(string | number | boolean | null)[]>(sheet, {
+    header: 1,
+    defval: '',
+    raw: false,
+    blankrows: false,
+  }) as unknown[][]
+
+  return normalizeSheetMatrix(matrix)
+}
+
+export async function parseContactImportFile(file: File): Promise<ParsedCsvFile> {
+  const name = file.name.toLowerCase()
+  if (name.endsWith('.csv')) {
+    return parseCsvText(await file.text())
+  }
+  if (name.endsWith('.xls') || name.endsWith('.xlsx')) {
+    return parseExcelArrayBuffer(await file.arrayBuffer())
+  }
+  throw new Error('Định dạng không hỗ trợ. Vui lòng dùng file .CSV, .XLS hoặc .XLSX.')
+}
+
+export function isSupportedContactImportFile(fileName: string): boolean {
+  const name = fileName.toLowerCase()
+  return name.endsWith('.csv') || name.endsWith('.xls') || name.endsWith('.xlsx')
 }
 
 function splitCsvLine(line: string): string[] {
@@ -137,30 +200,59 @@ export function mapRowsToImportPayload(
   })
 }
 
-export function analyzeImportRows(rows: ImportContactRow[]) {
-  let valid = 0
-  let invalid = 0
-  let missingEmail = 0
+export interface DuplicateDetail {
+  email: string
+  rowNumber: number
+  firstSeenRowNumber: number
+}
 
-  rows.forEach((row) => {
-    const email = row.email?.trim() ?? ''
+export interface ImportAnalysis {
+  total: number
+  valid: number
+  duplicates: number
+  invalid: number
+  missingEmail: number
+  duplicateDetails: DuplicateDetail[]
+}
+
+export function analyzeImportRows(rows: ImportContactRow[]): ImportAnalysis {
+  let missingEmail = 0
+  let malformedEmail = 0
+  const seenEmailRows = new Map<string, number>()
+  const duplicateDetails: DuplicateDetail[] = []
+  let duplicates = 0
+
+  rows.forEach((row, index) => {
+    const fileRowNumber = index + 2 // Row 1 is header row, data starts from Row 2
+    const email = row.email?.trim().toLowerCase() ?? ''
     if (!email) {
       missingEmail += 1
-      invalid += 1
       return
     }
     if (!EMAIL_PATTERN.test(email)) {
-      invalid += 1
+      malformedEmail += 1
       return
     }
-    valid += 1
+
+    if (seenEmailRows.has(email)) {
+      duplicates += 1
+      duplicateDetails.push({
+        email,
+        rowNumber: fileRowNumber,
+        firstSeenRowNumber: seenEmailRows.get(email)!,
+      })
+    } else {
+      seenEmailRows.set(email, fileRowNumber)
+    }
   })
 
   return {
     total: rows.length,
-    valid,
-    invalid,
+    valid: seenEmailRows.size,
+    duplicates,
+    invalid: missingEmail + malformedEmail,
     missingEmail,
+    duplicateDetails,
   }
 }
 

@@ -1,6 +1,6 @@
 export type MatchLogic = 'and' | 'or'
 
-export type FieldType = 'string' | 'tag' | 'status' | 'number' | 'date'
+export type FieldType = 'string' | 'tag' | 'status' | 'number' | 'date' | 'list'
 
 export interface SegmentCondition {
   id: string

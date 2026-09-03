@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/Button'
@@ -12,8 +12,19 @@ export interface ContactCreatePageProps {
   onNavigate: (path: string) => void
 }
 
+function queryListId(): string | undefined {
+  const value = new URLSearchParams(window.location.search).get('listId')
+  return value?.trim() || undefined
+}
+
 export const ContactCreatePage: React.FC<ContactCreatePageProps> = ({ onNavigate }) => {
   const { showToast } = useToast()
+  const defaultListIds = useMemo(() => {
+    const listId = queryListId()
+    return listId ? [listId] : []
+  }, [])
+  const originListId = defaultListIds[0]
+  const backPath = originListId ? `/lists/${originListId}` : '/contacts'
 
   const handleSubmit = async (data: ContactFormData, shouldAddAnother?: boolean) => {
     try {
@@ -26,6 +37,7 @@ export const ContactCreatePage: React.FC<ContactCreatePageProps> = ({ onNavigate
         status: data.status,
         tags: data.tags,
         customFields: data.customFields,
+        listIds: data.lists,
       })
 
       showToast({
@@ -37,7 +49,7 @@ export const ContactCreatePage: React.FC<ContactCreatePageProps> = ({ onNavigate
       if (shouldAddAnother) {
         return
       }
-      onNavigate('/contacts')
+      onNavigate(backPath)
     } catch (error) {
       showToast({
         type: 'error',
@@ -58,7 +70,7 @@ export const ContactCreatePage: React.FC<ContactCreatePageProps> = ({ onNavigate
             variant="outline"
             size="sm"
             leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-            onClick={() => onNavigate('/contacts')}
+            onClick={() => onNavigate(backPath)}
           >
             Quay Lại Danh Bạ
           </Button>
@@ -67,8 +79,9 @@ export const ContactCreatePage: React.FC<ContactCreatePageProps> = ({ onNavigate
 
       <ContactForm
         isEdit={false}
+        defaultListIds={defaultListIds}
         onSubmit={handleSubmit}
-        onCancel={() => onNavigate('/contacts')}
+        onCancel={() => onNavigate(backPath)}
       />
     </div>
   )

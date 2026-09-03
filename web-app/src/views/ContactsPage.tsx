@@ -14,17 +14,25 @@ import {
   ContactTable,
   ContactFilters,
   ContactBulkActions,
+  AddToListDialog,
+  AssignTagsDialog,
 } from '../components/contacts'
 import type { SortField, SortOrder } from '../components/contacts/ContactTable'
 import { MetricWidget } from '../components/dashboard/MetricWidget'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
+import { ConfirmDialog } from '../components/ui/Dialog'
 import { ReadOnlyBanner } from '../components/ui/ReadOnlyBanner'
 import { PermissionGate, PERMISSIONS, usePermission } from '../permissions'
 import { useToast } from '../components/ui/Toast'
 import { ApiError } from '../services/apiClient'
 import { contactService, type ContactStats } from '../services/contact.service'
+import { listService } from '../services/list.service'
+import { segmentService } from '../services/segment.service'
+import { tagService } from '../services/tag.service'
 import type { Contact, ContactFilterState } from '../types/contact.types'
+import type { AudienceList } from '../types/list.types'
+import type { DynamicSegment } from '../types/segment.types'
 
 const EMPTY_STATS: ContactStats = {
   total: 0,
@@ -51,6 +59,15 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [stats, setStats] = useState<ContactStats>(EMPTY_STATS)
   const [availableTags, setAvailableTags] = useState<string[]>([])
+  const [catalogTags, setCatalogTags] = useState<string[]>([])
+  const [availableLists, setAvailableLists] = useState<AudienceList[]>([])
+  const [availableSegments, setAvailableSegments] = useState<DynamicSegment[]>([])
+  const [addToListIds, setAddToListIds] = useState<string[] | null>(null)
+  const [isAssignTagsOpen, setIsAssignTagsOpen] = useState(false)
+  const [deletingContact, setDeletingContact] = useState<Contact | null>(null)
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isError, setIsError] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -66,9 +83,24 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
     selectedList: 'all',
     selectedTag: 'all',
     selectedStatus: 'all',
+    selectedSegment: 'all',
   })
 
   const sortParam = useMemo(() => `${sortField},${sortOrder}`, [sortField, sortOrder])
+
+  const suggestionTags = useMemo(() => {
+    const merged = new Set<string>([...catalogTags, ...availableTags])
+    return Array.from(merged).sort((a, b) => a.localeCompare(b, 'vi'))
+  }, [availableTags, catalogTags])
+
+  const loadCatalogTags = useCallback(async () => {
+    try {
+      const tags = await tagService.list()
+      setCatalogTags(tags.map((tag) => tag.name))
+    } catch {
+      // Keep contact-derived tags if catalog fails.
+    }
+  }, [])
 
   const loadStats = useCallback(async () => {
     try {
@@ -91,6 +123,8 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
         q: filters.searchQuery || undefined,
         status: filters.selectedStatus,
         tag: filters.selectedTag,
+        listId: filters.selectedList,
+        segmentId: filters.selectedSegment,
         page,
         size: pageSize,
         sort: sortParam,
@@ -105,11 +139,26 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
     } finally {
       setIsLoading(false)
     }
-  }, [filters.searchQuery, filters.selectedStatus, filters.selectedTag, page, pageSize, sortParam])
+  }, [filters.searchQuery, filters.selectedStatus, filters.selectedTag, filters.selectedList, filters.selectedSegment, page, pageSize, sortParam])
 
   useEffect(() => {
     void loadStats()
   }, [loadStats])
+
+  useEffect(() => {
+    listService
+      .list()
+      .then(setAvailableLists)
+      .catch(() => setAvailableLists([]))
+    segmentService
+      .list()
+      .then(setAvailableSegments)
+      .catch(() => setAvailableSegments([]))
+  }, [])
+
+  useEffect(() => {
+    void loadCatalogTags()
+  }, [loadCatalogTags])
 
   useEffect(() => {
     void loadContacts()
@@ -117,7 +166,7 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
 
   useEffect(() => {
     setPage(0)
-  }, [filters.searchQuery, filters.selectedStatus, filters.selectedTag, pageSize, sortParam])
+  }, [filters.searchQuery, filters.selectedStatus, filters.selectedTag, filters.selectedList, filters.selectedSegment, pageSize, sortParam])
 
   const handleRefresh = async () => {
     await Promise.all([loadStats(), loadContacts()])
@@ -154,20 +203,59 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
     onNavigate?.(`/contacts/${contact.id}/edit`)
   }
 
-  const handleAddToList = () => {
-    showToast({
-      type: 'info',
-      title: 'Sắp ra mắt',
-      description: 'Gán danh sách sẽ có ở phase Lists.',
-    })
+  const openAddToList = (contact?: Contact) => {
+    const ids = contact ? [contact.id] : selectedIds
+    if (ids.length === 0) {
+      return
+    }
+    if (availableLists.length === 0) {
+      showToast({
+        type: 'warning',
+        title: 'Chưa có danh sách',
+        description: 'Tạo danh sách người nhận trước khi gán liên hệ.',
+      })
+      return
+    }
+    setAddToListIds(ids)
   }
 
-  const handleDeleteContact = async (contact: Contact) => {
-    if (!window.confirm(`Xóa vĩnh viễn liên hệ ${contact.fullName}?`)) {
+  const handleConfirmAddToList = async (list: AudienceList) => {
+    if (!addToListIds || addToListIds.length === 0) {
       return
     }
     try {
+      const result = await contactService.bulkLists(addToListIds, list.id)
+      setSelectedIds([])
+      await loadContacts()
+      listService.list().then(setAvailableLists).catch(() => undefined)
+      showToast({
+        type: 'success',
+        title: 'Đã thêm vào danh sách',
+        description: `Đã gán ${result.added} liên hệ vào "${list.name}".`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không gán được danh sách',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+      throw error
+    }
+  }
+
+  const handleDeleteContact = (contact: Contact) => {
+    setDeletingContact(contact)
+  }
+
+  const confirmDeleteContact = async () => {
+    if (!deletingContact) {
+      return
+    }
+    const contact = deletingContact
+    setIsDeleting(true)
+    try {
       await contactService.delete(contact.id)
+      setDeletingContact(null)
       setSelectedIds((prev) => prev.filter((id) => id !== contact.id))
       await Promise.all([loadStats(), loadContacts()])
       showToast({
@@ -181,16 +269,27 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
         title: 'Không xóa được liên hệ',
         description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
       })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
-  const handleBulkDelete = async () => {
-    const count = selectedIds.length
-    if (!window.confirm(`Xóa vĩnh viễn ${count} liên hệ đã chọn?`)) {
+  const handleBulkDelete = () => {
+    if (selectedIds.length === 0) {
       return
     }
+    setIsBulkDeleteOpen(true)
+  }
+
+  const confirmBulkDelete = async () => {
+    const count = selectedIds.length
+    if (count === 0) {
+      return
+    }
+    setIsDeleting(true)
     try {
       await contactService.bulkDelete(selectedIds)
+      setIsBulkDeleteOpen(false)
       setSelectedIds([])
       await Promise.all([loadStats(), loadContacts()])
       showToast({
@@ -204,16 +303,19 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
         title: 'Không xóa được liên hệ',
         description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
       })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
   const handleBulkExport = async () => {
+    setIsExporting(true)
     try {
-      await contactService.exportSelected(selectedIds)
+      const count = await contactService.exportSelected(selectedIds)
       showToast({
         type: 'success',
-        title: 'Đang xuất dữ liệu',
-        description: `Đã xuất ${selectedIds.length} liên hệ ra file CSV.`,
+        title: 'Xuất Excel thành công',
+        description: `Đã xuất ${count.toLocaleString('vi-VN')} liên hệ ra file Excel.`,
       })
     } catch (error) {
       showToast({
@@ -221,18 +323,20 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
         title: 'Không xuất được dữ liệu',
         description: error instanceof Error ? error.message : 'Vui lòng thử lại.',
       })
+    } finally {
+      setIsExporting(false)
     }
   }
 
-  const handleBulkTag = async () => {
+  const openAssignTags = () => {
+    if (selectedIds.length === 0) {
+      return
+    }
+    setIsAssignTagsOpen(true)
+  }
+
+  const handleConfirmAssignTags = async (tags: string[]) => {
     const count = selectedIds.length
-    const input = window.prompt('Nhập thẻ tag (phân cách bằng dấu phẩy):')
-    if (!input) return
-    const tags = input
-      .split(',')
-      .map((tag) => tag.trim())
-      .filter(Boolean)
-    if (tags.length === 0) return
     try {
       await contactService.bulkTags(selectedIds, tags)
       setSelectedIds([])
@@ -240,7 +344,7 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
       showToast({
         type: 'success',
         title: 'Đã gán thẻ',
-        description: `Đã gán tag cho ${count} liên hệ.`,
+        description: `Đã gán ${tags.map((tag) => `#${tag}`).join(', ')} cho ${count} liên hệ.`,
       })
     } catch (error) {
       showToast({
@@ -248,20 +352,23 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
         title: 'Không gán được thẻ',
         description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
       })
+      throw error
     }
   }
 
   const handleExportAll = async () => {
+    setIsExporting(true)
     try {
-      await contactService.exportFiltered({
+      const count = await contactService.exportFiltered({
         q: filters.searchQuery || undefined,
         status: filters.selectedStatus,
         tag: filters.selectedTag,
+        listId: filters.selectedList,
       })
       showToast({
         type: 'success',
-        title: 'Xuất CSV thành công',
-        description: 'File danh bạ đã được tải xuống.',
+        title: 'Xuất Excel thành công',
+        description: `Đã xuất ${count.toLocaleString('vi-VN')} liên hệ.`,
       })
     } catch (error) {
       showToast({
@@ -269,6 +376,8 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
         title: 'Không xuất được dữ liệu',
         description: error instanceof Error ? error.message : 'Vui lòng thử lại.',
       })
+    } finally {
+      setIsExporting(false)
     }
   }
 
@@ -276,7 +385,8 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
     filters.searchQuery !== '' ||
     filters.selectedList !== 'all' ||
     filters.selectedTag !== 'all' ||
-    filters.selectedStatus !== 'all'
+    filters.selectedStatus !== 'all' ||
+    filters.selectedSegment !== 'all'
 
   const bouncedInvalidTotal = stats.bounced + stats.invalid + stats.blocked
 
@@ -315,9 +425,11 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
                 variant="secondary"
                 size="sm"
                 leftIcon={<Download className="w-3.5 h-3.5" />}
+                isLoading={isExporting}
+                disabled={isExporting}
                 onClick={() => void handleExportAll()}
               >
-                Xuất CSV
+                Xuất Excel
               </Button>
             </PermissionGate>
 
@@ -401,10 +513,11 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
       <ContactBulkActions
         selectedCount={selectedIds.length}
         onClearSelection={() => setSelectedIds([])}
-        onAddToList={handleAddToList}
-        onAddTag={() => void handleBulkTag()}
+        onAddToList={() => openAddToList()}
+        onAddTag={openAssignTags}
         onExportSelected={() => void handleBulkExport()}
-        onDeleteSelected={() => void handleBulkDelete()}
+        isExporting={isExporting}
+        onDeleteSelected={handleBulkDelete}
       />
 
       <ContactFilters
@@ -416,12 +529,14 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
             selectedList: 'all',
             selectedTag: 'all',
             selectedStatus: 'all',
+            selectedSegment: 'all',
           })
         }
         totalCount={totalElements}
         filteredCount={contacts.length}
-        availableLists={[]}
-        availableTags={availableTags}
+        availableLists={availableLists.map((list) => ({ id: list.id, name: list.name }))}
+        availableTags={suggestionTags}
+        availableSegments={availableSegments.map((segment) => ({ id: segment.id, name: segment.name }))}
       />
 
       <ContactTable
@@ -439,12 +554,13 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
             selectedList: 'all',
             selectedTag: 'all',
             selectedStatus: 'all',
+            selectedSegment: 'all',
           })
         }
         onViewContact={handleViewContact}
         onEditContact={handleEditContact}
-        onAddToList={handleAddToList}
-        onDeleteContact={(contact) => void handleDeleteContact(contact)}
+        onAddToList={(contact) => openAddToList(contact)}
+        onDeleteContact={handleDeleteContact}
         sortField={sortField}
         sortOrder={sortOrder}
         onSortChange={(field, order) => {
@@ -462,6 +578,54 @@ export const ContactsPage: React.FC<ContactsPageProps> = ({ onNavigate }) => {
             setPage(0)
           },
         }}
+      />
+
+      <AddToListDialog
+        isOpen={addToListIds != null}
+        onClose={() => setAddToListIds(null)}
+        lists={availableLists}
+        contactCount={addToListIds?.length ?? 0}
+        onConfirm={handleConfirmAddToList}
+      />
+
+      <AssignTagsDialog
+        isOpen={isAssignTagsOpen}
+        onClose={() => setIsAssignTagsOpen(false)}
+        contactCount={selectedIds.length}
+        availableTags={suggestionTags}
+        onConfirm={handleConfirmAssignTags}
+      />
+
+      <ConfirmDialog
+        open={deletingContact != null}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) {
+            setDeletingContact(null)
+          }
+        }}
+        title="Xóa liên hệ vĩnh viễn?"
+        description={`Bạn sắp xóa "${deletingContact?.fullName ?? ''}" khỏi danh bạ. Hành động này không thể hoàn tác.`}
+        confirmText="Xóa vĩnh viễn"
+        cancelText="Hủy"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={() => void confirmDeleteContact()}
+      />
+
+      <ConfirmDialog
+        open={isBulkDeleteOpen}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) {
+            setIsBulkDeleteOpen(false)
+          }
+        }}
+        title="Xóa hàng loạt liên hệ?"
+        description={`Bạn sắp xóa vĩnh viễn ${selectedIds.length.toLocaleString('vi-VN')} liên hệ đã chọn. Hành động này không thể hoàn tác.`}
+        confirmText="Xóa vĩnh viễn"
+        cancelText="Hủy"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={() => void confirmBulkDelete()}
       />
     </div>
   )

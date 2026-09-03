@@ -16,8 +16,10 @@ import {
 import { Checkbox } from '../ui/Checkbox'
 import { Skeleton } from '../ui/Skeleton'
 import { Button } from '../ui/Button'
+import { SimpleSelect } from '../ui/Select'
 import { ContactStatusBadge } from './ContactStatusBadge'
 import { ContactRowActions } from './ContactRowActions'
+import type { Permission } from '../../permissions'
 import type { Contact } from '../../types/contact.types'
 
 export type SortField = 'fullName' | 'email' | 'company' | 'status' | 'createdAt' | 'updatedAt'
@@ -46,6 +48,8 @@ export interface ContactTableProps {
   onEditContact?: (contact: Contact) => void
   onAddToList?: (contact: Contact) => void
   onDeleteContact?: (contact: Contact) => void
+  deleteLabel?: string
+  deletePermission?: Permission
   serverPagination?: ServerPaginationConfig
   sortField?: SortField
   sortOrder?: SortOrder
@@ -67,6 +71,8 @@ export const ContactTable: React.FC<ContactTableProps> = ({
   onEditContact,
   onAddToList,
   onDeleteContact,
+  deleteLabel,
+  deletePermission,
   serverPagination,
   sortField: externalSortField,
   sortOrder: externalSortOrder,
@@ -429,6 +435,8 @@ export const ContactTable: React.FC<ContactTableProps> = ({
                       onEdit={onEditContact}
                       onAddToList={onAddToList}
                       onDelete={onDeleteContact}
+                      deleteLabel={deleteLabel}
+                      deletePermission={deletePermission}
                     />
                   </td>
                 </tr>
@@ -452,23 +460,26 @@ export const ContactTable: React.FC<ContactTableProps> = ({
 
           <div className="flex items-center gap-1.5">
             <span>/ trang:</span>
-            <select
-              value={activePageSize}
-              onChange={(e) => {
-                const nextSize = Number(e.target.value)
-                if (serverPagination) {
-                  serverPagination.onPageSizeChange(nextSize)
-                  return
-                }
-                setPageSize(nextSize)
-                setCurrentPage(1)
-              }}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-slate-700 dark:text-slate-200 focus-ring cursor-pointer"
-            >
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-            </select>
+            <div className="w-20">
+              <SimpleSelect
+                size="sm"
+                value={String(activePageSize)}
+                onValueChange={(val) => {
+                  const nextSize = Number(val)
+                  if (serverPagination) {
+                    serverPagination.onPageSizeChange(nextSize)
+                    return
+                  }
+                  setPageSize(nextSize)
+                  setCurrentPage(1)
+                }}
+                options={[
+                  { value: '10', label: '10' },
+                  { value: '25', label: '25' },
+                  { value: '50', label: '50' },
+                ]}
+              />
+            </div>
           </div>
         </div>
 

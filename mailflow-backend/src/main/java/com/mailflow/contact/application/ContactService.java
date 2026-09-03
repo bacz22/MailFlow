@@ -1,5 +1,9 @@
 package com.mailflow.contact.application;
 
+import com.mailflow.audiencelist.api.request.BulkListsRequest;
+import com.mailflow.audiencelist.api.response.AddedMembersResponse;
+import com.mailflow.audiencelist.application.AudienceListService;
+import com.mailflow.audiencesegment.application.AudienceSegmentService;
 import com.mailflow.common.exception.AppException;
 import com.mailflow.common.exception.ResourceNotFoundException;
 import com.mailflow.contact.api.request.BulkIdsRequest;
@@ -61,6 +65,8 @@ public class ContactService {
 
     private final ContactRepository contactRepository;
     private final WorkspaceAccessService accessService;
+    private final AudienceListService audienceListService;
+    private final AudienceSegmentService audienceSegmentService;
 
     @Transactional(readOnly = true)
     public ContactPageResponse list(
@@ -73,17 +79,66 @@ public class ContactService {
             Integer size,
             String sort
     ) {
+        return list(userId, workspaceId, q, status, tag, page, size, sort, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public ContactPageResponse list(
+            UUID userId,
+            UUID workspaceId,
+            String q,
+            String status,
+            String tag,
+            Integer page,
+            Integer size,
+            String sort,
+            String listId
+    ) {
+        return list(userId, workspaceId, q, status, tag, page, size, sort, listId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public ContactPageResponse list(
+            UUID userId,
+            UUID workspaceId,
+            String q,
+            String status,
+            String tag,
+            Integer page,
+            Integer size,
+            String sort,
+            String listId,
+            String segmentId
+    ) {
         accessService.requireContactRead(userId, workspaceId);
+        if (segmentId != null && !segmentId.isBlank()) {
+            UUID segmentUuid;
+            try {
+                segmentUuid = UUID.fromString(segmentId.trim());
+            } catch (IllegalArgumentException ex) {
+                throw new AppException(HttpStatus.BAD_REQUEST, "SEGMENT_INVALID_ID",
+                        "ID phân đoạn không hợp lệ.");
+            }
+            return audienceSegmentService.listContactsBySegmentRules(
+                    workspaceId, segmentUuid, q, status, page, size, sort
+            );
+        }
         Pageable pageable = toPageable(page, size, sort);
         Page<Contact> result = contactRepository.search(
                 workspaceId,
                 normalizeStatusFilter(status),
                 blankToEmpty(tag),
                 toSearchLike(q),
+                blankToEmpty(listId),
                 pageable
         );
+        Map<UUID, AudienceListService.ListMembership> memberships = audienceListService.membershipsFor(
+                result.getContent().stream().map(Contact::getId).toList()
+        );
         return ContactPageResponse.builder()
-                .content(result.getContent().stream().map(this::toResponse).toList())
+                .content(result.getContent().stream()
+                        .map(contact -> AudienceListService.toContactResponse(contact, memberships.get(contact.getId())))
+                        .toList())
                 .page(result.getNumber())
                 .size(result.getSize())
                 .totalElements(result.getTotalElements())
@@ -132,7 +187,11 @@ public class ContactService {
                 request.getTags(),
                 request.getCustomFields()
         );
-        return toResponse(contactRepository.save(contact));
+        Contact saved = contactRepository.save(contact);
+        if (request.getListIds() != null && !request.getListIds().isEmpty()) {
+            audienceListService.replaceContactLists(workspaceId, saved.getId(), request.getListIds());
+        }
+        return toResponse(saved);
     }
 
     @Transactional
@@ -161,6 +220,9 @@ public class ContactService {
                 request.getTags(),
                 request.getCustomFields()
         );
+        if (request.getListIds() != null) {
+            audienceListService.replaceContactLists(workspaceId, contactId, request.getListIds());
+        }
         return toResponse(contact);
     }
 
@@ -189,8 +251,17 @@ public class ContactService {
     }
 
     @Transactional
+    public AddedMembersResponse bulkLists(UUID userId, UUID workspaceId, BulkListsRequest request) {
+        accessService.requireContactWrite(userId, workspaceId);
+        return audienceListService.bulkAddContacts(userId, workspaceId, request.getListId(), request.getIds());
+    }
+
+    @Transactional
     public ImportContactsResponse importContacts(UUID userId, UUID workspaceId, ImportContactsRequest request) {
         accessService.requireContactImport(userId, workspaceId);
+        if (request.getListId() != null) {
+            audienceListService.requireList(workspaceId, request.getListId());
+        }
         List<ImportContactsRequest.ImportContactRow> rows = request.getRows();
         if (rows.size() > MAX_IMPORT_ROWS) {
             throw new AppException(HttpStatus.BAD_REQUEST, "CONTACT_IMPORT_TOO_LARGE",
@@ -227,6 +298,9 @@ public class ContactService {
             if (existing.isPresent()) {
                 if (duplicateAction == ImportContactsRequest.DuplicateAction.SKIP) {
                     skipped++;
+                    if (request.getListId() != null) {
+                        audienceListService.assignContactToList(workspaceId, request.getListId(), existing.get().getId());
+                    }
                     continue;
                 }
                 Contact contact = existing.get();
@@ -241,6 +315,9 @@ public class ContactService {
                         emptyToNull(row.getCustomFields())
                 );
                 contact.mergeTags(importTags);
+                if (request.getListId() != null) {
+                    audienceListService.assignContactToList(workspaceId, request.getListId(), contact.getId());
+                }
                 updated++;
                 continue;
             }
@@ -256,6 +333,9 @@ public class ContactService {
                     emptyToNull(row.getCustomFields())
             );
             contactRepository.save(contact);
+            if (request.getListId() != null) {
+                audienceListService.assignContactToList(workspaceId, request.getListId(), contact.getId());
+            }
             created++;
         }
 
@@ -269,7 +349,15 @@ public class ContactService {
     }
 
     @Transactional(readOnly = true)
-    public String exportCsv(UUID userId, UUID workspaceId, String q, String status, String tag, List<UUID> ids) {
+    public String exportCsv(
+            UUID userId,
+            UUID workspaceId,
+            String q,
+            String status,
+            String tag,
+            String listId,
+            List<UUID> ids
+    ) {
         accessService.requireContactExport(userId, workspaceId);
         List<Contact> contacts;
         if (ids != null && !ids.isEmpty()) {
@@ -280,6 +368,7 @@ public class ContactService {
                     normalizeStatusFilter(status),
                     blankToEmpty(tag),
                     toSearchLike(q),
+                    blankToEmpty(listId),
                     Pageable.unpaged(Sort.by(Sort.Direction.DESC, "created_at"))
             ).getContent();
         }
@@ -302,7 +391,7 @@ public class ContactService {
 
     @Transactional(readOnly = true)
     public String exportCsv(UUID userId, UUID workspaceId, ExportContactsRequest request) {
-        return exportCsv(userId, workspaceId, null, null, null, request == null ? null : request.getIds());
+        return exportCsv(userId, workspaceId, null, null, null, null, request == null ? null : request.getIds());
     }
 
     private void assertEmailAvailable(UUID workspaceId, String email, UUID currentId) {
@@ -319,21 +408,10 @@ public class ContactService {
     }
 
     private ContactResponse toResponse(Contact contact) {
-        return ContactResponse.builder()
-                .id(contact.getId())
-                .firstName(contact.getFirstName())
-                .lastName(contact.getLastName())
-                .fullName(contact.fullName())
-                .email(contact.getEmail())
-                .company(contact.getCompany())
-                .phone(contact.getPhone())
-                .lists(List.of())
-                .tags(contact.tagList())
-                .status(contact.getStatus())
-                .customFields(contact.getCustomFields() == null ? List.of() : contact.getCustomFields())
-                .createdAt(contact.getCreatedAt())
-                .updatedAt(contact.getUpdatedAt())
-                .build();
+        Map<UUID, AudienceListService.ListMembership> memberships = contact.getId() == null
+                ? Map.of()
+                : audienceListService.membershipsFor(List.of(contact.getId()));
+        return AudienceListService.toContactResponse(contact, memberships.get(contact.getId()));
     }
 
     private Pageable toPageable(Integer page, Integer size, String sort) {

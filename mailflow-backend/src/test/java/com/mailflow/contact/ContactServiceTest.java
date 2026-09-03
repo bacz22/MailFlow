@@ -1,5 +1,6 @@
 package com.mailflow.contact;
 
+import com.mailflow.audiencelist.application.AudienceListService;
 import com.mailflow.common.exception.AppException;
 import com.mailflow.contact.api.request.CreateContactRequest;
 import com.mailflow.contact.application.ContactService;
@@ -16,6 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,6 +33,8 @@ class ContactServiceTest {
 
     @Mock ContactRepository contactRepository;
     @Mock WorkspaceAccessService accessService;
+    @Mock AudienceListService audienceListService;
+    @Mock com.mailflow.audiencesegment.application.AudienceSegmentService audienceSegmentService;
     @InjectMocks ContactService contactService;
 
     private final UUID userId = UUID.randomUUID();
@@ -46,6 +50,7 @@ class ContactServiceTest {
             contact.setId(UUID.randomUUID());
             return contact;
         });
+        when(audienceListService.membershipsFor(any())).thenReturn(Map.of());
 
         CreateContactRequest request = CreateContactRequest.builder()
                 .firstName("Bac")
@@ -94,6 +99,7 @@ class ContactServiceTest {
             contact.setId(UUID.randomUUID());
             return contact;
         });
+        when(audienceListService.membershipsFor(any())).thenReturn(Map.of());
 
         CreateContactRequest request = CreateContactRequest.builder()
                 .firstName("Shared")

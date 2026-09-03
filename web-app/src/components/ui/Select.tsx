@@ -5,7 +5,8 @@ import { cn } from '../../utils/cn'
 
 export interface SelectOption {
   value: string
-  label: string
+  label: React.ReactNode
+  textValue?: string
   disabled?: boolean
 }
 
@@ -48,7 +49,7 @@ export const SelectTrigger = React.forwardRef<
       ref={ref}
       disabled={disabled || isLoading}
       className={cn(
-        'input-control flex w-full items-center justify-between bg-white dark:bg-slate-900 border text-slate-900 dark:text-slate-100 placeholder:text-slate-400 select-none cursor-pointer',
+        'input-control flex w-full items-center justify-between bg-white dark:bg-slate-900 border text-slate-900 dark:text-slate-100 placeholder:text-slate-400 select-none cursor-pointer data-[state=open]:border-blue-600 dark:data-[state=open]:border-blue-500 data-[state=open]:ring-3 data-[state=open]:ring-blue-500/15',
         hasError
           ? 'border-red-500 has-error'
           : hasSuccess
@@ -98,7 +99,7 @@ export const SelectContent = React.forwardRef<
         className={cn(
           'p-1',
           position === 'popper' &&
-            'h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]'
+            'w-full min-w-[var(--radix-select-trigger-width)]'
         )}
       >
         {children}
@@ -167,7 +168,12 @@ export const SimpleSelect: React.FC<SimpleSelectProps> = ({
       </SelectTrigger>
       <SelectContent>
         {options.map((opt) => (
-          <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>
+          <SelectItem
+            key={opt.value}
+            value={opt.value}
+            disabled={opt.disabled}
+            textValue={opt.textValue || (typeof opt.label === 'string' ? opt.label : undefined)}
+          >
             {opt.label}
           </SelectItem>
         ))}

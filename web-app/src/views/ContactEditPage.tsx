@@ -58,6 +58,7 @@ export const ContactEditPage: React.FC<ContactEditPageProps> = ({
         status: data.status,
         tags: data.tags,
         customFields: data.customFields,
+        listIds: data.lists,
       })
 
       showToast({

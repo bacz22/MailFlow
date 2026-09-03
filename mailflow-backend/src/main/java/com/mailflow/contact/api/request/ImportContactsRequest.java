@@ -13,6 +13,7 @@ import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -35,6 +36,8 @@ public class ImportContactsRequest {
 
     @Builder.Default
     private List<String> tags = new ArrayList<>();
+
+    private UUID listId;
 
     @Valid
     @NotEmpty(message = "Không có dòng dữ liệu để nạp.")

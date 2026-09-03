@@ -10,6 +10,7 @@ export interface ContactBulkActionsProps {
   onAddTag?: () => void
   onExportSelected?: () => void
   onDeleteSelected?: () => void
+  isExporting?: boolean
   className?: string
 }
 
@@ -20,6 +21,7 @@ export const ContactBulkActions: React.FC<ContactBulkActionsProps> = ({
   onAddTag,
   onExportSelected,
   onDeleteSelected,
+  isExporting = false,
   className,
 }) => {
   if (selectedCount === 0) return null
@@ -77,10 +79,12 @@ export const ContactBulkActions: React.FC<ContactBulkActionsProps> = ({
             variant="ghost"
             size="sm"
             onClick={onExportSelected}
+            isLoading={isExporting}
+            disabled={isExporting}
             className="text-white hover:bg-white/15 text-xs font-semibold"
             leftIcon={<Download className="w-3.5 h-3.5" />}
           >
-            Xuất CSV
+            Xuất Excel
           </Button>
         </PermissionGate>
 

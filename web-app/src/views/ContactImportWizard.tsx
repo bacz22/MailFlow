@@ -8,22 +8,56 @@ import {
   RefreshCw,
   Download,
   Trash2,
+  AlertTriangle,
 } from 'lucide-react'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/Button'
+import { Input } from '../components/ui/Input'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../components/ui/Card'
+import { SimpleSelect, type SelectOption } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
+import excelIcon from '../assets/icon/icon-excel.svg'
+
+const TARGET_FIELD_OPTIONS: SelectOption[] = [
+  {
+    value: 'email',
+    textValue: 'Địa chỉ Email (Bắt buộc) *',
+    label: (
+      <span>
+        Địa chỉ Email (Bắt buộc) <span className="text-rose-600 dark:text-rose-500 font-bold ml-0.5">*</span>
+      </span>
+    ),
+  },
+  { value: 'firstName', label: 'Tên (First Name)' },
+  { value: 'lastName', label: 'Họ & Tên đệm (Last Name)' },
+  { value: 'fullName', label: 'Họ và Tên đầy đủ' },
+  { value: 'company', label: 'Tên Công Ty' },
+  { value: 'phone', label: 'Số Điện Thoại' },
+  { value: 'custom_job_title', label: 'Tạo trường: Chức danh' },
+  { value: 'custom_city', label: 'Tạo trường: Thành phố' },
+  { value: 'skip', label: '-- Bỏ qua cột này --' },
+]
+
+function getTargetFieldOptions(currentValue: string): SelectOption[] {
+  if (currentValue && !TARGET_FIELD_OPTIONS.some((opt) => opt.value === currentValue)) {
+    return [...TARGET_FIELD_OPTIONS, { value: currentValue, label: `Trường: ${currentValue}` }]
+  }
+  return TARGET_FIELD_OPTIONS
+}
 import { ApiError } from '../services/apiClient'
 import { contactService, type ImportContactRow, type ImportContactsResult } from '../services/contact.service'
+import { listService } from '../services/list.service'
 import {
   analyzeImportRows,
   buildMappings,
   formatFileSize,
+  isSupportedContactImportFile,
   mapRowsToImportPayload,
-  parseCsvText,
+  parseContactImportFile,
   type ColumnMapping,
   type ParsedCsvFile,
 } from '../utils/contactCsvImport'
+import { downloadContactImportTemplate } from '../utils/contactImportTemplate'
 
 export interface ContactImportWizardProps {
   onNavigate: (path: string) => void
@@ -44,55 +78,71 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
   const [duplicateAction, setDuplicateAction] = useState<'update' | 'skip'>('skip')
   const [skipInvalid, setSkipInvalid] = useState<boolean>(true)
   const [targetList, setTargetList] = useState<string>('')
+  const [availableLists, setAvailableLists] = useState<Array<{ id: string; name: string }>>([])
   const [targetTag, setTargetTag] = useState<string>('')
   const [progress, setProgress] = useState(0)
   const [importResult, setImportResult] = useState<ImportContactsResult | null>(null)
   const [isImporting, setIsImporting] = useState(false)
+  const [sampleDownloadState, setSampleDownloadState] = useState<'idle' | 'loading' | 'done'>('idle')
+  const sampleDownloadResetRef = useRef<number | null>(null)
 
   const analysis = useMemo(() => analyzeImportRows(importRows), [importRows])
   const previewRows = useMemo(() => importRows.slice(0, 5), [importRows])
+  const backPath = targetList ? `/lists/${targetList}` : '/contacts'
 
   useEffect(() => {
-    if (currentStep !== 5 || importRows.length === 0 || isImporting) {
+    const prefill = new URLSearchParams(window.location.search).get('listId')?.trim()
+    if (prefill) {
+      setTargetList(prefill)
+    }
+    listService
+      .list()
+      .then((rows) => setAvailableLists(rows.map((list) => ({ id: list.id, name: list.name }))))
+      .catch(() => setAvailableLists([]))
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (sampleDownloadResetRef.current != null) {
+        window.clearTimeout(sampleDownloadResetRef.current)
+      }
+    }
+  }, [])
+
+  const runImport = async () => {
+    if (isImporting || importRows.length === 0) {
       return
     }
 
-    let cancelled = false
-    setIsImporting(true)
+    setImportResult(null)
     setProgress(15)
+    setIsImporting(true)
+    setCurrentStep(5)
 
-    contactService
-      .import({
+    try {
+      setProgress(45)
+      const result = await contactService.import({
         duplicateAction: duplicateAction === 'update' ? 'UPDATE' : 'SKIP',
         skipInvalid,
         tags: targetTag.trim() ? [targetTag.trim()] : [],
+        listId: targetList || undefined,
         rows: importRows,
       })
-      .then((result) => {
-        if (cancelled) return
-        setImportResult(result)
-        setProgress(100)
-        setCurrentStep(6)
+      setProgress(100)
+      setImportResult(result)
+      setCurrentStep(6)
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không nạp được danh bạ',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
       })
-      .catch((error) => {
-        if (cancelled) return
-        showToast({
-          type: 'error',
-          title: 'Không nạp được danh bạ',
-          description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
-        })
-        setCurrentStep(4)
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsImporting(false)
-        }
-      })
-
-    return () => {
-      cancelled = true
+      setProgress(0)
+      setCurrentStep(4)
+    } finally {
+      setIsImporting(false)
     }
-  }, [currentStep, duplicateAction, importRows, isImporting, showToast, skipInvalid, targetTag])
+  }
 
   const stepsConfig = [
     { num: 1, label: 'Tải File' },
@@ -104,28 +154,28 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
   ]
 
   const handleFileUpload = async (uploadedFile: File) => {
-    if (!uploadedFile.name.toLowerCase().endsWith('.csv')) {
+    if (!isSupportedContactImportFile(uploadedFile.name)) {
       showToast({
         type: 'error',
         title: 'Định dạng không hỗ trợ',
-        description: 'Hiện tại chỉ hỗ trợ file CSV cho import thật.',
+        description: 'Vui lòng dùng file .CSV, .XLS hoặc .XLSX.',
       })
       return
     }
 
     try {
-      const text = await uploadedFile.text()
-      const parsed = parseCsvText(text)
+      const parsed = await parseContactImportFile(uploadedFile)
       if (parsed.headers.length === 0 || parsed.rows.length === 0) {
-        throw new Error('File CSV trống hoặc không hợp lệ.')
+        throw new Error('File trống hoặc không đọc được sheet danh bạ.')
       }
       if (parsed.rows.length > 5000) {
         throw new Error('Mỗi lần nạp tối đa 5000 dòng.')
       }
 
+      const mappings = buildMappings(parsed)
       setParsedCsv(parsed)
-      setMappings(buildMappings(parsed))
-      setImportRows(mapRowsToImportPayload(parsed, buildMappings(parsed)))
+      setMappings(mappings)
+      setImportRows(mapRowsToImportPayload(parsed, mappings))
       setFile({
         name: uploadedFile.name,
         size: formatFileSize(uploadedFile.size),
@@ -150,19 +200,37 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
   }
 
   const handleDownloadSample = () => {
-    const sample = [
-      'email,first_name,last_name,company,phone',
-      'thanh.nguyen@vcorp.vn,Thành,Nguyễn Văn,V-Corp Global,+84 912 345 678',
-    ].join('\n')
-    const blob = new Blob([sample], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = 'contacts_template.csv'
-    document.body.appendChild(anchor)
-    anchor.click()
-    anchor.remove()
-    URL.revokeObjectURL(url)
+    if (sampleDownloadState !== 'idle') {
+      return
+    }
+
+    setSampleDownloadState('loading')
+
+    window.setTimeout(() => {
+      try {
+        downloadContactImportTemplate()
+        setSampleDownloadState('done')
+        showToast({
+          type: 'success',
+          title: 'Đã tải file mẫu',
+          description: 'Kiểm tra thư mục Tải xuống. Điền dữ liệu rồi kéo thả file .xls/.xlsx/.csv vào ô bên dưới.',
+        })
+        if (sampleDownloadResetRef.current != null) {
+          window.clearTimeout(sampleDownloadResetRef.current)
+        }
+        sampleDownloadResetRef.current = window.setTimeout(() => {
+          setSampleDownloadState('idle')
+          sampleDownloadResetRef.current = null
+        }, 2500)
+      } catch {
+        setSampleDownloadState('idle')
+        showToast({
+          type: 'error',
+          title: 'Không tải được file mẫu',
+          description: 'Vui lòng thử lại.',
+        })
+      }
+    }, 350)
   }
 
   const updateMapping = (index: number, newTarget: string) => {
@@ -198,7 +266,7 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
             variant="outline"
             size="sm"
             leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-            onClick={() => onNavigate('/contacts')}
+            onClick={() => onNavigate(backPath)}
           >
             Quay Lại Danh Bạ
           </Button>
@@ -250,22 +318,52 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
       {/* ================= STEP 1: UPLOAD FILE ================= */}
       {currentStep === 1 && (
         <Card className="animate-in fade-in-0">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-base">Bước 1: Tải Lên Tập Tin Danh Bạ</CardTitle>
-                <CardDescription className="text-xs">
-                  Hỗ trợ các định dạng .CSV, .XLSX (tối đa 50MB hoặc 500,000 dòng mỗi lượt nạp).
-                </CardDescription>
+          <CardHeader className="space-y-4">
+            <div className="space-y-1">
+              <CardTitle className="text-base">Bước 1: Tải Lên Tập Tin Danh Bạ</CardTitle>
+              <CardDescription className="text-xs">
+                Hỗ trợ <strong>.CSV</strong>, <strong>.XLS</strong>, <strong>.XLSX</strong> (tối đa 5.000 dòng mỗi lần nạp).
+              </CardDescription>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3.5 rounded-2xl border border-blue-200/80 dark:border-blue-900/50 bg-blue-50/60 dark:bg-blue-950/25">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0 shadow-xs">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <div className="space-y-0.5 min-w-0">
+                  <div className="text-xs font-bold text-blue-900 dark:text-blue-100">
+                    Tải mẫu danh bạ MailFlow
+                  </div>
+                  <div className="text-[11px] text-blue-800/75 dark:text-blue-300/80 leading-relaxed">
+                    File Excel có sẵn tiêu đề và 3 dòng ví dụ. Điền dữ liệu rồi kéo thả trực tiếp vào ô bên dưới — không cần đổi sang CSV.
+                  </div>
+                </div>
               </div>
               <Button
-                variant="ghost"
+                type="button"
+                variant="outline"
                 size="sm"
-                className="text-xs text-blue-600 dark:text-blue-400"
-                leftIcon={<Download className="w-3.5 h-3.5" />}
-                onClick={handleDownloadSample}
+                className="shrink-0 bg-white dark:bg-slate-900 border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                leftIcon={
+                  sampleDownloadState === 'done' ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5" />
+                  )
+                }
+                isLoading={sampleDownloadState === 'loading'}
+                disabled={sampleDownloadState !== 'idle'}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDownloadSample()
+                }}
               >
-                Tải File Mẫu (.CSV)
+                {sampleDownloadState === 'done'
+                  ? 'Đã tải xuống'
+                  : sampleDownloadState === 'loading'
+                    ? 'Đang tải...'
+                    : 'Tải File Mẫu'}
               </Button>
             </div>
           </CardHeader>
@@ -296,7 +394,7 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv"
+                accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 className="hidden"
                 onChange={(e) => {
                   const uploaded = e.target.files?.[0]
@@ -315,7 +413,7 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
                   Kéo thả file vào đây hoặc <span className="text-blue-600 underline">duyệt từ máy tính</span>
                 </div>
                 <div className="text-xs text-slate-400">
-                  Hỗ trợ UTF-8 encoding để không bị lỗi font tiếng Việt có dấu.
+                  Hỗ trợ .CSV / .XLS / .XLSX — UTF-8 để không lỗi font tiếng Việt.
                 </div>
               </div>
             </div>
@@ -324,9 +422,7 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
             {file && (
               <div className="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/40 dark:bg-emerald-950/20 flex items-center justify-between gap-3 text-xs animate-in fade-in-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                    <FileSpreadsheet className="w-5 h-5" />
-                  </div>
+                  <img src={excelIcon} alt="Excel" className="w-9 h-9 shrink-0 object-contain" />
                   <div>
                     <div className="font-bold text-slate-900 dark:text-slate-100">{file.name}</div>
                     <div className="text-[11px] text-slate-500 font-mono">
@@ -353,7 +449,7 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
           </CardContent>
 
           <CardFooter className="flex justify-between border-t border-slate-100 dark:border-slate-800 pt-4">
-            <Button variant="outline" onClick={() => onNavigate('/contacts')}>
+            <Button variant="outline" onClick={() => onNavigate(backPath)}>
               Hủy
             </Button>
             <Button
@@ -400,21 +496,14 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
                         {m.sampleValue}
                       </td>
                       <td className="py-3 px-4">
-                        <select
-                          value={m.targetField}
-                          onChange={(e) => updateMapping(idx, e.target.value)}
-                          className="w-full max-w-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus-ring cursor-pointer"
-                        >
-                          <option value="email">Địa chỉ Email (Bắt buộc) *</option>
-                          <option value="firstName">Tên (First Name)</option>
-                          <option value="lastName">Họ & Tên đệm (Last Name)</option>
-                          <option value="fullName">Họ và Tên đầy đủ</option>
-                          <option value="company">Tên Công Ty</option>
-                          <option value="phone">Số Điện Thoại</option>
-                          <option value="custom_job_title">Tạo trường: Chức danh</option>
-                          <option value="custom_city">Tạo trường: Thành phố</option>
-                          <option value="skip">-- Bỏ qua cột này --</option>
-                        </select>
+                        <div className="w-full max-w-xs">
+                          <SimpleSelect
+                            size="sm"
+                            value={m.targetField}
+                            onValueChange={(val) => updateMapping(idx, val)}
+                            options={getTargetFieldOptions(m.targetField)}
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -454,7 +543,7 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
             {/* Validation Metrics Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-500/20 space-y-1">
-                <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Hợp Lệ (Valid)</div>
+                <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Hợp Lệ (Duy Nhất)</div>
                 <div className="text-xl font-bold font-mono text-emerald-700 dark:text-emerald-300">
                   {analysis.valid.toLocaleString('vi-VN')}
                 </div>
@@ -465,8 +554,12 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
 
               <div className="p-3.5 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-500/20 space-y-1">
                 <div className="text-xs font-semibold text-blue-600 dark:text-blue-400">Trùng Lặp (Duplicate)</div>
-                <div className="text-xl font-bold font-mono text-blue-700 dark:text-blue-300">—</div>
-                <div className="text-[10px] text-blue-600/70">Xử lý khi nạp lên server</div>
+                <div className="text-xl font-bold font-mono text-blue-700 dark:text-blue-300">
+                  {analysis.duplicates.toLocaleString('vi-VN')}
+                </div>
+                <div className="text-[10px] text-blue-600/70">
+                  {analysis.duplicates > 0 ? `${analysis.duplicates} dòng lặp trong file` : 'Không trùng trong file'}
+                </div>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-500/20 space-y-1">
@@ -485,6 +578,71 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
                 <div className="text-[10px] text-rose-600/70">Dòng trống trường bắt buộc</div>
               </div>
             </div>
+
+            {/* In-file Duplicate Warning Alert Banner */}
+            {analysis.duplicates > 0 && (
+              <div className="rounded-2xl border border-amber-300 dark:border-amber-800/80 bg-amber-50/80 dark:bg-amber-950/30 p-4 space-y-3 animate-in fade-in-0">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 shrink-0">
+                      <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                        Phát hiện {analysis.duplicates} dòng trùng lặp email trong file tải lên!
+                      </div>
+                      <div className="text-xs text-amber-800/85 dark:text-amber-300/85 mt-0.5">
+                        Nút <strong>"Tiếp Tục"</strong> đã bị khóa. Vui lòng kiểm tra chi tiết các dòng bên dưới, chỉnh sửa hoặc xóa bớt các dòng trùng lặp trong file rồi nạp lại.
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 bg-white dark:bg-slate-900 hover:bg-amber-100 dark:hover:bg-amber-950/60"
+                    leftIcon={<Upload className="w-3.5 h-3.5" />}
+                    onClick={() => setCurrentStep(1)}
+                  >
+                    Tải lại file đã sửa
+                  </Button>
+                </div>
+
+                <div className="border border-amber-200 dark:border-amber-900/60 rounded-xl overflow-hidden bg-white/90 dark:bg-slate-900/90">
+                  <div className="px-3.5 py-2 bg-amber-100/60 dark:bg-amber-950/50 text-[11px] font-bold text-amber-900 dark:text-amber-200 flex items-center justify-between border-b border-amber-200 dark:border-amber-900/60">
+                    <span>Chi tiết các dòng bị trùng lặp cần chỉnh sửa:</span>
+                    <span className="font-mono font-bold text-rose-600 dark:text-rose-400">
+                      {analysis.duplicateDetails.length} dòng trùng
+                    </span>
+                  </div>
+                  <div className="max-h-52 overflow-y-auto divide-y divide-amber-100/70 dark:divide-slate-800 text-xs">
+                    {analysis.duplicateDetails.map((dup, idx) => (
+                      <div
+                        key={idx}
+                        className="px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4 hover:bg-amber-50/50 dark:hover:bg-amber-950/20"
+                      >
+                        <div className="flex items-center gap-2 font-mono">
+                          <span className="px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold text-[11px]">
+                            Dòng {dup.rowNumber}
+                          </span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {dup.email}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-amber-700 dark:text-amber-400">
+                          Trùng với email ở{' '}
+                          <strong className="font-bold text-slate-900 dark:text-slate-100">
+                            Dòng {dup.firstSeenRowNumber}
+                          </strong>{' '}
+                          (đã xuất hiện trước đó)
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Conflict Resolution Settings */}
             <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -539,17 +697,25 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
             </div>
           </CardContent>
 
-          <CardFooter className="flex justify-between border-t border-slate-100 dark:border-slate-800 pt-4">
+          <CardFooter className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800 pt-4">
             <Button variant="outline" leftIcon={<ArrowLeft className="w-4 h-4" />} onClick={() => setCurrentStep(2)}>
               Quay Lại
             </Button>
-            <Button
-              variant="primary"
-              rightIcon={<ArrowRight className="w-4 h-4" />}
-              onClick={() => setCurrentStep(4)}
-            >
-              Tiếp Tục: Xem Trước & Phân Bổ
-            </Button>
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+              {analysis.duplicates > 0 && (
+                <span className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+                  Vui lòng sửa {analysis.duplicates} dòng trùng lặp để tiếp tục
+                </span>
+              )}
+              <Button
+                variant="primary"
+                disabled={analysis.duplicates > 0 || analysis.valid === 0}
+                rightIcon={<ArrowRight className="w-4 h-4" />}
+                onClick={() => setCurrentStep(4)}
+              >
+                Tiếp Tục: Xem Trước & Phân Bổ
+              </Button>
+            </div>
           </CardFooter>
         </Card>
       )}
@@ -573,26 +739,28 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
                   Thêm vào Danh Sách:
                 </label>
-                <select
-                  value={targetList}
-                  onChange={(e) => setTargetList(e.target.value)}
-                  disabled
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold focus-ring opacity-60"
-                >
-                  <option value="">Sẽ có ở phase Lists</option>
-                </select>
+                <SimpleSelect
+                  value={targetList || '__none__'}
+                  onValueChange={(val) => setTargetList(val === '__none__' ? '' : val)}
+                  options={[
+                    { value: '__none__', label: 'Không gán danh sách' },
+                    ...availableLists.map((list) => ({
+                      value: list.id,
+                      label: list.name,
+                    })),
+                  ]}
+                  placeholder="Chọn danh sách..."
+                />
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
                   Gắn Thẻ Phân Khúc (Tag):
                 </label>
-                <input
-                  type="text"
+                <Input
                   value={targetTag}
                   onChange={(e) => setTargetTag(e.target.value)}
                   placeholder="Nhập tên thẻ tag..."
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-semibold focus-ring"
                 />
               </div>
             </div>
@@ -640,12 +808,9 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
               variant="primary"
               className="bg-emerald-600 hover:bg-emerald-700"
               leftIcon={<Upload className="w-4 h-4" />}
-              onClick={() => {
-                setImportResult(null)
-                setProgress(0)
-                setIsImporting(false)
-                setCurrentStep(5)
-              }}
+              isLoading={isImporting}
+              disabled={analysis.valid === 0}
+              onClick={() => void runImport()}
             >
               Bắt Đầu Nạp ({analysis.valid.toLocaleString('vi-VN')} Liên Hệ)
             </Button>
@@ -771,7 +936,7 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
                 variant="primary"
                 size="sm"
                 rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                onClick={() => onNavigate('/contacts')}
+                onClick={() => onNavigate(backPath)}
               >
                 Xem Danh Bạ Khách Hàng
               </Button>

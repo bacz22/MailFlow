@@ -47,6 +47,41 @@ public interface ContactRepository extends JpaRepository<Contact, UUID> {
             """, nativeQuery = true)
     List<String> findDistinctTags(@Param("workspaceId") UUID workspaceId);
 
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM contacts c
+            WHERE c.workspace_id = :workspaceId
+              AND :tag = ANY (c.tags)
+            """, nativeQuery = true)
+    long countByWorkspaceIdAndTag(@Param("workspaceId") UUID workspaceId, @Param("tag") String tag);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query(value = """
+            UPDATE contacts
+            SET tags = array_replace(tags, :oldTag, :newTag),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE workspace_id = :workspaceId
+              AND :oldTag = ANY (tags)
+            """, nativeQuery = true)
+    int renameTagInWorkspace(
+            @Param("workspaceId") UUID workspaceId,
+            @Param("oldTag") String oldTag,
+            @Param("newTag") String newTag
+    );
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query(value = """
+            UPDATE contacts
+            SET tags = array_remove(tags, :tag),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE workspace_id = :workspaceId
+              AND :tag = ANY (tags)
+            """, nativeQuery = true)
+    int removeTagFromWorkspace(
+            @Param("workspaceId") UUID workspaceId,
+            @Param("tag") String tag
+    );
+
     @Query(
             value = """
                     SELECT *
@@ -54,6 +89,14 @@ public interface ContactRepository extends JpaRepository<Contact, UUID> {
                     WHERE c.workspace_id = :workspaceId
                       AND (CAST(:status AS text) = '' OR c.status = :status)
                       AND (CAST(:tag AS text) = '' OR :tag = ANY (c.tags))
+                      AND (
+                            CAST(:listId AS text) = ''
+                            OR EXISTS (
+                                SELECT 1 FROM audience_list_members m
+                                WHERE m.contact_id = c.id
+                                  AND CAST(m.list_id AS text) = CAST(:listId AS text)
+                            )
+                          )
                       AND (
                             CAST(:q AS text) = ''
                             OR LOWER(c.email) LIKE :q
@@ -69,6 +112,14 @@ public interface ContactRepository extends JpaRepository<Contact, UUID> {
                       AND (CAST(:status AS text) = '' OR c.status = :status)
                       AND (CAST(:tag AS text) = '' OR :tag = ANY (c.tags))
                       AND (
+                            CAST(:listId AS text) = ''
+                            OR EXISTS (
+                                SELECT 1 FROM audience_list_members m
+                                WHERE m.contact_id = c.id
+                                  AND CAST(m.list_id AS text) = CAST(:listId AS text)
+                            )
+                          )
+                      AND (
                             CAST(:q AS text) = ''
                             OR LOWER(c.email) LIKE :q
                             OR LOWER(c.first_name) LIKE :q
@@ -83,6 +134,7 @@ public interface ContactRepository extends JpaRepository<Contact, UUID> {
             @Param("status") String status,
             @Param("tag") String tag,
             @Param("q") String q,
+            @Param("listId") String listId,
             Pageable pageable
     );
 }

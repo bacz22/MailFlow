@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Tag, Plus, Trash2, Edit3, Check, X } from 'lucide-react'
+import { Tag, Plus, Trash2, Edit3, Check, X, RefreshCw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -11,16 +11,19 @@ import {
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { useToast } from '../ui/Toast'
+import { ApiError } from '../../services/apiClient'
 import type { AudienceTag } from '../../types/list.types'
 
 export interface TagManagerModalProps {
   isOpen: boolean
   onClose: () => void
   tags: AudienceTag[]
-  onUpdateTags: (tags: AudienceTag[]) => void
+  onCreateTag: (payload: { name: string; color: string }) => Promise<void>
+  onRenameTag: (tagId: string, name: string) => Promise<void>
+  onDeleteTag: (tagId: string) => Promise<void>
+  onSyncFromContacts: () => Promise<void>
 }
 
-// Accessible high-contrast color presets
 export const ACCESSIBLE_TAG_COLORS = [
   { label: 'Blue', value: 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800' },
   { label: 'Emerald', value: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
@@ -35,17 +38,21 @@ export const TagManagerModal: React.FC<TagManagerModalProps> = ({
   isOpen,
   onClose,
   tags,
-  onUpdateTags,
+  onCreateTag,
+  onRenameTag,
+  onDeleteTag,
+  onSyncFromContacts,
 }) => {
   const { showToast } = useToast()
   const [newTagName, setNewTagName] = useState('')
   const [selectedColor, setSelectedColor] = useState(ACCESSIBLE_TAG_COLORS[0].value)
   const [editingTagId, setEditingTagId] = useState<string | null>(null)
   const [editingTagName, setEditingTagName] = useState('')
+  const [isBusy, setIsBusy] = useState(false)
 
-  const handleCreateTag = () => {
+  const handleCreateTag = async () => {
     const trimmed = newTagName.trim().replace(/^#/, '')
-    if (!trimmed) return
+    if (!trimmed || isBusy) return
 
     if (tags.some((t) => t.name.toLowerCase() === trimmed.toLowerCase())) {
       showToast({
@@ -56,43 +63,99 @@ export const TagManagerModal: React.FC<TagManagerModalProps> = ({
       return
     }
 
-    const newTag: AudienceTag = {
-      id: `tag-${Date.now()}`,
-      name: trimmed,
-      color: selectedColor,
-      contactCount: 0,
-      createdAt: 'Vừa tạo',
+    setIsBusy(true)
+    try {
+      await onCreateTag({ name: trimmed, color: selectedColor })
+      setNewTagName('')
+      showToast({
+        type: 'success',
+        title: 'Đã tạo thẻ mới',
+        description: `Đã thêm thẻ #${trimmed} thành công.`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không tạo được thẻ',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    } finally {
+      setIsBusy(false)
     }
-
-    onUpdateTags([...tags, newTag])
-    setNewTagName('')
-    showToast({
-      type: 'success',
-      title: 'Đã tạo thẻ mới',
-      description: `Đã thêm thẻ #${trimmed} thành công.`,
-    })
   }
 
-  const handleDeleteTag = (id: string, name: string) => {
-    onUpdateTags(tags.filter((t) => t.id !== id))
-    showToast({
-      type: 'warning',
-      title: 'Đã xóa thẻ',
-      description: `Đã xóa thẻ #${name} khỏi không gian làm việc.`,
-    })
+  const handleDeleteTag = async (id: string, name: string) => {
+    if (isBusy) return
+    setIsBusy(true)
+    try {
+      await onDeleteTag(id)
+      showToast({
+        type: 'warning',
+        title: 'Đã xóa thẻ',
+        description: `Đã xóa thẻ #${name} khỏi không gian làm việc.`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không xóa được thẻ',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    } finally {
+      setIsBusy(false)
+    }
   }
 
-  const handleSaveEdit = (id: string) => {
-    if (!editingTagName.trim()) return
-    onUpdateTags(
-      tags.map((t) => (t.id === id ? { ...t, name: editingTagName.trim().replace(/^#/, '') } : t))
-    )
-    setEditingTagId(null)
-    setEditingTagName('')
+  const handleSaveEdit = async (id: string) => {
+    const trimmed = editingTagName.trim().replace(/^#/, '')
+    if (!trimmed || isBusy) return
+    setIsBusy(true)
+    try {
+      await onRenameTag(id, trimmed)
+      setEditingTagId(null)
+      setEditingTagName('')
+      showToast({
+        type: 'success',
+        title: 'Đã đổi tên thẻ',
+        description: `Thẻ đã được đổi thành #${trimmed}.`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không đổi tên được thẻ',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  const handleSync = async () => {
+    if (isBusy) return
+    setIsBusy(true)
+    try {
+      await onSyncFromContacts()
+      showToast({
+        type: 'success',
+        title: 'Đã đồng bộ thẻ',
+        description: 'Đã lấy các thẻ đang dùng trên danh bạ vào catalog.',
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không đồng bộ được thẻ',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    } finally {
+      setIsBusy(false)
+    }
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <div className="flex items-center gap-2">
@@ -105,7 +168,6 @@ export const TagManagerModal: React.FC<TagManagerModalProps> = ({
         </DialogHeader>
 
         <div className="space-y-5 py-2">
-          {/* Create New Tag Input Box */}
           <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
             <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
               Tạo Thẻ Tag Mới:
@@ -120,24 +182,25 @@ export const TagManagerModal: React.FC<TagManagerModalProps> = ({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault()
-                      handleCreateTag()
+                      void handleCreateTag()
                     }
                   }}
+                  disabled={isBusy}
                 />
               </div>
               <Button
                 type="button"
                 variant="primary"
                 size="md"
-                disabled={!newTagName.trim()}
+                disabled={!newTagName.trim() || isBusy}
+                isLoading={isBusy}
                 leftIcon={<Plus className="w-4 h-4" />}
-                onClick={handleCreateTag}
+                onClick={() => void handleCreateTag()}
               >
                 Tạo
               </Button>
             </div>
 
-            {/* Color Palette Selector */}
             <div className="space-y-1.5 pt-1">
               <div className="text-[11px] font-semibold text-slate-500">Màu hiển thị (Đã chuẩn hóa tương phản):</div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -146,6 +209,7 @@ export const TagManagerModal: React.FC<TagManagerModalProps> = ({
                     key={idx}
                     type="button"
                     onClick={() => setSelectedColor(c.value)}
+                    disabled={isBusy}
                     className={`px-2.5 py-1 rounded-full text-xs font-bold border transition cursor-pointer flex items-center gap-1 ${
                       c.value
                     } ${selectedColor === c.value ? 'ring-2 ring-blue-500 shadow-xs' : 'opacity-70 hover:opacity-100'}`}
@@ -158,90 +222,110 @@ export const TagManagerModal: React.FC<TagManagerModalProps> = ({
             </div>
           </div>
 
-          {/* Existing Tags List */}
           <div className="space-y-2">
-            <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
-              Danh Sách Thẻ Hiện Có ({tags.length}):
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Danh Sách Thẻ Hiện Có ({tags.length}):
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                disabled={isBusy}
+                onClick={() => void handleSync()}
+              >
+                Đồng bộ từ danh bạ
+              </Button>
             </div>
 
             <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-              {tags.map((tag) => {
-                const isEditing = editingTagId === tag.id
+              {tags.length === 0 ? (
+                <div className="text-xs text-slate-400 py-6 text-center">
+                  Chưa có thẻ nào. Tạo mới hoặc đồng bộ từ danh bạ.
+                </div>
+              ) : (
+                tags.map((tag) => {
+                  const isEditing = editingTagId === tag.id
 
-                return (
-                  <div
-                    key={tag.id}
-                    className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 text-xs"
-                  >
-                    {isEditing ? (
-                      <div className="flex items-center gap-2 flex-1">
-                        <Input
-                          value={editingTagName}
-                          onChange={(e) => setEditingTagName(e.target.value)}
-                          className="h-8 text-xs"
-                          autoFocus
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleSaveEdit(tag.id)}
-                          className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingTagId(null)}
-                          className="p-1.5 text-slate-400 hover:bg-slate-100 rounded"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${tag.color}`}
-                        >
-                          <Tag className="w-3 h-3" />
-                          <span>#{tag.name}</span>
-                        </span>
-                        <span className="text-slate-400 text-[11px] font-mono">
-                          {tag.contactCount.toLocaleString()} liên hệ
-                        </span>
-                      </div>
-                    )}
+                  return (
+                    <div
+                      key={tag.id}
+                      className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 text-xs"
+                    >
+                      {isEditing ? (
+                        <div className="flex items-center gap-2 flex-1">
+                          <Input
+                            value={editingTagName}
+                            onChange={(e) => setEditingTagName(e.target.value)}
+                            className="h-8 text-xs"
+                            autoFocus
+                            disabled={isBusy}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveEdit(tag.id)}
+                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded cursor-pointer"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingTagId(null)}
+                            className="p-1.5 text-slate-400 hover:bg-slate-100 rounded cursor-pointer"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${tag.color}`}
+                          >
+                            <Tag className="w-3 h-3" />
+                            <span>#{tag.name}</span>
+                          </span>
+                          <span className="text-slate-400 text-[11px] font-mono">
+                            {tag.contactCount.toLocaleString()} liên hệ
+                          </span>
+                        </div>
+                      )}
 
-                    {!isEditing && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingTagId(tag.id)
-                            setEditingTagName(tag.name)
-                          }}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded cursor-pointer"
-                          title="Đổi tên"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteTag(tag.id, tag.name)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded cursor-pointer"
-                          title="Xóa thẻ"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                      {!isEditing && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingTagId(tag.id)
+                              setEditingTagName(tag.name)
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded cursor-pointer"
+                            title="Đổi tên"
+                            disabled={isBusy}
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteTag(tag.id, tag.name)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded cursor-pointer"
+                            title="Xóa thẻ"
+                            disabled={isBusy}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
             </div>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="primary" size="sm" onClick={onClose}>
+          <Button variant="primary" size="sm" onClick={onClose} disabled={isBusy}>
             Hoàn Tất
           </Button>
         </DialogFooter>

@@ -11,8 +11,9 @@ export interface ContactFiltersProps {
   onClearFilters: () => void
   totalCount?: number
   filteredCount?: number
-  availableLists?: string[]
+  availableLists?: { id: string; name: string }[]
   availableTags?: string[]
+  availableSegments?: { id: string; name: string }[]
   className?: string
 }
 
@@ -22,15 +23,17 @@ export const ContactFilters: React.FC<ContactFiltersProps> = ({
   onClearFilters,
   totalCount,
   filteredCount,
-  availableLists = ['VIP Enterprise', 'Webinar Leads', 'Newsletter Subscribers', 'Trial Users'],
+  availableLists = [],
   availableTags = ['Customer', 'Lead', 'High Value', 'Engaged', 'Churn Risk'],
+  availableSegments = [],
   className,
 }) => {
   const isFiltered =
     filters.searchQuery !== '' ||
     filters.selectedList !== 'all' ||
     filters.selectedTag !== 'all' ||
-    filters.selectedStatus !== 'all'
+    filters.selectedStatus !== 'all' ||
+    filters.selectedSegment !== 'all'
 
   return (
     <div className={`space-y-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 shadow-xs ${className || ''}`}>
@@ -87,12 +90,29 @@ export const ContactFilters: React.FC<ContactFiltersProps> = ({
               <SimpleSelect
                 size="sm"
                 value={filters.selectedList}
-                onValueChange={(val) => onFilterChange({ selectedList: val })}
+                onValueChange={(val) => onFilterChange({ selectedList: val, selectedSegment: 'all' })}
                 options={[
                   { value: 'all', label: 'Tất cả danh sách' },
-                  ...availableLists.map((l) => ({ value: l, label: l })),
+                  ...availableLists.map((l) => ({ value: l.id, label: l.name })),
                 ]}
                 placeholder="Chọn danh sách..."
+              />
+            </div>
+          </div>
+
+          {/* Segment Dropdown */}
+          <div className="flex items-center gap-1.5 min-w-[140px]">
+            <span className="text-xs font-semibold text-slate-500 hidden sm:inline whitespace-nowrap">Phân đoạn:</span>
+            <div className="w-44">
+              <SimpleSelect
+                size="sm"
+                value={filters.selectedSegment || 'all'}
+                onValueChange={(val) => onFilterChange({ selectedSegment: val, selectedList: 'all' })}
+                options={[
+                  { value: 'all', label: 'Tất cả phân đoạn' },
+                  ...availableSegments.map((s) => ({ value: s.id, label: s.name })),
+                ]}
+                placeholder="Chọn phân đoạn..."
               />
             </div>
           </div>

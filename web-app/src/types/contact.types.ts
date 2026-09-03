@@ -14,6 +14,7 @@ export interface Contact {
   company?: string
   phone?: string
   lists: string[]
+  listIds?: string[]
   tags: string[]
   status: ContactStatus
   customFields?: ContactCustomField[]
@@ -27,5 +28,6 @@ export interface ContactFilterState {
   selectedList: string
   selectedTag: string
   selectedStatus: string
+  selectedSegment: string
   createdDateRange?: string
 }

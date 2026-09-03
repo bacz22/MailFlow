@@ -347,6 +347,11 @@ export function AppContent() {
           ) : basePath === '/lists/create' ? (
             /* REAL LIST CREATE (PROMPT 09) */
             <ListCreatePage onNavigate={handleNavigate} />
+          ) : basePath.startsWith('/lists/') && basePath.endsWith('/edit') ? (
+            <ListCreatePage
+              listId={basePath.replace('/lists/', '').replace('/edit', '')}
+              onNavigate={handleNavigate}
+            />
           ) : basePath.startsWith('/lists/') ? (
             /* REAL LIST DETAIL (PROMPT 09) */
             <ListDetailPage

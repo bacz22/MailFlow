@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   ArrowLeft,
   Filter,
@@ -23,72 +23,36 @@ import {
 } from '../components/ui/Dialog'
 import { ContactTable } from '../components/contacts/ContactTable'
 import { useToast } from '../components/ui/Toast'
+import { ApiError } from '../services/apiClient'
+import { listService } from '../services/list.service'
+import { segmentService } from '../services/segment.service'
 import type { SegmentCondition, DynamicSegment, MatchLogic } from '../types/segment.types'
 import type { Contact } from '../types/contact.types'
+import type { AudienceList } from '../types/list.types'
 
 const FIELD_DEFINITIONS = [
-  { key: 'city', label: 'Thành Phố / Khu Vực', type: 'string' as const, defaultOp: 'equals' },
-  { key: 'tags', label: 'Thẻ Gắn Liền (Tags)', type: 'tag' as const, defaultOp: 'contains' },
   { key: 'status', label: 'Trạng Thái Gửi Thư', type: 'status' as const, defaultOp: 'equals' },
+  { key: 'tags', label: 'Thẻ Gắn Liền (Tags)', type: 'tag' as const, defaultOp: 'contains' },
   { key: 'company', label: 'Tên Công Ty / Doanh Nghiệp', type: 'string' as const, defaultOp: 'contains' },
-  { key: 'job_title', label: 'Chức Danh / Vị Trí', type: 'string' as const, defaultOp: 'contains' },
-  { key: 'engagement_score', label: 'Điểm Tương Tác (Score)', type: 'number' as const, defaultOp: 'greater_than' },
+  { key: 'email', label: 'Địa Chỉ Email', type: 'string' as const, defaultOp: 'contains' },
+  { key: 'city', label: 'Thành Phố (Custom Field)', type: 'string' as const, defaultOp: 'equals' },
+  { key: 'job_title', label: 'Chức Danh (Custom Field)', type: 'string' as const, defaultOp: 'contains' },
   { key: 'created_at', label: 'Ngày Tạo Hồ Sơ', type: 'date' as const, defaultOp: 'in_the_last_days' },
+  { key: 'list_id', label: 'Thuộc Danh Sách', type: 'list' as const, defaultOp: 'in' },
 ]
 
 const OPERATOR_LABELS: Record<string, string> = {
   equals: 'Bằng chính xác (=)',
   not_equals: 'Không bằng (!=)',
   contains: 'Chứa từ khóa (Contains)',
+  not_contains: 'Không chứa',
   starts_with: 'Bắt đầu với (Starts with)',
-  greater_than: 'Lớn hơn (>)',
-  less_than: 'Nhỏ hơn (<)',
+  in: 'Thuộc danh sách',
+  not_in: 'Không thuộc danh sách',
   after: 'Sau ngày (After)',
   before: 'Trước ngày (Before)',
   in_the_last_days: 'Trong vòng (X ngày qua)',
 }
-
-const PREVIEW_MATCHED_CONTACTS: Contact[] = [
-  {
-    id: 'cnt-1',
-    firstName: 'Thành',
-    lastName: 'Nguyễn Văn',
-    fullName: 'Nguyễn Văn Thành',
-    email: 'thanh.nguyen@vcorp.vn',
-    company: 'V-Corp Global',
-    lists: ['VIP Enterprise'],
-    tags: ['Customer', 'VIP'],
-    status: 'active',
-    createdAt: '15/08/2026',
-    updatedAt: '24/08/2026',
-  },
-  {
-    id: 'cnt-3',
-    firstName: 'Hương',
-    lastName: 'Phạm Thu',
-    fullName: 'Phạm Thu Hương',
-    email: 'huong.pham@fintech.asia',
-    company: 'Fintech Asia Hub',
-    lists: ['VIP Enterprise'],
-    tags: ['Customer', 'VIP', 'Decision Maker'],
-    status: 'active',
-    createdAt: '10/08/2026',
-    updatedAt: '22/08/2026',
-  },
-  {
-    id: 'cnt-8',
-    firstName: 'Trang',
-    lastName: 'Bùi Thùy',
-    fullName: 'Bùi Thùy Trang',
-    email: 'trang.bui@ecomviet.vn',
-    company: 'EcomViet Mart',
-    lists: ['VIP Enterprise'],
-    tags: ['Customer', 'VIP'],
-    status: 'active',
-    createdAt: '14/08/2026',
-    updatedAt: '23/08/2026',
-  },
-]
 
 export interface SegmentBuilderPageProps {
   segmentId?: string
@@ -98,28 +62,79 @@ export interface SegmentBuilderPageProps {
 }
 
 export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
+  segmentId,
   initialData,
   isEdit = false,
   onNavigate,
 }) => {
   const { showToast } = useToast()
 
-  const [name, setName] = useState(initialData?.name || 'Khách Hàng Doanh Nghiệp Trọng Điểm')
-  const [description, setDescription] = useState(
-    initialData?.description || 'Phân đoạn tự động lọc các liên hệ tại Hà Nội có gắn thẻ VIP và trạng thái Active.'
-  )
+  const [name, setName] = useState(initialData?.name || '')
+  const [description, setDescription] = useState(initialData?.description || '')
   const [matchLogic, setMatchLogic] = useState<MatchLogic>(initialData?.matchLogic || 'and')
-
   const [conditions, setConditions] = useState<SegmentCondition[]>(
     initialData?.conditions || [
-      { id: 'c-1', field: 'city', operator: 'equals', value: 'Hà Nội', fieldType: 'string' },
-      { id: 'c-2', field: 'tags', operator: 'contains', value: 'VIP', fieldType: 'tag' },
-      { id: 'c-3', field: 'status', operator: 'equals', value: 'active', fieldType: 'status' },
+      { id: 'c-1', field: 'status', operator: 'equals', value: 'active', fieldType: 'status' },
     ]
   )
-
+  const [availableLists, setAvailableLists] = useState<AudienceList[]>([])
+  const [previewContacts, setPreviewContacts] = useState<Contact[]>([])
+  const [previewCount, setPreviewCount] = useState(0)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoadingSegment, setIsLoadingSegment] = useState(Boolean(isEdit && segmentId))
+
+  useEffect(() => {
+    listService
+      .list()
+      .then(setAvailableLists)
+      .catch(() => setAvailableLists([]))
+  }, [])
+
+  useEffect(() => {
+    if (!isEdit || !segmentId) {
+      return
+    }
+    let cancelled = false
+    setIsLoadingSegment(true)
+    segmentService
+      .get(segmentId)
+      .then((segment) => {
+        if (cancelled) return
+        setName(segment.name)
+        setDescription(segment.description)
+        setMatchLogic(segment.matchLogic)
+        setConditions(
+          (segment.conditions.length > 0
+            ? segment.conditions
+            : [{ id: 'c-1', field: 'status', operator: 'equals', value: 'active', fieldType: 'status' as const }]
+          ).map((c) => {
+            const def = FIELD_DEFINITIONS.find((f) => f.key === c.field)
+            return {
+              ...c,
+              fieldType: def?.type || c.fieldType || 'string',
+            }
+          })
+        )
+        setPreviewCount(segment.contactCount)
+      })
+      .catch((error) => {
+        if (cancelled) return
+        showToast({
+          type: 'error',
+          title: 'Không tải được phân đoạn',
+          description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+        })
+        onNavigate('/segments')
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingSegment(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isEdit, segmentId, onNavigate, showToast])
 
   const handleAddCondition = () => {
     const newCond: SegmentCondition = {
@@ -169,7 +184,30 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
     setConditions((prev) => prev.map((c) => (c.id === id ? { ...c, value: val } : c)))
   }
 
-  const handleSave = async (isDraft = false) => {
+  const runPreview = async () => {
+    setIsPreviewLoading(true)
+    try {
+      const result = await segmentService.preview({
+        matchLogic,
+        conditions,
+        page: 0,
+        size: 10,
+      })
+      setPreviewContacts(result.content)
+      setPreviewCount(result.totalElements)
+      setIsPreviewOpen(true)
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không xem trước được',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    } finally {
+      setIsPreviewLoading(false)
+    }
+  }
+
+  const handleSave = async () => {
     if (!name.trim()) {
       showToast({
         type: 'warning',
@@ -180,16 +218,36 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
     }
 
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 600))
-    setIsSubmitting(false)
+    try {
+      const payload = {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        matchLogic,
+        conditions,
+      }
+      const saved =
+        isEdit && segmentId
+          ? await segmentService.update(segmentId, payload)
+          : await segmentService.create(payload)
+      showToast({
+        type: 'success',
+        title: isEdit ? 'Đã cập nhật phân đoạn' : 'Đã tạo phân đoạn động',
+        description: `Phân đoạn "${saved.name}" hiện có ${saved.contactCount.toLocaleString('vi-VN')} liên hệ phù hợp.`,
+      })
+      onNavigate(`/segments/${saved.id}`)
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không lưu được phân đoạn',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
-    showToast({
-      type: 'success',
-      title: isDraft ? 'Đã lưu bản nháp' : isEdit ? 'Đã cập nhật phân đoạn' : 'Đã tạo phân đoạn động',
-      description: `Phân đoạn "${name}" hiện có 2,315 liên hệ phù hợp.`,
-    })
-
-    onNavigate('/segments')
+  if (isLoadingSegment) {
+    return <div className="text-sm text-slate-500 py-10 text-center">Đang tải phân đoạn...</div>
   }
 
   return (
@@ -317,13 +375,6 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
                           onChange={(e) => handleOperatorChange(cond.id, e.target.value)}
                           className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-semibold focus-ring cursor-pointer"
                         >
-                          {cond.fieldType === 'number' && (
-                            <>
-                              <option value="greater_than">{OPERATOR_LABELS.greater_than}</option>
-                              <option value="less_than">{OPERATOR_LABELS.less_than}</option>
-                              <option value="equals">{OPERATOR_LABELS.equals}</option>
-                            </>
-                          )}
                           {cond.fieldType === 'date' && (
                             <>
                               <option value="in_the_last_days">{OPERATOR_LABELS.in_the_last_days}</option>
@@ -331,11 +382,27 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
                               <option value="before">{OPERATOR_LABELS.before}</option>
                             </>
                           )}
-                          {(cond.fieldType === 'string' || cond.fieldType === 'tag' || cond.fieldType === 'status') && (
+                          {cond.fieldType === 'tag' && (
+                            <>
+                              <option value="contains">{OPERATOR_LABELS.contains}</option>
+                              <option value="not_contains">{OPERATOR_LABELS.not_contains}</option>
+                            </>
+                          )}
+                          {cond.fieldType === 'list' && (
+                            <>
+                              <option value="in">{OPERATOR_LABELS.in}</option>
+                              <option value="not_in">{OPERATOR_LABELS.not_in}</option>
+                            </>
+                          )}
+                          {(cond.fieldType === 'string' || cond.fieldType === 'status') && (
                             <>
                               <option value="equals">{OPERATOR_LABELS.equals}</option>
-                              <option value="contains">{OPERATOR_LABELS.contains}</option>
-                              <option value="starts_with">{OPERATOR_LABELS.starts_with}</option>
+                              {cond.fieldType === 'string' && (
+                                <>
+                                  <option value="contains">{OPERATOR_LABELS.contains}</option>
+                                  <option value="starts_with">{OPERATOR_LABELS.starts_with}</option>
+                                </>
+                              )}
                               <option value="not_equals">{OPERATOR_LABELS.not_equals}</option>
                             </>
                           )}
@@ -353,6 +420,21 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
                             <option value="active">Hoạt động (Active)</option>
                             <option value="unsubscribed">Hủy đăng ký (Unsubscribed)</option>
                             <option value="bounced">Bounced (Lỗi trả về)</option>
+                            <option value="invalid">Không hợp lệ</option>
+                            <option value="blocked">Đã chặn</option>
+                          </select>
+                        ) : cond.fieldType === 'list' ? (
+                          <select
+                            value={cond.value}
+                            onChange={(e) => handleValueChange(cond.id, e.target.value)}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-semibold focus-ring cursor-pointer"
+                          >
+                            <option value="">Chọn danh sách...</option>
+                            {availableLists.map((list) => (
+                              <option key={list.id} value={list.id}>
+                                {list.name}
+                              </option>
+                            ))}
                           </select>
                         ) : (
                           <Input
@@ -411,13 +493,13 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
             <CardContent className="space-y-4 pt-4">
               <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-blue-100 dark:border-blue-900 text-center space-y-1 shadow-xs">
                 <div className="text-3xl font-extrabold text-blue-600 dark:text-blue-400 font-mono">
-                  2,315
+                  {previewCount.toLocaleString('vi-VN')}
                 </div>
                 <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   Liên Hệ Khớp Điều Kiện
                 </div>
                 <div className="text-[11px] text-slate-400">
-                  Chiếm 16.2% tổng danh bạ toàn hệ thống
+                  Bấm xem trước để tính lại theo quy tắc hiện tại
                 </div>
               </div>
 
@@ -427,7 +509,8 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
                 size="md"
                 className="w-full justify-center text-xs font-bold text-blue-600 dark:text-blue-400"
                 leftIcon={<Eye className="w-4 h-4" />}
-                onClick={() => setIsPreviewOpen(true)}
+                isLoading={isPreviewLoading}
+                onClick={() => void runPreview()}
               >
                 Xem Trước Danh Bạ Khớp
               </Button>
@@ -443,18 +526,9 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
                 className="w-full justify-center"
                 isLoading={isSubmitting}
                 leftIcon={<Save className="w-4 h-4" />}
-                onClick={() => handleSave(false)}
+                onClick={() => void handleSave()}
               >
                 {isEdit ? 'Cập Nhật Phân Đoạn' : 'Lưu Phân Đoạn'}
-              </Button>
-
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full justify-center"
-                onClick={() => handleSave(true)}
-              >
-                Lưu Bản Nháp
               </Button>
 
               <Button
@@ -476,16 +550,18 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
           <DialogHeader>
             <div className="flex items-center gap-2">
               <Users className="w-5 h-5 text-blue-600" />
-              <DialogTitle>Xem Trước Danh Bạ Phân Đoạn (2,315 Contacts)</DialogTitle>
+              <DialogTitle>
+                Xem Trước Danh Bạ Phân Đoạn ({previewCount.toLocaleString('vi-VN')} Contacts)
+              </DialogTitle>
             </div>
             <DialogDescription className="text-xs">
-              Dưới đây là 3 liên hệ đại diện đang khớp với các tiêu chí lọc vừa tạo.
+              Các liên hệ đang khớp với tiêu chí lọc hiện tại (tối đa 10 dòng mẫu).
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-2">
             <ContactTable
-              contacts={PREVIEW_MATCHED_CONTACTS}
+              contacts={previewContacts}
               selectedIds={[]}
               onSelectRow={() => {}}
               onSelectAllPage={() => {}}
