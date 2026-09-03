@@ -10,6 +10,7 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import { Input } from '../../ui/Input'
+import { Textarea } from '../../ui/Textarea'
 import { Button } from '../../ui/Button'
 import { Badge } from '../../ui/Badge'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../ui/Card'
@@ -376,13 +377,13 @@ export const CampaignStep3ContentForm: React.FC<CampaignStep3ContentFormProps> =
 
               {/* Textarea Editor */}
               <div className="space-y-1.5">
-                <textarea
+                <Textarea
                   ref={textareaRef}
                   rows={14}
                   value={data.htmlContent || ''}
                   onChange={(e) => onChange({ htmlContent: e.target.value })}
                   placeholder="Nhập mã HTML hoặc văn bản email..."
-                  className="w-full font-mono text-xs p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl leading-relaxed text-slate-900 dark:text-slate-100 focus-ring"
+                  className="font-mono text-xs p-3.5 leading-relaxed"
                 />
                 <div className="text-[10px] text-slate-400 flex items-center justify-between">
                   <span>Hỗ trợ thẻ chuẩn email: &lt;p&gt;, &lt;strong&gt;, &lt;em&gt;, &lt;a&gt;, &lt;h2&gt;</span>

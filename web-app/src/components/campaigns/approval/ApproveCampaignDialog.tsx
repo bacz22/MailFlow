@@ -9,6 +9,7 @@ import {
   DialogFooter,
 } from '../../ui/Dialog'
 import { Button } from '../../ui/Button'
+import { Textarea } from '../../ui/Textarea'
 import { FormField, FormLabel } from '../../ui/FormGroup'
 
 export interface ApproveCampaignDialogProps {
@@ -80,12 +81,11 @@ export const ApproveCampaignDialog: React.FC<ApproveCampaignDialogProps> = ({
           {/* Optional Note Field */}
           <FormField>
             <FormLabel>Ghi Chú Phê Duyệt (Tùy chọn)</FormLabel>
-            <textarea
+            <Textarea
               rows={3}
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Nhập ghi chú cho tác giả (ví dụ: Nội dung tốt, đã duyệt gửi theo lịch)..."
-              className="w-full text-xs p-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl leading-relaxed focus-ring"
             />
           </FormField>
 

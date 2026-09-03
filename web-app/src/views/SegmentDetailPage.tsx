@@ -10,6 +10,7 @@ import {
 import { ContactTable } from '../components/contacts/ContactTable'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
+import { ConfirmDialog } from '../components/ui/Dialog'
 import { PermissionGate, PERMISSIONS } from '../permissions'
 import { useToast } from '../components/ui/Toast'
 import { ApiError } from '../services/apiClient'
@@ -35,6 +36,8 @@ export const SegmentDetailPage: React.FC<SegmentDetailPageProps> = ({
   const [pageSize, setPageSize] = useState(10)
   const [totalElements, setTotalElements] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
   const load = useCallback(async () => {
     setIsLoading(true)
@@ -79,10 +82,16 @@ export const SegmentDetailPage: React.FC<SegmentDetailPageProps> = ({
     }
   }
 
-  const handleDeleteSegment = async () => {
+  const handleDeleteSegment = () => {
+    setIsDeleteDialogOpen(true)
+  }
+
+  const confirmDeleteSegment = async () => {
     if (!segment) return
+    setIsDeleting(true)
     try {
       await segmentService.delete(segment.id)
+      setIsDeleteDialogOpen(false)
       showToast({
         type: 'warning',
         title: 'Đã xóa phân đoạn',
@@ -95,6 +104,8 @@ export const SegmentDetailPage: React.FC<SegmentDetailPageProps> = ({
         title: 'Không xóa được phân đoạn',
         description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
       })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -229,6 +240,23 @@ export const SegmentDetailPage: React.FC<SegmentDetailPageProps> = ({
           }}
         />
       </div>
+
+      {/* Delete Segment Confirm Dialog */}
+      <ConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) {
+            setIsDeleteDialogOpen(false)
+          }
+        }}
+        title={`Xóa phân đoạn "${segment?.name ?? ''}"?`}
+        description="Các liên hệ trong phân đoạn này vẫn được giữ nguyên trong danh bạ chung. Hành động xóa phân đoạn không thể hoàn tác."
+        confirmText="Xóa phân đoạn"
+        cancelText="Hủy"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={() => void confirmDeleteSegment()}
+      />
     </div>
   )
 }

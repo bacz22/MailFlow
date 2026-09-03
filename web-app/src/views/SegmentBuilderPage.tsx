@@ -12,6 +12,9 @@ import {
 import { PageHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { Textarea } from '../components/ui/Textarea'
+import { DatePicker } from '../components/ui/DatePicker'
+import { SimpleSelect, type SelectOption } from '../components/ui/Select'
 import { FormField, FormLabel } from '../components/ui/FormGroup'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card'
 import {
@@ -41,6 +44,19 @@ const FIELD_DEFINITIONS = [
   { key: 'list_id', label: 'Thuộc Danh Sách', type: 'list' as const, defaultOp: 'in' },
 ]
 
+const FIELD_OPTIONS: SelectOption[] = FIELD_DEFINITIONS.map((f) => ({
+  value: f.key,
+  label: f.label,
+}))
+
+const STATUS_OPTIONS: SelectOption[] = [
+  { value: 'active', label: 'Hoạt động (Active)' },
+  { value: 'unsubscribed', label: 'Hủy đăng ký (Unsubscribed)' },
+  { value: 'bounced', label: 'Bounced (Lỗi trả về)' },
+  { value: 'invalid', label: 'Không hợp lệ' },
+  { value: 'blocked', label: 'Đã chặn' },
+]
+
 const OPERATOR_LABELS: Record<string, string> = {
   equals: 'Bằng chính xác (=)',
   not_equals: 'Không bằng (!=)',
@@ -52,6 +68,40 @@ const OPERATOR_LABELS: Record<string, string> = {
   after: 'Sau ngày (After)',
   before: 'Trước ngày (Before)',
   in_the_last_days: 'Trong vòng (X ngày qua)',
+}
+
+function getOperatorOptions(fieldType?: string): SelectOption[] {
+  if (fieldType === 'date') {
+    return [
+      { value: 'in_the_last_days', label: OPERATOR_LABELS.in_the_last_days },
+      { value: 'after', label: OPERATOR_LABELS.after },
+      { value: 'before', label: OPERATOR_LABELS.before },
+    ]
+  }
+  if (fieldType === 'tag') {
+    return [
+      { value: 'contains', label: OPERATOR_LABELS.contains },
+      { value: 'not_contains', label: OPERATOR_LABELS.not_contains },
+    ]
+  }
+  if (fieldType === 'list') {
+    return [
+      { value: 'in', label: OPERATOR_LABELS.in },
+      { value: 'not_in', label: OPERATOR_LABELS.not_in },
+    ]
+  }
+  if (fieldType === 'string' || fieldType === 'status') {
+    const opts: SelectOption[] = [{ value: 'equals', label: OPERATOR_LABELS.equals }]
+    if (fieldType === 'string') {
+      opts.push(
+        { value: 'contains', label: OPERATOR_LABELS.contains },
+        { value: 'starts_with', label: OPERATOR_LABELS.starts_with }
+      )
+    }
+    opts.push({ value: 'not_equals', label: OPERATOR_LABELS.not_equals })
+    return opts
+  }
+  return [{ value: 'equals', label: OPERATOR_LABELS.equals }]
 }
 
 export interface SegmentBuilderPageProps {
@@ -80,6 +130,9 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
   const [availableLists, setAvailableLists] = useState<AudienceList[]>([])
   const [previewContacts, setPreviewContacts] = useState<Contact[]>([])
   const [previewCount, setPreviewCount] = useState(0)
+  const [previewPage, setPreviewPage] = useState(0)
+  const [previewPageSize, setPreviewPageSize] = useState(10)
+  const [previewTotalPages, setPreviewTotalPages] = useState(1)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [isPreviewLoading, setIsPreviewLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -169,7 +222,7 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
               field: targetDef.key,
               fieldType: targetDef.type,
               operator: targetDef.defaultOp,
-              value: targetDef.type === 'status' ? 'active' : '',
+              value: targetDef.type === 'status' ? 'active' : targetDef.type === 'date' ? '30' : '',
             }
           : c
       )
@@ -177,25 +230,43 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
   }
 
   const handleOperatorChange = (id: string, op: string) => {
-    setConditions((prev) => prev.map((c) => (c.id === id ? { ...c, operator: op } : c)))
+    setConditions((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c
+        let nextValue = c.value
+        if (c.fieldType === 'date') {
+          if (op === 'in_the_last_days' && (nextValue.includes('-') || !nextValue)) {
+            nextValue = '30'
+          } else if ((op === 'after' || op === 'before') && !nextValue.includes('-')) {
+            nextValue = ''
+          }
+        }
+        return { ...c, operator: op, value: nextValue }
+      })
+    )
   }
 
   const handleValueChange = (id: string, val: string) => {
     setConditions((prev) => prev.map((c) => (c.id === id ? { ...c, value: val } : c)))
   }
 
-  const runPreview = async () => {
+  const runPreview = async (page = 0, size = previewPageSize, openDialog = true) => {
     setIsPreviewLoading(true)
     try {
       const result = await segmentService.preview({
         matchLogic,
         conditions,
-        page: 0,
-        size: 10,
+        page,
+        size,
       })
       setPreviewContacts(result.content)
       setPreviewCount(result.totalElements)
-      setIsPreviewOpen(true)
+      setPreviewPage(result.page)
+      setPreviewPageSize(result.size)
+      setPreviewTotalPages(Math.max(1, result.totalPages))
+      if (openDialog) {
+        setIsPreviewOpen(true)
+      }
     } catch (error) {
       showToast({
         type: 'error',
@@ -288,12 +359,11 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
 
               <FormField>
                 <FormLabel>Mô Tả Mục Đích</FormLabel>
-                <textarea
+                <Textarea
                   rows={2}
                   placeholder="Ghi chú mục đích của phân đoạn này cho toàn team..."
                   value={description}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs focus-ring placeholder:text-slate-400"
+                  onChange={(e) => setDescription(e.target.value)}
                 />
               </FormField>
             </CardContent>
@@ -355,93 +425,73 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
 
                       {/* 1. Field Selector */}
                       <div className="flex-1 min-w-[140px]">
-                        <select
+                        <SimpleSelect
+                          size="sm"
                           value={cond.field}
-                          onChange={(e) => handleFieldChange(cond.id, e.target.value)}
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-semibold focus-ring cursor-pointer"
-                        >
-                          {FIELD_DEFINITIONS.map((f) => (
-                            <option key={f.key} value={f.key}>
-                              {f.label}
-                            </option>
-                          ))}
-                        </select>
+                          onValueChange={(val) => handleFieldChange(cond.id, val)}
+                          options={FIELD_OPTIONS}
+                        />
                       </div>
 
                       {/* 2. Operator Selector */}
                       <div className="flex-1 min-w-[130px]">
-                        <select
+                        <SimpleSelect
+                          size="sm"
                           value={cond.operator}
-                          onChange={(e) => handleOperatorChange(cond.id, e.target.value)}
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-semibold focus-ring cursor-pointer"
-                        >
-                          {cond.fieldType === 'date' && (
-                            <>
-                              <option value="in_the_last_days">{OPERATOR_LABELS.in_the_last_days}</option>
-                              <option value="after">{OPERATOR_LABELS.after}</option>
-                              <option value="before">{OPERATOR_LABELS.before}</option>
-                            </>
-                          )}
-                          {cond.fieldType === 'tag' && (
-                            <>
-                              <option value="contains">{OPERATOR_LABELS.contains}</option>
-                              <option value="not_contains">{OPERATOR_LABELS.not_contains}</option>
-                            </>
-                          )}
-                          {cond.fieldType === 'list' && (
-                            <>
-                              <option value="in">{OPERATOR_LABELS.in}</option>
-                              <option value="not_in">{OPERATOR_LABELS.not_in}</option>
-                            </>
-                          )}
-                          {(cond.fieldType === 'string' || cond.fieldType === 'status') && (
-                            <>
-                              <option value="equals">{OPERATOR_LABELS.equals}</option>
-                              {cond.fieldType === 'string' && (
-                                <>
-                                  <option value="contains">{OPERATOR_LABELS.contains}</option>
-                                  <option value="starts_with">{OPERATOR_LABELS.starts_with}</option>
-                                </>
-                              )}
-                              <option value="not_equals">{OPERATOR_LABELS.not_equals}</option>
-                            </>
-                          )}
-                        </select>
+                          onValueChange={(val) => handleOperatorChange(cond.id, val)}
+                          options={getOperatorOptions(cond.fieldType)}
+                        />
                       </div>
 
                       {/* 3. Value Input */}
                       <div className="flex-1 min-w-[140px]">
                         {cond.fieldType === 'status' ? (
-                          <select
+                          <SimpleSelect
+                            size="sm"
                             value={cond.value}
-                            onChange={(e) => handleValueChange(cond.id, e.target.value)}
-                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-semibold focus-ring cursor-pointer"
-                          >
-                            <option value="active">Hoạt động (Active)</option>
-                            <option value="unsubscribed">Hủy đăng ký (Unsubscribed)</option>
-                            <option value="bounced">Bounced (Lỗi trả về)</option>
-                            <option value="invalid">Không hợp lệ</option>
-                            <option value="blocked">Đã chặn</option>
-                          </select>
+                            onValueChange={(val) => handleValueChange(cond.id, val)}
+                            options={STATUS_OPTIONS}
+                          />
                         ) : cond.fieldType === 'list' ? (
-                          <select
+                          <SimpleSelect
+                            size="sm"
+                            value={cond.value || '__none__'}
+                            onValueChange={(val) => handleValueChange(cond.id, val === '__none__' ? '' : val)}
+                            options={[
+                              { value: '__none__', label: 'Chọn danh sách...' },
+                              ...availableLists.map((list) => ({
+                                value: list.id,
+                                label: list.name,
+                              })),
+                            ]}
+                            placeholder="Chọn danh sách..."
+                          />
+                        ) : cond.fieldType === 'date' && (cond.operator === 'after' || cond.operator === 'before') ? (
+                          <DatePicker
+                            size="sm"
+                            value={cond.value}
+                            onChange={(val) => handleValueChange(cond.id, val)}
+                            placeholder="Chọn ngày..."
+                            className="rounded-lg text-xs"
+                          />
+                        ) : cond.fieldType === 'date' && cond.operator === 'in_the_last_days' ? (
+                          <Input
+                            inputSize="sm"
+                            type="number"
+                            min={0}
+                            max={3650}
+                            placeholder="Số ngày (ví dụ: 30)..."
                             value={cond.value}
                             onChange={(e) => handleValueChange(cond.id, e.target.value)}
-                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-semibold focus-ring cursor-pointer"
-                          >
-                            <option value="">Chọn danh sách...</option>
-                            {availableLists.map((list) => (
-                              <option key={list.id} value={list.id}>
-                                {list.name}
-                              </option>
-                            ))}
-                          </select>
+                            className="rounded-lg text-xs"
+                          />
                         ) : (
                           <Input
+                            inputSize="sm"
                             placeholder="Nhập giá trị so khớp..."
                             value={cond.value}
                             onChange={(e) => handleValueChange(cond.id, e.target.value)}
-                            className="h-9 text-xs"
+                            className="rounded-lg text-xs"
                           />
                         )}
                       </div>
@@ -510,7 +560,7 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
                 className="w-full justify-center text-xs font-bold text-blue-600 dark:text-blue-400"
                 leftIcon={<Eye className="w-4 h-4" />}
                 isLoading={isPreviewLoading}
-                onClick={() => void runPreview()}
+                onClick={() => void runPreview(0, previewPageSize, true)}
               >
                 Xem Trước Danh Bạ Khớp
               </Button>
@@ -545,8 +595,16 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
       </div>
 
       {/* 4. PREVIEW CONTACTS DIALOG */}
-      <Dialog open={isPreviewOpen} onOpenChange={() => setIsPreviewOpen(false)}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+      <Dialog
+        open={isPreviewOpen}
+        onOpenChange={(open) => {
+          setIsPreviewOpen(open)
+          if (!open) {
+            setPreviewPage(0)
+          }
+        }}
+      >
+        <DialogContent className="max-w-[min(96vw,72rem)] w-[96vw] max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <div className="flex items-center gap-2">
               <Users className="w-5 h-5 text-blue-600" />
@@ -555,16 +613,30 @@ export const SegmentBuilderPage: React.FC<SegmentBuilderPageProps> = ({
               </DialogTitle>
             </div>
             <DialogDescription className="text-xs">
-              Các liên hệ đang khớp với tiêu chí lọc hiện tại (tối đa 10 dòng mẫu).
+              Các liên hệ đang khớp với tiêu chí lọc hiện tại.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-2">
+          <div className="py-2 min-w-0 overflow-hidden">
             <ContactTable
               contacts={previewContacts}
               selectedIds={[]}
               onSelectRow={() => {}}
               onSelectAllPage={() => {}}
+              compact
+              isLoading={isPreviewLoading}
+              serverPagination={{
+                page: previewPage,
+                pageSize: previewPageSize,
+                totalElements: previewCount,
+                totalPages: previewTotalPages,
+                onPageChange: (nextPage) => {
+                  void runPreview(nextPage, previewPageSize, false)
+                },
+                onPageSizeChange: (size) => {
+                  void runPreview(0, size, false)
+                },
+              }}
             />
           </div>
         </DialogContent>

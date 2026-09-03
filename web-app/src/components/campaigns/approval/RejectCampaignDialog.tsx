@@ -9,6 +9,7 @@ import {
   DialogFooter,
 } from '../../ui/Dialog'
 import { Button } from '../../ui/Button'
+import { Textarea } from '../../ui/Textarea'
 import { FormField, FormLabel } from '../../ui/FormGroup'
 
 export interface RejectCampaignDialogProps {
@@ -91,19 +92,15 @@ export const RejectCampaignDialog: React.FC<RejectCampaignDialogProps> = ({
           {/* Mandatory Reason Textarea */}
           <FormField>
             <FormLabel required>Lý Do Từ Chối (Bắt buộc)</FormLabel>
-            <textarea
+            <Textarea
               rows={3}
               value={reason}
+              hasError={Boolean(error)}
               onChange={(e) => {
                 setReason(e.target.value)
                 if (error) setError(null)
               }}
               placeholder="Giải thích chi tiết các điểm cần chỉnh sửa..."
-              className={`w-full text-xs p-3 bg-white dark:bg-slate-950 border rounded-xl leading-relaxed focus-ring ${
-                error
-                  ? 'border-rose-500 ring-2 ring-rose-500/20'
-                  : 'border-slate-200 dark:border-slate-800'
-              }`}
             />
             {error && <span className="text-[11px] text-rose-500 font-medium">{error}</span>}
           </FormField>

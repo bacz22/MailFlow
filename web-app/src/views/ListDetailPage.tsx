@@ -13,6 +13,7 @@ import {
 import { ContactTable } from '../components/contacts/ContactTable'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
+import { ConfirmDialog } from '../components/ui/Dialog'
 import { PermissionGate, PERMISSIONS } from '../permissions'
 import { useToast } from '../components/ui/Toast'
 import { ApiError } from '../services/apiClient'
@@ -35,6 +36,9 @@ export const ListDetailPage: React.FC<ListDetailPageProps> = ({ listId, onNaviga
   const [pageSize, setPageSize] = useState(10)
   const [totalElements, setTotalElements] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
+  const [removingContact, setRemovingContact] = useState<Contact | null>(null)
+  const [isDeletingListOpen, setIsDeletingListOpen] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   const load = useCallback(async () => {
     setIsLoading(true)
@@ -79,13 +83,18 @@ export const ListDetailPage: React.FC<ListDetailPageProps> = ({ listId, onNaviga
     }
   }
 
-  const handleRemoveFromList = async (contact: Contact) => {
-    if (!window.confirm(`Gỡ ${contact.fullName} khỏi danh sách? Liên hệ vẫn được giữ trong danh bạ.`)) {
-      return
-    }
+  const handleRemoveFromList = (contact: Contact) => {
+    setRemovingContact(contact)
+  }
+
+  const confirmRemoveContact = async () => {
+    if (!removingContact) return
+    const contact = removingContact
+    setIsProcessing(true)
     try {
       await listService.removeMember(listId, contact.id)
       setSelectedIds((prev) => prev.filter((id) => id !== contact.id))
+      setRemovingContact(null)
       await load()
       showToast({
         type: 'info',
@@ -98,16 +107,22 @@ export const ListDetailPage: React.FC<ListDetailPageProps> = ({ listId, onNaviga
         title: 'Không gỡ được liên hệ',
         description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
       })
+    } finally {
+      setIsProcessing(false)
     }
   }
 
-  const handleDeleteList = async () => {
+  const handleDeleteList = () => {
     if (!listInfo) return
-    if (!window.confirm(`Xóa danh sách "${listInfo.name}"? Liên hệ vẫn được giữ trong danh bạ.`)) {
-      return
-    }
+    setIsDeletingListOpen(true)
+  }
+
+  const confirmDeleteList = async () => {
+    if (!listInfo) return
+    setIsProcessing(true)
     try {
       await listService.delete(listId)
+      setIsDeletingListOpen(false)
       showToast({
         type: 'warning',
         title: 'Đã xóa danh sách',
@@ -120,6 +135,8 @@ export const ListDetailPage: React.FC<ListDetailPageProps> = ({ listId, onNaviga
         title: 'Không xóa được danh sách',
         description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
       })
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -273,6 +290,40 @@ export const ListDetailPage: React.FC<ListDetailPageProps> = ({ listId, onNaviga
           }}
         />
       </div>
+
+      {/* Remove Contact From List Confirm Dialog */}
+      <ConfirmDialog
+        open={removingContact != null}
+        onOpenChange={(open) => {
+          if (!open && !isProcessing) {
+            setRemovingContact(null)
+          }
+        }}
+        title="Gỡ liên hệ khỏi danh sách?"
+        description={`Bạn có chắc muốn gỡ "${removingContact?.fullName ?? ''}" khỏi danh sách "${listInfo?.name ?? ''}"? Liên hệ vẫn được giữ nguyên trong danh bạ chung.`}
+        confirmText="Gỡ khỏi danh sách"
+        cancelText="Hủy"
+        variant="warning"
+        isLoading={isProcessing}
+        onConfirm={() => void confirmRemoveContact()}
+      />
+
+      {/* Delete List Confirm Dialog */}
+      <ConfirmDialog
+        open={isDeletingListOpen}
+        onOpenChange={(open) => {
+          if (!open && !isProcessing) {
+            setIsDeletingListOpen(false)
+          }
+        }}
+        title={`Xóa danh sách "${listInfo?.name ?? ''}"?`}
+        description="Các liên hệ trong danh sách này vẫn được giữ nguyên trong danh bạ chung. Hành động xóa danh sách không thể hoàn tác."
+        confirmText="Xóa danh sách"
+        cancelText="Hủy"
+        variant="danger"
+        isLoading={isProcessing}
+        onConfirm={() => void confirmDeleteList()}
+      />
     </div>
   )
 }

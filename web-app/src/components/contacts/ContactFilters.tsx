@@ -24,7 +24,7 @@ export const ContactFilters: React.FC<ContactFiltersProps> = ({
   totalCount,
   filteredCount,
   availableLists = [],
-  availableTags = ['Customer', 'Lead', 'High Value', 'Engaged', 'Churn Risk'],
+  availableTags = [],
   availableSegments = [],
   className,
 }) => {

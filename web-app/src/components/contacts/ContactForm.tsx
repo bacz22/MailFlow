@@ -22,6 +22,7 @@ import { FormField, FormLabel, FormMessage } from '../ui/FormGroup'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/Card'
 import { SimpleSelect, type SelectOption } from '../ui/Select'
 import { listService } from '../../services/list.service'
+import { tagService } from '../../services/tag.service'
 import type { Contact } from '../../types/contact.types'
 import type { AudienceList } from '../../types/list.types'
 
@@ -33,8 +34,6 @@ export interface ContactFormProps {
   onCancel: () => void
   className?: string
 }
-
-const POPULAR_TAGS = ['Customer', 'Lead', 'High Value', 'Decision Maker', 'Engaged', 'Trial']
 
 const CONTACT_STATUS_OPTIONS: SelectOption[] = [
   {
@@ -99,6 +98,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
 }) => {
   const [newTagInput, setNewTagInput] = useState('')
   const [availableLists, setAvailableLists] = useState<AudienceList[]>([])
+  const [catalogTags, setCatalogTags] = useState<string[]>([])
 
   const initialListIds = initialData?.listIds?.length ? initialData.listIds : defaultListIds
 
@@ -120,7 +120,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
       company: initialData?.company || '',
       status: initialData?.status || 'active',
       lists: initialListIds,
-      tags: initialData?.tags || (isEdit ? [] : ['Lead']),
+      tags: initialData?.tags || [],
       customFields: initialData?.customFields?.length
         ? initialData.customFields
         : [],
@@ -149,6 +149,14 @@ export const ContactForm: React.FC<ContactFormProps> = ({
       })
       .catch(() => {
         if (!cancelled) setAvailableLists([])
+      })
+    tagService
+      .list()
+      .then((tags) => {
+        if (!cancelled) setCatalogTags(tags.map((tag) => tag.name).filter(Boolean))
+      })
+      .catch(() => {
+        if (!cancelled) setCatalogTags([])
       })
     return () => {
       cancelled = true
@@ -198,7 +206,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
       company: '',
       status: 'active',
       lists: defaultListIds,
-      tags: ['Lead'],
+      tags: [],
       customFields: [],
     })
   }
@@ -397,20 +405,24 @@ export const ContactForm: React.FC<ContactFormProps> = ({
                 />
               </div>
 
-              <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400">
-                <span>Gợi ý:</span>
-                {POPULAR_TAGS.filter((t) => !selectedTags.includes(t))
-                  .slice(0, 3)
-                  .map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => addTag(t)}
-                      className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[11px] font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
-                    >
-                      +{t}
-                    </button>
-                  ))}
+              <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 flex-wrap">
+                <span>Thẻ có sẵn:</span>
+                {catalogTags.filter((t) => !selectedTags.includes(t)).length === 0 ? (
+                  <span>Chưa có thẻ catalog</span>
+                ) : (
+                  catalogTags
+                    .filter((t) => !selectedTags.includes(t))
+                    .map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => addTag(t)}
+                        className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[11px] font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                      >
+                        +{t}
+                      </button>
+                    ))
+                )}
               </div>
             </div>
           </div>

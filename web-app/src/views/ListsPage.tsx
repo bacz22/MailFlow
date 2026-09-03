@@ -20,6 +20,7 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card'
+import { ConfirmDialog } from '../components/ui/Dialog'
 import { TagManagerModal } from '../components/lists/TagManagerModal'
 import {
   DropdownMenu,
@@ -48,6 +49,8 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
   const [isTagModalOpen, setIsTagModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [deletingList, setDeletingList] = useState<{ id: string; name: string } | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const loadLists = useCallback(async (q?: string) => {
     setIsLoading(true)
@@ -109,13 +112,18 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
     }
   }
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Xóa danh sách "${name}"? Liên hệ vẫn được giữ trong danh bạ.`)) {
-      return
-    }
+  const handleDelete = (id: string, name: string) => {
+    setDeletingList({ id, name })
+  }
+
+  const confirmDeleteList = async () => {
+    if (!deletingList) return
+    const { id, name } = deletingList
+    setIsDeleting(true)
     try {
       await listService.delete(id)
       setLists((prev) => prev.filter((l) => l.id !== id))
+      setDeletingList(null)
       showToast({
         type: 'warning',
         title: 'Đã xóa danh sách',
@@ -127,6 +135,8 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
         title: 'Không xóa được danh sách',
         description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
       })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -468,6 +478,23 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
           const result = await tagService.syncFromContacts()
           setTags(result.tags)
         }}
+      />
+
+      {/* Delete List Confirm Dialog */}
+      <ConfirmDialog
+        open={deletingList != null}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) {
+            setDeletingList(null)
+          }
+        }}
+        title={`Xóa danh sách "${deletingList?.name ?? ''}"?`}
+        description="Các liên hệ trong danh sách này vẫn được giữ nguyên trong danh bạ chung. Hành động xóa danh sách không thể hoàn tác."
+        confirmText="Xóa danh sách"
+        cancelText="Hủy"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={() => void confirmDeleteList()}
       />
     </div>
   )

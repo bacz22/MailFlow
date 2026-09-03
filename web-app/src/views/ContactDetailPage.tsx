@@ -623,6 +623,7 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
         isOpen={isAssignTagsOpen}
         onClose={() => setIsAssignTagsOpen(false)}
         contactCount={1}
+        availableTags={contact.tags}
         onConfirm={handleConfirmAssignTags}
       />
 

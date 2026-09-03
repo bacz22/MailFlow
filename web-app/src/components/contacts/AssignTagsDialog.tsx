@@ -10,6 +10,7 @@ import {
 } from '../ui/Dialog'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
+import { tagService } from '../../services/tag.service'
 
 export interface AssignTagsDialogProps {
   isOpen: boolean
@@ -37,6 +38,8 @@ export const AssignTagsDialog: React.FC<AssignTagsDialogProps> = ({
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [draftTag, setDraftTag] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [catalogTags, setCatalogTags] = useState<string[]>([])
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false)
   const initialSelectedTagsRef = useRef(initialSelectedTags)
   initialSelectedTagsRef.current = initialSelectedTags
 
@@ -47,12 +50,37 @@ export const AssignTagsDialog: React.FC<AssignTagsDialogProps> = ({
     setSelectedTags([...initialSelectedTagsRef.current])
     setDraftTag('')
     setIsSubmitting(false)
+    let cancelled = false
+    setIsLoadingCatalog(true)
+    tagService
+      .list()
+      .then((tags) => {
+        if (!cancelled) {
+          setCatalogTags(tags.map((tag) => tag.name).filter(Boolean))
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCatalogTags([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingCatalog(false)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
   }, [isOpen])
 
   const suggestionTags = useMemo(() => {
     const selected = new Set(selectedTags.map((tag) => tag.toLowerCase()))
-    return availableTags.filter((tag) => !selected.has(tag.toLowerCase())).slice(0, 12)
-  }, [availableTags, selectedTags])
+    const merged = new Set<string>([...catalogTags, ...availableTags])
+    return Array.from(merged)
+      .filter((tag) => tag && !selected.has(tag.toLowerCase()))
+      .sort((a, b) => a.localeCompare(b, 'vi'))
+  }, [availableTags, catalogTags, selectedTags])
 
   const addTag = (raw: string) => {
     const tag = normalizeTag(raw)
@@ -167,12 +195,14 @@ export const AssignTagsDialog: React.FC<AssignTagsDialogProps> = ({
             </Button>
           </div>
 
-          {suggestionTags.length > 0 && (
+          {isLoadingCatalog ? (
+            <div className="text-xs text-slate-400">Đang tải thẻ có sẵn...</div>
+          ) : suggestionTags.length > 0 ? (
             <div className="space-y-2">
               <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                Gợi ý có sẵn
+                Thẻ có sẵn
               </div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
                 {suggestionTags.map((tag) => (
                   <button
                     key={tag}
@@ -184,6 +214,10 @@ export const AssignTagsDialog: React.FC<AssignTagsDialogProps> = ({
                   </button>
                 ))}
               </div>
+            </div>
+          ) : (
+            <div className="text-xs text-slate-400">
+              Chưa có thẻ catalog. Nhập tên thẻ mới hoặc tạo thẻ trong Quản Lý Thẻ.
             </div>
           )}
         </div>

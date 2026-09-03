@@ -54,6 +54,7 @@ export interface ContactTableProps {
   sortField?: SortField
   sortOrder?: SortOrder
   onSortChange?: (field: SortField, order: SortOrder) => void
+  compact?: boolean
   className?: string
 }
 
@@ -77,6 +78,7 @@ export const ContactTable: React.FC<ContactTableProps> = ({
   sortField: externalSortField,
   sortOrder: externalSortOrder,
   onSortChange,
+  compact = false,
   className,
 }) => {
   const [sortField, setSortField] = useState<SortField>('createdAt')
@@ -121,13 +123,19 @@ export const ContactTable: React.FC<ContactTableProps> = ({
 
   // Pagination calculation
   const totalItems = serverPagination?.totalElements ?? sortedContacts.length
-  const totalPages = serverPagination?.totalPages ?? Math.max(1, Math.ceil(totalItems / pageSize))
-  const activePage = serverPagination?.page ?? currentPage
+  const totalPages = Math.max(
+    1,
+    serverPagination?.totalPages ?? Math.ceil(totalItems / pageSize)
+  )
   const activePageSize = serverPagination?.pageSize ?? pageSize
-  const startIndex = serverPagination ? activePage * activePageSize : (currentPage - 1) * pageSize
+  const activePageIndex = serverPagination ? serverPagination.page : currentPage - 1
+  const displayPage = Math.min(Math.max(1, activePageIndex + 1), totalPages)
+  const startIndex = (displayPage - 1) * activePageSize
   const paginatedContacts = serverPagination
     ? sortedContacts
     : sortedContacts.slice(startIndex, startIndex + pageSize)
+  const isFirstPage = displayPage <= 1
+  const isLastPage = displayPage >= totalPages
 
   const isAllPageSelected =
     paginatedContacts.length > 0 &&
@@ -241,23 +249,24 @@ export const ContactTable: React.FC<ContactTableProps> = ({
   return (
     <div className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 shadow-xs overflow-hidden flex flex-col ${className || ''}`}>
       {/* Desktop & Tablet Table View */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs border-collapse">
+      <div className={compact ? 'overflow-hidden' : 'overflow-x-auto'}>
+        <table className={`w-full text-left text-xs border-collapse ${compact ? 'table-fixed' : ''}`}>
           <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-bold select-none sticky top-0 z-10">
             <tr>
-              {/* Checkbox Column */}
-              <th className="py-3 px-4 w-10">
-                <Checkbox
-                  id="select-all-page"
-                  checked={isAllPageSelected ? true : isSomePageSelected ? ('indeterminate' as any) : false}
-                  onCheckedChange={(checked) => onSelectAllPage(!!checked)}
-                  aria-label="Chọn tất cả trên trang"
-                />
-              </th>
+              {!compact && (
+                <th className="py-3 px-4 w-10">
+                  <Checkbox
+                    id="select-all-page"
+                    checked={isAllPageSelected ? true : isSomePageSelected ? ('indeterminate' as any) : false}
+                    onCheckedChange={(checked) => onSelectAllPage(!!checked)}
+                    aria-label="Chọn tất cả trên trang"
+                  />
+                </th>
+              )}
 
               {/* Name Column */}
               <th
-                className="py-3 px-3 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-700/50 transition whitespace-nowrap min-w-[180px]"
+                className={`py-3 px-3 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-700/50 transition whitespace-nowrap ${compact ? 'w-[22%]' : 'min-w-[180px]'}`}
                 onClick={() => handleSort('fullName')}
               >
                 <span>Họ và Tên</span>
@@ -266,7 +275,7 @@ export const ContactTable: React.FC<ContactTableProps> = ({
 
               {/* Email Column */}
               <th
-                className="py-3 px-3 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-700/50 transition whitespace-nowrap min-w-[200px]"
+                className={`py-3 px-3 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-700/50 transition whitespace-nowrap ${compact ? 'w-[24%]' : 'min-w-[200px]'}`}
                 onClick={() => handleSort('email')}
               >
                 <span>Địa Chỉ Email</span>
@@ -275,45 +284,47 @@ export const ContactTable: React.FC<ContactTableProps> = ({
 
               {/* Company Column */}
               <th
-                className="py-3 px-3 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-700/50 transition whitespace-nowrap"
+                className={`py-3 px-3 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-700/50 transition whitespace-nowrap ${compact ? 'w-[18%]' : ''}`}
                 onClick={() => handleSort('company')}
               >
                 <span>Công Ty</span>
                 {renderSortIcon('company')}
               </th>
 
-              {/* Lists Column */}
-              <th className="py-3 px-3 whitespace-nowrap min-w-[140px]">
-                <span>Danh Sách (Lists)</span>
-              </th>
+              {!compact && (
+                <th className="py-3 px-3 whitespace-nowrap min-w-[140px]">
+                  <span>Danh Sách (Lists)</span>
+                </th>
+              )}
 
-              {/* Tags Column */}
-              <th className="py-3 px-3 whitespace-nowrap min-w-[130px]">
+              <th className={`py-3 px-3 whitespace-nowrap ${compact ? 'w-[18%]' : 'min-w-[130px]'}`}>
                 <span>Thẻ (Tags)</span>
               </th>
 
               {/* Status Column */}
               <th
-                className="py-3 px-3 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-700/50 transition whitespace-nowrap"
+                className={`py-3 px-3 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-700/50 transition whitespace-nowrap ${compact ? 'w-[18%]' : ''}`}
                 onClick={() => handleSort('status')}
               >
                 <span>Trạng Thái</span>
                 {renderSortIcon('status')}
               </th>
 
-              {/* Created Date */}
-              <th
-                className="py-3 px-3 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-700/50 transition whitespace-nowrap"
-                onClick={() => handleSort('createdAt')}
-              >
-                <span>Ngày Tạo</span>
-                {renderSortIcon('createdAt')}
-              </th>
+              {!compact && (
+                <th
+                  className="py-3 px-3 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-700/50 transition whitespace-nowrap"
+                  onClick={() => handleSort('createdAt')}
+                >
+                  <span>Ngày Tạo</span>
+                  {renderSortIcon('createdAt')}
+                </th>
+              )}
 
-              {/* Actions Header */}
-              <th className="py-3 px-4 text-right w-16">
-                <span>Thao Tác</span>
-              </th>
+              {!compact && (
+                <th className="py-3 px-4 text-right w-16">
+                  <span>Thao Tác</span>
+                </th>
+              )}
             </tr>
           </thead>
 
@@ -333,19 +344,20 @@ export const ContactTable: React.FC<ContactTableProps> = ({
                   }`}
                   onClick={() => onViewContact?.(contact)}
                 >
-                  {/* Checkbox */}
-                  <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                    <Checkbox
-                      id={`contact-chk-${contact.id}`}
-                      checked={isSelected}
-                      onCheckedChange={(checked) => onSelectRow(contact.id, !!checked)}
-                      aria-label={`Chọn liên hệ ${contact.fullName}`}
-                    />
-                  </td>
+                  {!compact && (
+                    <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        id={`contact-chk-${contact.id}`}
+                        checked={isSelected}
+                        onCheckedChange={(checked) => onSelectRow(contact.id, !!checked)}
+                        aria-label={`Chọn liên hệ ${contact.fullName}`}
+                      />
+                    </td>
+                  )}
 
                   {/* Name with Avatar */}
                   <td className="py-3 px-3">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <div
                         className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0 ${
                           contact.avatarColor || 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300'
@@ -353,7 +365,7 @@ export const ContactTable: React.FC<ContactTableProps> = ({
                       >
                         {initials}
                       </div>
-                      <span className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                      <span className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
                         {contact.fullName}
                       </span>
                     </div>
@@ -361,57 +373,58 @@ export const ContactTable: React.FC<ContactTableProps> = ({
 
                   {/* Email */}
                   <td className="py-3 px-3 font-mono text-[11px] text-slate-600 dark:text-slate-300">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
                       <Mail className="w-3 h-3 text-slate-400 shrink-0" />
-                      <span className="truncate max-w-[220px]">{contact.email}</span>
+                      <span className="truncate">{contact.email}</span>
                     </div>
                   </td>
 
                   {/* Company */}
                   <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
                     {contact.company ? (
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span className="truncate max-w-[150px]">{contact.company}</span>
+                        <span className="truncate">{contact.company}</span>
                       </div>
                     ) : (
                       <span className="text-slate-400">-</span>
                     )}
                   </td>
 
-                  {/* Lists */}
-                  <td className="py-3 px-3">
-                    <div className="flex items-center gap-1 flex-wrap max-w-xs">
-                      {contact.lists.slice(0, 2).map((l, i) => (
-                        <span
-                          key={i}
-                          className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[10px] font-medium truncate max-w-[120px]"
-                        >
-                          {l}
-                        </span>
-                      ))}
-                      {contact.lists.length > 2 && (
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          +{contact.lists.length - 2}
-                        </span>
-                      )}
-                    </div>
-                  </td>
+                  {!compact && (
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-1 flex-wrap max-w-xs">
+                        {contact.lists.slice(0, 2).map((l, i) => (
+                          <span
+                            key={i}
+                            className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[10px] font-medium truncate max-w-[120px]"
+                          >
+                            {l}
+                          </span>
+                        ))}
+                        {contact.lists.length > 2 && (
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            +{contact.lists.length - 2}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  )}
 
                   {/* Tags */}
                   <td className="py-3 px-3">
-                    <div className="flex items-center gap-1 flex-wrap max-w-xs">
-                      {contact.tags.slice(0, 2).map((t, i) => (
+                    <div className="flex items-center gap-1 flex-wrap min-w-0">
+                      {contact.tags.slice(0, compact ? 1 : 2).map((t, i) => (
                         <span
                           key={i}
-                          className="px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/80 text-[10px] font-bold"
+                          className="px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/80 text-[10px] font-bold truncate max-w-[120px]"
                         >
                           #{t}
                         </span>
                       ))}
-                      {contact.tags.length > 2 && (
+                      {contact.tags.length > (compact ? 1 : 2) && (
                         <span className="text-[10px] text-slate-400 font-mono">
-                          +{contact.tags.length - 2}
+                          +{contact.tags.length - (compact ? 1 : 2)}
                         </span>
                       )}
                     </div>
@@ -422,23 +435,25 @@ export const ContactTable: React.FC<ContactTableProps> = ({
                     <ContactStatusBadge status={contact.status} size="sm" />
                   </td>
 
-                  {/* Created At */}
-                  <td className="py-3 px-3 whitespace-nowrap font-mono text-[11px] text-slate-500">
-                    {contact.createdAt}
-                  </td>
+                  {!compact && (
+                    <td className="py-3 px-3 whitespace-nowrap font-mono text-[11px] text-slate-500">
+                      {contact.createdAt}
+                    </td>
+                  )}
 
-                  {/* Row Actions */}
-                  <td className="py-3 px-4 text-right">
-                    <ContactRowActions
-                      contact={contact}
-                      onView={onViewContact}
-                      onEdit={onEditContact}
-                      onAddToList={onAddToList}
-                      onDelete={onDeleteContact}
-                      deleteLabel={deleteLabel}
-                      deletePermission={deletePermission}
-                    />
-                  </td>
+                  {!compact && (
+                    <td className="py-3 px-4 text-right">
+                      <ContactRowActions
+                        contact={contact}
+                        onView={onViewContact}
+                        onEdit={onEditContact}
+                        onAddToList={onAddToList}
+                        onDelete={onDeleteContact}
+                        deleteLabel={deleteLabel}
+                        deletePermission={deletePermission}
+                      />
+                    </td>
+                  )}
                 </tr>
               )
             })}
@@ -489,8 +504,10 @@ export const ContactTable: React.FC<ContactTableProps> = ({
             variant="outline"
             size="sm"
             className="p-1.5 h-8 w-8 justify-center"
-            disabled={activePage === 0}
-            onClick={() => (serverPagination ? serverPagination.onPageChange(0) : setCurrentPage(1))}
+            disabled={isFirstPage}
+            onClick={() =>
+              serverPagination ? serverPagination.onPageChange(0) : setCurrentPage(1)
+            }
             title="Trang đầu"
           >
             <ChevronsLeft className="w-3.5 h-3.5" />
@@ -500,11 +517,11 @@ export const ContactTable: React.FC<ContactTableProps> = ({
             variant="outline"
             size="sm"
             className="p-1.5 h-8 w-8 justify-center"
-            disabled={activePage === 0}
+            disabled={isFirstPage}
             onClick={() =>
               serverPagination
-                ? serverPagination.onPageChange(Math.max(0, activePage - 1))
-                : setCurrentPage(currentPage - 1)
+                ? serverPagination.onPageChange(Math.max(0, displayPage - 2))
+                : setCurrentPage(Math.max(1, currentPage - 1))
             }
             title="Trang trước"
           >
@@ -512,18 +529,18 @@ export const ContactTable: React.FC<ContactTableProps> = ({
           </Button>
 
           <span className="px-3 py-1 text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">
-            Trang <strong>{activePage + 1}</strong> / {totalPages}
+            Trang <strong>{displayPage}</strong> / {totalPages}
           </span>
 
           <Button
             variant="outline"
             size="sm"
             className="p-1.5 h-8 w-8 justify-center"
-            disabled={activePage >= totalPages - 1}
+            disabled={isLastPage}
             onClick={() =>
               serverPagination
-                ? serverPagination.onPageChange(Math.min(totalPages - 1, activePage + 1))
-                : setCurrentPage(currentPage + 1)
+                ? serverPagination.onPageChange(Math.min(totalPages - 1, displayPage))
+                : setCurrentPage(Math.min(totalPages, currentPage + 1))
             }
             title="Trang tiếp"
           >
@@ -534,7 +551,7 @@ export const ContactTable: React.FC<ContactTableProps> = ({
             variant="outline"
             size="sm"
             className="p-1.5 h-8 w-8 justify-center"
-            disabled={activePage >= totalPages - 1}
+            disabled={isLastPage}
             onClick={() =>
               serverPagination
                 ? serverPagination.onPageChange(totalPages - 1)

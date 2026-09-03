@@ -3,6 +3,7 @@ import { ArrowLeft, Layers, Save, CheckCircle2 } from 'lucide-react'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { Textarea } from '../components/ui/Textarea'
 import { FormField, FormLabel } from '../components/ui/FormGroup'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../components/ui/Card'
 import { useToast } from '../components/ui/Toast'
@@ -132,12 +133,11 @@ export const ListCreatePage: React.FC<ListCreatePageProps> = ({ listId, onNaviga
 
             <FormField>
               <FormLabel>Mô Tả Mục Đích (Description)</FormLabel>
-              <textarea
+              <Textarea
                 rows={3}
                 placeholder="Mô tả nguồn gốc thu thập hoặc nhóm đối tượng áp dụng cho danh sách này..."
                 value={description}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs font-sans text-slate-800 dark:text-slate-200 focus-ring placeholder:text-slate-400"
+                onChange={(e) => setDescription(e.target.value)}
               />
             </FormField>
 
