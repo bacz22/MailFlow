@@ -21,6 +21,18 @@ public class WorkspaceAccessService {
             WorkspaceRole.OWNER, WorkspaceRole.ADMIN);
     private static final Set<WorkspaceRole> MEMBER_MANAGE_ROLES = Set.of(
             WorkspaceRole.OWNER, WorkspaceRole.ADMIN);
+    private static final Set<WorkspaceRole> CONTACT_READ_ROLES = Set.of(
+            WorkspaceRole.OWNER,
+            WorkspaceRole.ADMIN,
+            WorkspaceRole.MARKETING_MANAGER,
+            WorkspaceRole.CAMPAIGN_EDITOR,
+            WorkspaceRole.CONTACT_MANAGER,
+            WorkspaceRole.ANALYST);
+    private static final Set<WorkspaceRole> CONTACT_MUTATE_ROLES = Set.of(
+            WorkspaceRole.OWNER,
+            WorkspaceRole.ADMIN,
+            WorkspaceRole.MARKETING_MANAGER,
+            WorkspaceRole.CONTACT_MANAGER);
 
     private final WorkspaceMemberRepository memberRepository;
 
@@ -64,5 +76,43 @@ public class WorkspaceAccessService {
     public long countActiveOwners(UUID workspaceId) {
         return memberRepository.countByWorkspaceIdAndRoleAndStatus(
                 workspaceId, WorkspaceRole.OWNER, WorkspaceMemberStatus.ACTIVE);
+    }
+
+    public WorkspaceMember requireContactRead(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, CONTACT_READ_ROLES,
+                "Bạn không có quyền xem danh bạ workspace này.");
+    }
+
+    public WorkspaceMember requireContactWrite(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, CONTACT_MUTATE_ROLES,
+                "Bạn không có quyền chỉnh sửa danh bạ workspace này.");
+    }
+
+    public WorkspaceMember requireContactDelete(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, CONTACT_MUTATE_ROLES,
+                "Bạn không có quyền xóa liên hệ trong workspace này.");
+    }
+
+    public WorkspaceMember requireContactImport(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, CONTACT_MUTATE_ROLES,
+                "Bạn không có quyền nạp danh bạ workspace này.");
+    }
+
+    public WorkspaceMember requireContactExport(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, CONTACT_MUTATE_ROLES,
+                "Bạn không có quyền xuất danh bạ workspace này.");
+    }
+
+    private WorkspaceMember requireRoles(
+            UUID userId,
+            UUID workspaceId,
+            Set<WorkspaceRole> allowed,
+            String message
+    ) {
+        WorkspaceMember member = requireActiveMember(userId, workspaceId);
+        if (!allowed.contains(member.getRole())) {
+            throw new AppException(HttpStatus.FORBIDDEN, "WORKSPACE_FORBIDDEN", message);
+        }
+        return member;
     }
 }

@@ -5,6 +5,8 @@ import { Button } from '../components/ui/Button'
 import { ContactForm } from '../components/contacts/ContactForm'
 import type { ContactFormData } from '../schemas/contact.schemas'
 import { useToast } from '../components/ui/Toast'
+import { ApiError } from '../services/apiClient'
+import { contactService } from '../services/contact.service'
 
 export interface ContactCreatePageProps {
   onNavigate: (path: string) => void
@@ -14,23 +16,40 @@ export const ContactCreatePage: React.FC<ContactCreatePageProps> = ({ onNavigate
   const { showToast } = useToast()
 
   const handleSubmit = async (data: ContactFormData, shouldAddAnother?: boolean) => {
-    // Simulate API request delay
-    await new Promise((resolve) => setTimeout(resolve, 800))
+    try {
+      await contactService.create({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
+        company: data.company,
+        status: data.status,
+        tags: data.tags,
+        customFields: data.customFields,
+      })
 
-    showToast({
-      type: 'success',
-      title: 'Đã tạo liên hệ thành công',
-      description: `Đã thêm liên hệ "${data.lastName} ${data.firstName}" (${data.email}) vào danh bạ.`,
-    })
+      showToast({
+        type: 'success',
+        title: 'Đã tạo liên hệ thành công',
+        description: `Đã thêm liên hệ "${data.lastName} ${data.firstName}" (${data.email}) vào danh bạ.`,
+      })
 
-    if (!shouldAddAnother) {
+      if (shouldAddAnother) {
+        return
+      }
       onNavigate('/contacts')
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không tạo được liên hệ',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+      throw error
     }
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <PageHeader
         title="Thêm Liên Hệ Mới"
         description="Điền thông tin chi tiết để nạp khách hàng vào hệ thống danh bạ và phân bổ chiến dịch email."
@@ -46,7 +65,6 @@ export const ContactCreatePage: React.FC<ContactCreatePageProps> = ({ onNavigate
         }
       />
 
-      {/* Form Container */}
       <ContactForm
         isEdit={false}
         onSubmit={handleSubmit}

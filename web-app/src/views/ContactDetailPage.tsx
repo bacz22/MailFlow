@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   ArrowLeft,
   Edit3,
@@ -22,6 +22,8 @@ import { Badge } from '../components/ui/Badge'
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { PermissionGate, PERMISSIONS } from '../permissions'
 import { useToast } from '../components/ui/Toast'
+import { ApiError } from '../services/apiClient'
+import { contactService } from '../services/contact.service'
 import type { Contact } from '../types/contact.types'
 
 export interface ContactDetailPageProps {
@@ -36,21 +38,52 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
   const { showToast } = useToast()
   const [copiedEmail, setCopiedEmail] = useState(false)
   const [activeTab, setActiveTab] = useState<'overview' | 'lists_tags' | 'activity' | 'custom_fields'>('overview')
+  const [contact, setContact] = useState<Contact | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  const contact: Contact = {
-    id: contactId || 'cnt-1',
-    firstName: 'Thành',
-    lastName: 'Nguyễn Văn',
-    fullName: 'Nguyễn Văn Thành',
-    email: 'thanh.nguyen@vcorp.vn',
-    company: 'V-Corp Global Technologies',
-    phone: '+84 912 345 678',
-    lists: ['VIP Enterprise', 'Newsletter Subscribers', 'Product Launch 2.0'],
-    tags: ['Customer', 'High Value', 'Decision Maker', 'Engaged'],
-    status: 'active',
-    createdAt: '15/08/2026 lúc 09:30',
-    updatedAt: '25/08/2026 lúc 14:15',
-    avatarColor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300',
+  useEffect(() => {
+    let cancelled = false
+    setIsLoading(true)
+    contactService
+      .get(contactId)
+      .then((data) => {
+        if (!cancelled) setContact(data)
+      })
+      .catch((error) => {
+        if (cancelled) return
+        showToast({
+          type: 'error',
+          title: 'Không tải được liên hệ',
+          description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+        })
+        onNavigate('/contacts')
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [contactId, onNavigate, showToast])
+
+  if (isLoading || !contact) {
+    return (
+      <div className="space-y-6">
+        <Button
+          variant="outline"
+          size="sm"
+          leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}
+          onClick={() => onNavigate('/contacts')}
+        >
+          Quay Lại Danh Bạ
+        </Button>
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-slate-500">
+            Đang tải hồ sơ liên hệ...
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   const handleCopyEmail = () => {
@@ -64,13 +97,25 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
     })
   }
 
-  const handleDelete = () => {
-    showToast({
-      type: 'warning',
-      title: 'Đã xóa liên hệ',
-      description: `Đã xóa vĩnh viễn ${contact.fullName} khỏi hệ thống.`,
-    })
-    onNavigate('/contacts')
+  const handleDelete = async () => {
+    if (!window.confirm(`Xóa vĩnh viễn liên hệ ${contact.fullName}?`)) {
+      return
+    }
+    try {
+      await contactService.delete(contact.id)
+      showToast({
+        type: 'warning',
+        title: 'Đã xóa liên hệ',
+        description: `Đã xóa vĩnh viễn ${contact.fullName} khỏi hệ thống.`,
+      })
+      onNavigate('/contacts')
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không xóa được liên hệ',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    }
   }
 
   const emailActivities = [
@@ -359,18 +404,23 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
               </div>
             </CardHeader>
             <CardContent className="space-y-3 pt-4">
-              {contact.lists.map((l, idx) => (
-                <div
-                  key={idx}
-                  className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
-                >
-                  <div>
-                    <div className="font-bold text-slate-800 dark:text-slate-200">{l}</div>
-                    <div className="text-[10px] text-slate-400">Tham gia: 15/08/2026</div>
-                  </div>
-                  <Badge variant="default" className="text-[10px]">Đang nhận tin</Badge>
+              {contact.lists.length === 0 ? (
+                <div className="p-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-xs text-slate-500">
+                  Liên hệ chưa thuộc danh sách nào. Gán danh sách sẽ có ở phase Lists.
                 </div>
-              ))}
+              ) : (
+                contact.lists.map((l, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
+                  >
+                    <div>
+                      <div className="font-bold text-slate-800 dark:text-slate-200">{l}</div>
+                    </div>
+                    <Badge variant="default" className="text-[10px]">Đang nhận tin</Badge>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
 
@@ -469,22 +519,18 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
             <CardTitle className="text-base">Thuộc Tính Mở Rộng (Custom Fields)</CardTitle>
           </CardHeader>
           <CardContent className="divide-y divide-slate-100 dark:divide-slate-800 text-xs pt-1">
-            <div className="py-3 flex items-center justify-between">
-              <span className="font-semibold text-slate-600 dark:text-slate-300">Chức Danh / Vị Trí</span>
-              <span className="font-mono font-bold text-slate-900 dark:text-slate-100">Head of Digital Marketing</span>
-            </div>
-            <div className="py-3 flex items-center justify-between">
-              <span className="font-semibold text-slate-600 dark:text-slate-300">Phòng Ban</span>
-              <span className="font-mono font-bold text-slate-900 dark:text-slate-100">Growth & Acquisition</span>
-            </div>
-            <div className="py-3 flex items-center justify-between">
-              <span className="font-semibold text-slate-600 dark:text-slate-300">Thành Phố / Khu Vực</span>
-              <span className="font-mono font-bold text-slate-900 dark:text-slate-100">Hà Nội (Việt Nam)</span>
-            </div>
-            <div className="py-3 flex items-center justify-between">
-              <span className="font-semibold text-slate-600 dark:text-slate-300">Quy Mô Công Ty</span>
-              <span className="font-mono font-bold text-slate-900 dark:text-slate-100">500 - 1,000 nhân sự</span>
-            </div>
+            {(contact.customFields ?? []).length === 0 ? (
+              <div className="py-6 text-center text-slate-500">
+                Chưa có trường tùy chỉnh nào cho liên hệ này.
+              </div>
+            ) : (
+              (contact.customFields ?? []).map((field, idx) => (
+                <div key={`${field.key}-${idx}`} className="py-3 flex items-center justify-between">
+                  <span className="font-semibold text-slate-600 dark:text-slate-300">{field.key}</span>
+                  <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{field.value || '—'}</span>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
       )}

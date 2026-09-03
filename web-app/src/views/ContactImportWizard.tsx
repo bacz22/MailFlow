@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Upload,
   FileSpreadsheet,
@@ -13,6 +13,17 @@ import { PageHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/Button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../components/ui/Card'
 import { useToast } from '../components/ui/Toast'
+import { ApiError } from '../services/apiClient'
+import { contactService, type ImportContactRow, type ImportContactsResult } from '../services/contact.service'
+import {
+  analyzeImportRows,
+  buildMappings,
+  formatFileSize,
+  mapRowsToImportPayload,
+  parseCsvText,
+  type ColumnMapping,
+  type ParsedCsvFile,
+} from '../utils/contactCsvImport'
 
 export interface ContactImportWizardProps {
   onNavigate: (path: string) => void
@@ -20,62 +31,68 @@ export interface ContactImportWizardProps {
 
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6
 
-interface ColumnMapping {
-  csvHeader: string
-  sampleValue: string
-  targetField: string
-}
-
 export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavigate }) => {
   const { showToast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Step state
   const [currentStep, setCurrentStep] = useState<WizardStep>(1)
-
-  // Step 1: Upload state
-  const [file, setFile] = useState<{ name: string; size: string; rowCount: number } | null>({
-    name: 'enterprise_customers_q3.csv',
-    size: '1.42 MB',
-    rowCount: 5442,
-  })
+  const [file, setFile] = useState<{ name: string; size: string; rowCount: number } | null>(null)
+  const [parsedCsv, setParsedCsv] = useState<ParsedCsvFile | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-
-  // Step 2: Column Mapping state
-  const [mappings, setMappings] = useState<ColumnMapping[]>([
-    { csvHeader: 'email_address', sampleValue: 'thanh.nguyen@vcorp.vn', targetField: 'email' },
-    { csvHeader: 'first_name', sampleValue: 'Thành', targetField: 'firstName' },
-    { csvHeader: 'last_name', sampleValue: 'Nguyễn Văn', targetField: 'lastName' },
-    { csvHeader: 'company_name', sampleValue: 'V-Corp Global', targetField: 'company' },
-    { csvHeader: 'phone_number', sampleValue: '+84 912 345 678', targetField: 'phone' },
-    { csvHeader: 'job_title', sampleValue: 'Marketing Director', targetField: 'custom_job_title' },
-  ])
-
-  // Step 3: Conflict options
-  const [duplicateAction, setDuplicateAction] = useState<'update' | 'skip'>('update')
+  const [mappings, setMappings] = useState<ColumnMapping[]>([])
+  const [importRows, setImportRows] = useState<ImportContactRow[]>([])
+  const [duplicateAction, setDuplicateAction] = useState<'update' | 'skip'>('skip')
   const [skipInvalid, setSkipInvalid] = useState<boolean>(true)
-  const [targetList, setTargetList] = useState<string>('VIP Enterprise')
-  const [targetTag, setTargetTag] = useState<string>('Import-Q3-2026')
-
-  // Step 5: Progress simulation
+  const [targetList, setTargetList] = useState<string>('')
+  const [targetTag, setTargetTag] = useState<string>('')
   const [progress, setProgress] = useState(0)
+  const [importResult, setImportResult] = useState<ImportContactsResult | null>(null)
+  const [isImporting, setIsImporting] = useState(false)
+
+  const analysis = useMemo(() => analyzeImportRows(importRows), [importRows])
+  const previewRows = useMemo(() => importRows.slice(0, 5), [importRows])
 
   useEffect(() => {
-    if (currentStep === 5) {
-      setProgress(0)
-      const interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 100) {
-            clearInterval(interval)
-            setTimeout(() => setCurrentStep(6), 500)
-            return 100
-          }
-          return prev + 15
-        })
-      }, 300)
-      return () => clearInterval(interval)
+    if (currentStep !== 5 || importRows.length === 0 || isImporting) {
+      return
     }
-  }, [currentStep])
+
+    let cancelled = false
+    setIsImporting(true)
+    setProgress(15)
+
+    contactService
+      .import({
+        duplicateAction: duplicateAction === 'update' ? 'UPDATE' : 'SKIP',
+        skipInvalid,
+        tags: targetTag.trim() ? [targetTag.trim()] : [],
+        rows: importRows,
+      })
+      .then((result) => {
+        if (cancelled) return
+        setImportResult(result)
+        setProgress(100)
+        setCurrentStep(6)
+      })
+      .catch((error) => {
+        if (cancelled) return
+        showToast({
+          type: 'error',
+          title: 'Không nạp được danh bạ',
+          description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+        })
+        setCurrentStep(4)
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsImporting(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentStep, duplicateAction, importRows, isImporting, showToast, skipInvalid, targetTag])
 
   const stepsConfig = [
     { num: 1, label: 'Tải File' },
@@ -86,33 +103,88 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
     { num: 6, label: 'Kết Quả' },
   ]
 
-  const handleFileUpload = (fileName = 'contacts_database.csv') => {
-    setFile({
-      name: fileName,
-      size: '2.1 MB',
-      rowCount: 5442,
-    })
-    showToast({
-      type: 'success',
-      title: 'Đã tải file lên',
-      description: `Đã nạp thành công file ${fileName} (5,442 dòng).`,
-    })
+  const handleFileUpload = async (uploadedFile: File) => {
+    if (!uploadedFile.name.toLowerCase().endsWith('.csv')) {
+      showToast({
+        type: 'error',
+        title: 'Định dạng không hỗ trợ',
+        description: 'Hiện tại chỉ hỗ trợ file CSV cho import thật.',
+      })
+      return
+    }
+
+    try {
+      const text = await uploadedFile.text()
+      const parsed = parseCsvText(text)
+      if (parsed.headers.length === 0 || parsed.rows.length === 0) {
+        throw new Error('File CSV trống hoặc không hợp lệ.')
+      }
+      if (parsed.rows.length > 5000) {
+        throw new Error('Mỗi lần nạp tối đa 5000 dòng.')
+      }
+
+      setParsedCsv(parsed)
+      setMappings(buildMappings(parsed))
+      setImportRows(mapRowsToImportPayload(parsed, buildMappings(parsed)))
+      setFile({
+        name: uploadedFile.name,
+        size: formatFileSize(uploadedFile.size),
+        rowCount: parsed.rows.length,
+      })
+      showToast({
+        type: 'success',
+        title: 'Đã tải file lên',
+        description: `Đã nạp thành công file ${uploadedFile.name} (${parsed.rows.length.toLocaleString('vi-VN')} dòng).`,
+      })
+    } catch (error) {
+      setFile(null)
+      setParsedCsv(null)
+      setMappings([])
+      setImportRows([])
+      showToast({
+        type: 'error',
+        title: 'Không đọc được file',
+        description: error instanceof Error ? error.message : 'Vui lòng thử lại.',
+      })
+    }
   }
 
   const handleDownloadSample = () => {
-    showToast({
-      type: 'info',
-      title: 'Tải file mẫu',
-      description: 'Đang tải file mẫu chuẩn contacts_template.csv...',
-    })
+    const sample = [
+      'email,first_name,last_name,company,phone',
+      'thanh.nguyen@vcorp.vn,Thành,Nguyễn Văn,V-Corp Global,+84 912 345 678',
+    ].join('\n')
+    const blob = new Blob([sample], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = 'contacts_template.csv'
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
   }
 
   const updateMapping = (index: number, newTarget: string) => {
     setMappings((prev) => {
       const updated = [...prev]
-      updated[index].targetField = newTarget
+      updated[index] = { ...updated[index], targetField: newTarget }
+      if (parsedCsv) {
+        setImportRows(mapRowsToImportPayload(parsedCsv, updated))
+      }
       return updated
     })
+  }
+
+  const resetWizard = () => {
+    setFile(null)
+    setParsedCsv(null)
+    setMappings([])
+    setImportRows([])
+    setImportResult(null)
+    setProgress(0)
+    setIsImporting(false)
+    setCurrentStep(1)
   }
 
   return (
@@ -209,8 +281,9 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
               onDrop={(e) => {
                 e.preventDefault()
                 setIsDragging(false)
-                if (e.dataTransfer.files?.[0]) {
-                  handleFileUpload(e.dataTransfer.files[0].name)
+                const uploaded = e.dataTransfer.files?.[0]
+                if (uploaded) {
+                  void handleFileUpload(uploaded)
                 }
               }}
               onClick={() => fileInputRef.current?.click()}
@@ -223,11 +296,12 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv, .xlsx, .xls"
+                accept=".csv"
                 className="hidden"
                 onChange={(e) => {
-                  if (e.target.files?.[0]) {
-                    handleFileUpload(e.target.files[0].name)
+                  const uploaded = e.target.files?.[0]
+                  if (uploaded) {
+                    void handleFileUpload(uploaded)
                   }
                 }}
               />
@@ -263,7 +337,12 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
 
                 <button
                   type="button"
-                  onClick={() => setFile(null)}
+                  onClick={() => {
+                    setFile(null)
+                    setParsedCsv(null)
+                    setMappings([])
+                    setImportRows([])
+                  }}
                   className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
                   title="Xóa file"
                 >
@@ -376,25 +455,33 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-500/20 space-y-1">
                 <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Hợp Lệ (Valid)</div>
-                <div className="text-xl font-bold font-mono text-emerald-700 dark:text-emerald-300">5,382</div>
-                <div className="text-[10px] text-emerald-600/70">99.6% tổng số</div>
+                <div className="text-xl font-bold font-mono text-emerald-700 dark:text-emerald-300">
+                  {analysis.valid.toLocaleString('vi-VN')}
+                </div>
+                <div className="text-[10px] text-emerald-600/70">
+                  {analysis.total > 0 ? `${Math.round((analysis.valid / analysis.total) * 1000) / 10}% tổng số` : '0% tổng số'}
+                </div>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-500/20 space-y-1">
                 <div className="text-xs font-semibold text-blue-600 dark:text-blue-400">Trùng Lặp (Duplicate)</div>
-                <div className="text-xl font-bold font-mono text-blue-700 dark:text-blue-300">42</div>
-                <div className="text-[10px] text-blue-600/70">Đã tồn tại trong hệ thống</div>
+                <div className="text-xl font-bold font-mono text-blue-700 dark:text-blue-300">—</div>
+                <div className="text-[10px] text-blue-600/70">Xử lý khi nạp lên server</div>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-500/20 space-y-1">
                 <div className="text-xs font-semibold text-amber-600 dark:text-amber-400">Email Không Hợp Lệ</div>
-                <div className="text-xl font-bold font-mono text-amber-700 dark:text-amber-300">12</div>
+                <div className="text-xl font-bold font-mono text-amber-700 dark:text-amber-300">
+                  {(analysis.invalid - analysis.missingEmail).toLocaleString('vi-VN')}
+                </div>
                 <div className="text-[10px] text-amber-600/70">Sai cú pháp RFC</div>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-500/20 space-y-1">
                 <div className="text-xs font-semibold text-rose-600 dark:text-rose-400">Thiếu Email</div>
-                <div className="text-xl font-bold font-mono text-rose-700 dark:text-rose-300">6</div>
+                <div className="text-xl font-bold font-mono text-rose-700 dark:text-rose-300">
+                  {analysis.missingEmail.toLocaleString('vi-VN')}
+                </div>
                 <div className="text-[10px] text-rose-600/70">Dòng trống trường bắt buộc</div>
               </div>
             </div>
@@ -447,7 +534,7 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
                   onChange={(e) => setSkipInvalid(e.target.checked)}
                   className="rounded text-blue-600 focus:ring-blue-500"
                 />
-                <span>Tự động bỏ qua 18 dòng có lỗi cú pháp hoặc thiếu email để tiếp tục nạp</span>
+                <span>Tự động bỏ qua {analysis.invalid.toLocaleString('vi-VN')} dòng có lỗi cú pháp hoặc thiếu email để tiếp tục nạp</span>
               </label>
             </div>
           </CardContent>
@@ -489,12 +576,10 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
                 <select
                   value={targetList}
                   onChange={(e) => setTargetList(e.target.value)}
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold focus-ring"
+                  disabled
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold focus-ring opacity-60"
                 >
-                  <option value="VIP Enterprise">VIP Enterprise Clients</option>
-                  <option value="Webinar Leads">Webinar Leads Q3</option>
-                  <option value="Newsletter Subscribers">General Newsletter</option>
-                  <option value="Trial Users">14-day Free Trial</option>
+                  <option value="">Sẽ có ở phase Lists</option>
                 </select>
               </div>
 
@@ -516,7 +601,9 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
             <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
               <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <span>Xem trước 5 bản ghi mẫu</span>
-                <span className="font-mono text-blue-600 dark:text-blue-400">Ước tính nạp: 5,424 liên hệ</span>
+                <span className="font-mono text-blue-600 dark:text-blue-400">
+                  Ước tính nạp: {analysis.valid.toLocaleString('vi-VN')} liên hệ
+                </span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -529,18 +616,14 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {[
-                      { name: 'Nguyễn Văn Thành', email: 'thanh.nguyen@vcorp.vn', comp: 'V-Corp Global', phone: '+84 912 345 678' },
-                      { name: 'Trần Minh Anh', email: 'minhanh.tran@techlead.io', comp: 'TechLead Solutions', phone: '+84 988 123 456' },
-                      { name: 'Phạm Thu Hương', email: 'huong.pham@fintech.asia', comp: 'Fintech Asia Hub', phone: '+84 903 555 789' },
-                      { name: 'Hoàng Minh Đức', email: 'duc.hoang@logistics247.com', comp: 'Logistics 24/7', phone: '+84 977 444 333' },
-                      { name: 'Vũ Ngọc Mai', email: 'mai.vu@designstudio.co', comp: 'Creative Studio', phone: '+84 918 222 111' },
-                    ].map((row, i) => (
+                    {previewRows.map((row, i) => (
                       <tr key={i}>
-                        <td className="py-2.5 px-3 font-bold">{row.name}</td>
-                        <td className="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-300">{row.email}</td>
-                        <td className="py-2.5 px-3 text-slate-500">{row.comp}</td>
-                        <td className="py-2.5 px-3 font-mono text-slate-500">{row.phone}</td>
+                        <td className="py-2.5 px-3 font-bold">
+                          {[row.lastName, row.firstName].filter(Boolean).join(' ') || '—'}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-300">{row.email || '—'}</td>
+                        <td className="py-2.5 px-3 text-slate-500">{row.company || '—'}</td>
+                        <td className="py-2.5 px-3 font-mono text-slate-500">{row.phone || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -557,9 +640,14 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
               variant="primary"
               className="bg-emerald-600 hover:bg-emerald-700"
               leftIcon={<Upload className="w-4 h-4" />}
-              onClick={() => setCurrentStep(5)}
+              onClick={() => {
+                setImportResult(null)
+                setProgress(0)
+                setIsImporting(false)
+                setCurrentStep(5)
+              }}
             >
-              Bắt Đầu Nạp (5,424 Liên Hệ)
+              Bắt Đầu Nạp ({analysis.valid.toLocaleString('vi-VN')} Liên Hệ)
             </Button>
           </CardFooter>
         </Card>
@@ -621,26 +709,34 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-500/20 text-center space-y-1">
                 <div className="text-xs font-semibold text-emerald-600">Đã Thêm Mới</div>
-                <div className="text-2xl font-bold font-mono text-emerald-700 dark:text-emerald-300">5,382</div>
+                <div className="text-2xl font-bold font-mono text-emerald-700 dark:text-emerald-300">
+                  {(importResult?.created ?? 0).toLocaleString('vi-VN')}
+                </div>
                 <div className="text-[10px] text-emerald-600/80">Liên hệ mới</div>
               </div>
 
               <div className="p-4 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-500/20 text-center space-y-1">
                 <div className="text-xs font-semibold text-blue-600">Đã Cập Nhật</div>
-                <div className="text-2xl font-bold font-mono text-blue-700 dark:text-blue-300">42</div>
+                <div className="text-2xl font-bold font-mono text-blue-700 dark:text-blue-300">
+                  {(importResult?.updated ?? 0).toLocaleString('vi-VN')}
+                </div>
                 <div className="text-[10px] text-blue-600/80">Trùng lặp ghi đè</div>
               </div>
 
               <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-500/20 text-center space-y-1">
                 <div className="text-xs font-semibold text-amber-600">Bị Bỏ Qua</div>
-                <div className="text-2xl font-bold font-mono text-amber-700 dark:text-amber-300">18</div>
-                <div className="text-[10px] text-amber-600/80">Email lỗi cú pháp</div>
+                <div className="text-2xl font-bold font-mono text-amber-700 dark:text-amber-300">
+                  {((importResult?.skipped ?? 0) + (importResult?.invalid ?? 0)).toLocaleString('vi-VN')}
+                </div>
+                <div className="text-[10px] text-amber-600/80">Trùng lặp hoặc email lỗi</div>
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center space-y-1">
                 <div className="text-xs font-semibold text-slate-500">Thất Bại</div>
-                <div className="text-2xl font-bold font-mono text-slate-700 dark:text-slate-300">0</div>
-                <div className="text-[10px] text-slate-400">Không có lỗi hệ thống</div>
+                <div className="text-2xl font-bold font-mono text-slate-700 dark:text-slate-300">
+                  {(importResult?.errors?.length ?? 0).toLocaleString('vi-VN')}
+                </div>
+                <div className="text-[10px] text-slate-400">Mẫu lỗi trả về</div>
               </div>
             </div>
           </CardContent>
@@ -650,25 +746,23 @@ export const ContactImportWizard: React.FC<ContactImportWizardProps> = ({ onNavi
               variant="outline"
               size="sm"
               leftIcon={<Download className="w-3.5 h-3.5" />}
+              disabled={!importResult?.errors?.length}
               onClick={() =>
                 showToast({
-                  type: 'success',
-                  title: 'Tải báo cáo lỗi',
-                  description: 'Đang tải file 18_invalid_contacts_report.csv...',
+                  type: 'info',
+                  title: 'Báo cáo lỗi',
+                  description: 'Chi tiết lỗi đã hiển thị trong kết quả import.',
                 })
               }
             >
-              Tải Báo Cáo 18 Dòng Lỗi (.CSV)
+              Tải Báo Cáo Lỗi (.CSV)
             </Button>
 
             <div className="flex items-center gap-2">
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => {
-                  setFile(null)
-                  setCurrentStep(1)
-                }}
+                onClick={resetWizard}
               >
                 Nạp File Khác
               </Button>

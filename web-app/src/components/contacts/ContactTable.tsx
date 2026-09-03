@@ -23,6 +23,15 @@ import type { Contact } from '../../types/contact.types'
 export type SortField = 'fullName' | 'email' | 'company' | 'status' | 'createdAt' | 'updatedAt'
 export type SortOrder = 'asc' | 'desc'
 
+export interface ServerPaginationConfig {
+  page: number
+  pageSize: number
+  totalElements: number
+  totalPages: number
+  onPageChange: (page: number) => void
+  onPageSizeChange: (size: number) => void
+}
+
 export interface ContactTableProps {
   contacts: Contact[]
   selectedIds: string[]
@@ -37,6 +46,10 @@ export interface ContactTableProps {
   onEditContact?: (contact: Contact) => void
   onAddToList?: (contact: Contact) => void
   onDeleteContact?: (contact: Contact) => void
+  serverPagination?: ServerPaginationConfig
+  sortField?: SortField
+  sortOrder?: SortOrder
+  onSortChange?: (field: SortField, order: SortOrder) => void
   className?: string
 }
 
@@ -54,17 +67,29 @@ export const ContactTable: React.FC<ContactTableProps> = ({
   onEditContact,
   onAddToList,
   onDeleteContact,
+  serverPagination,
+  sortField: externalSortField,
+  sortOrder: externalSortOrder,
+  onSortChange,
   className,
 }) => {
-  // Sorting state
   const [sortField, setSortField] = useState<SortField>('createdAt')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+
+  const activeSortField = externalSortField ?? sortField
+  const activeSortOrder = externalSortOrder ?? sortOrder
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(10)
 
   const handleSort = (field: SortField) => {
+    const nextOrder =
+      activeSortField === field ? (activeSortOrder === 'asc' ? 'desc' : 'asc') : 'asc'
+    if (onSortChange) {
+      onSortChange(field, nextOrder)
+      return
+    }
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
     } else {
@@ -74,23 +99,29 @@ export const ContactTable: React.FC<ContactTableProps> = ({
   }
 
   // Sort logic
-  const sortedContacts = [...contacts].sort((a, b) => {
-    let aVal = a[sortField] || ''
-    let bVal = b[sortField] || ''
+  const sortedContacts = serverPagination
+    ? contacts
+    : [...contacts].sort((a, b) => {
+        let aVal = a[activeSortField] || ''
+        let bVal = b[activeSortField] || ''
 
-    if (typeof aVal === 'string') aVal = aVal.toLowerCase()
-    if (typeof bVal === 'string') bVal = bVal.toLowerCase()
+        if (typeof aVal === 'string') aVal = aVal.toLowerCase()
+        if (typeof bVal === 'string') bVal = bVal.toLowerCase()
 
-    if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1
-    if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1
-    return 0
-  })
+        if (aVal < bVal) return activeSortOrder === 'asc' ? -1 : 1
+        if (aVal > bVal) return activeSortOrder === 'asc' ? 1 : -1
+        return 0
+      })
 
   // Pagination calculation
-  const totalItems = sortedContacts.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
-  const startIndex = (currentPage - 1) * pageSize
-  const paginatedContacts = sortedContacts.slice(startIndex, startIndex + pageSize)
+  const totalItems = serverPagination?.totalElements ?? sortedContacts.length
+  const totalPages = serverPagination?.totalPages ?? Math.max(1, Math.ceil(totalItems / pageSize))
+  const activePage = serverPagination?.page ?? currentPage
+  const activePageSize = serverPagination?.pageSize ?? pageSize
+  const startIndex = serverPagination ? activePage * activePageSize : (currentPage - 1) * pageSize
+  const paginatedContacts = serverPagination
+    ? sortedContacts
+    : sortedContacts.slice(startIndex, startIndex + pageSize)
 
   const isAllPageSelected =
     paginatedContacts.length > 0 &&
@@ -101,10 +132,10 @@ export const ContactTable: React.FC<ContactTableProps> = ({
 
   // Render Sort Header Indicator
   const renderSortIcon = (field: SortField) => {
-    if (sortField !== field) {
+    if (activeSortField !== field) {
       return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60 ml-1 inline-block" />
     }
-    return sortOrder === 'asc' ? (
+    return activeSortOrder === 'asc' ? (
       <ArrowUp className="w-3 h-3 text-blue-600 dark:text-blue-400 ml-1 inline-block" />
     ) : (
       <ArrowDown className="w-3 h-3 text-blue-600 dark:text-blue-400 ml-1 inline-block" />
@@ -412,9 +443,9 @@ export const ContactTable: React.FC<ContactTableProps> = ({
         {/* Left: Range and Page Size Selector */}
         <div className="flex items-center gap-3 text-slate-500">
           <div>
-            Hiển thị <strong className="text-slate-800 dark:text-slate-200 font-mono">{startIndex + 1}</strong> -{' '}
+            Hiển thị <strong className="text-slate-800 dark:text-slate-200 font-mono">{totalItems === 0 ? 0 : startIndex + 1}</strong> -{' '}
             <strong className="text-slate-800 dark:text-slate-200 font-mono">
-              {Math.min(startIndex + pageSize, totalItems)}
+              {Math.min(startIndex + activePageSize, totalItems)}
             </strong>{' '}
             trong tổng số <strong className="text-slate-800 dark:text-slate-200 font-mono">{totalItems}</strong> liên hệ
           </div>
@@ -422,9 +453,14 @@ export const ContactTable: React.FC<ContactTableProps> = ({
           <div className="flex items-center gap-1.5">
             <span>/ trang:</span>
             <select
-              value={pageSize}
+              value={activePageSize}
               onChange={(e) => {
-                setPageSize(Number(e.target.value))
+                const nextSize = Number(e.target.value)
+                if (serverPagination) {
+                  serverPagination.onPageSizeChange(nextSize)
+                  return
+                }
+                setPageSize(nextSize)
                 setCurrentPage(1)
               }}
               className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-slate-700 dark:text-slate-200 focus-ring cursor-pointer"
@@ -442,8 +478,8 @@ export const ContactTable: React.FC<ContactTableProps> = ({
             variant="outline"
             size="sm"
             className="p-1.5 h-8 w-8 justify-center"
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage(1)}
+            disabled={activePage === 0}
+            onClick={() => (serverPagination ? serverPagination.onPageChange(0) : setCurrentPage(1))}
             title="Trang đầu"
           >
             <ChevronsLeft className="w-3.5 h-3.5" />
@@ -453,23 +489,31 @@ export const ContactTable: React.FC<ContactTableProps> = ({
             variant="outline"
             size="sm"
             className="p-1.5 h-8 w-8 justify-center"
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage(currentPage - 1)}
+            disabled={activePage === 0}
+            onClick={() =>
+              serverPagination
+                ? serverPagination.onPageChange(Math.max(0, activePage - 1))
+                : setCurrentPage(currentPage - 1)
+            }
             title="Trang trước"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
           </Button>
 
           <span className="px-3 py-1 text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">
-            Trang <strong>{currentPage}</strong> / {totalPages}
+            Trang <strong>{activePage + 1}</strong> / {totalPages}
           </span>
 
           <Button
             variant="outline"
             size="sm"
             className="p-1.5 h-8 w-8 justify-center"
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage(currentPage + 1)}
+            disabled={activePage >= totalPages - 1}
+            onClick={() =>
+              serverPagination
+                ? serverPagination.onPageChange(Math.min(totalPages - 1, activePage + 1))
+                : setCurrentPage(currentPage + 1)
+            }
             title="Trang tiếp"
           >
             <ChevronRight className="w-3.5 h-3.5" />
@@ -479,8 +523,12 @@ export const ContactTable: React.FC<ContactTableProps> = ({
             variant="outline"
             size="sm"
             className="p-1.5 h-8 w-8 justify-center"
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage(totalPages)}
+            disabled={activePage >= totalPages - 1}
+            onClick={() =>
+              serverPagination
+                ? serverPagination.onPageChange(totalPages - 1)
+                : setCurrentPage(totalPages)
+            }
             title="Trang cuối"
           >
             <ChevronsRight className="w-3.5 h-3.5" />

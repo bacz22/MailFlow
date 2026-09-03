@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/Button'
@@ -6,6 +6,8 @@ import { ContactForm } from '../components/contacts/ContactForm'
 import type { ContactFormData } from '../schemas/contact.schemas'
 import type { Contact } from '../types/contact.types'
 import { useToast } from '../components/ui/Toast'
+import { ApiError } from '../services/apiClient'
+import { contactService } from '../services/contact.service'
 
 export interface ContactEditPageProps {
   contactId: string
@@ -17,59 +19,94 @@ export const ContactEditPage: React.FC<ContactEditPageProps> = ({
   onNavigate,
 }) => {
   const { showToast } = useToast()
+  const [contact, setContact] = useState<Contact | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Sample initial data based on id
-  const sampleContact: Contact = {
-    id: contactId || 'cnt-1',
-    firstName: 'Thành',
-    lastName: 'Nguyễn Văn',
-    fullName: 'Nguyễn Văn Thành',
-    email: 'thanh.nguyen@vcorp.vn',
-    company: 'V-Corp Global',
-    phone: '+84 912 345 678',
-    lists: ['VIP Enterprise', 'Newsletter Subscribers'],
-    tags: ['Customer', 'High Value', 'Decision Maker'],
-    status: 'active',
-    createdAt: '15/08/2026',
-    updatedAt: '24/08/2026',
-  }
+  useEffect(() => {
+    let cancelled = false
+    setIsLoading(true)
+    contactService
+      .get(contactId)
+      .then((data) => {
+        if (!cancelled) setContact(data)
+      })
+      .catch((error) => {
+        if (cancelled) return
+        showToast({
+          type: 'error',
+          title: 'Không tải được liên hệ',
+          description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+        })
+        onNavigate('/contacts')
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [contactId, onNavigate, showToast])
 
   const handleSubmit = async (data: ContactFormData) => {
-    await new Promise((resolve) => setTimeout(resolve, 800))
+    try {
+      await contactService.update(contactId, {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
+        company: data.company,
+        status: data.status,
+        tags: data.tags,
+        customFields: data.customFields,
+      })
 
-    showToast({
-      type: 'success',
-      title: 'Đã cập nhật liên hệ',
-      description: `Thông tin của ${data.lastName} ${data.firstName} đã được lưu thành công.`,
-    })
+      showToast({
+        type: 'success',
+        title: 'Đã cập nhật liên hệ',
+        description: `Thông tin của ${data.lastName} ${data.firstName} đã được lưu thành công.`,
+      })
 
-    onNavigate(`/contacts/${contactId || 'cnt-1'}`)
+      onNavigate(`/contacts/${contactId}`)
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không cập nhật được liên hệ',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+      throw error
+    }
+  }
+
+  if (isLoading || !contact) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Chỉnh Sửa Liên Hệ" description="Đang tải thông tin liên hệ..." />
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <PageHeader
-        title={`Chỉnh Sửa Liên Hệ: ${sampleContact.fullName}`}
-        description={`Cập nhật thông tin email, số điện thoại, danh sách và nhãn phân khúc.`}
+        title={`Chỉnh Sửa: ${contact.fullName}`}
+        description={`Cập nhật thông tin liên hệ ${contact.email}.`}
         actions={
           <Button
             variant="outline"
             size="sm"
             leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-            onClick={() => onNavigate(`/contacts/${contactId || 'cnt-1'}`)}
+            onClick={() => onNavigate(`/contacts/${contactId}`)}
           >
             Quay Lại Chi Tiết
           </Button>
         }
       />
 
-      {/* Reusable Form */}
       <ContactForm
-        initialData={sampleContact}
-        isEdit={true}
+        initialData={contact}
+        isEdit
         onSubmit={handleSubmit}
-        onCancel={() => onNavigate(`/contacts/${contactId || 'cnt-1'}`)}
+        onCancel={() => onNavigate(`/contacts/${contactId}`)}
       />
     </div>
   )

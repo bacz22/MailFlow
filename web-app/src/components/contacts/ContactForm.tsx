@@ -30,14 +30,6 @@ export interface ContactFormProps {
   className?: string
 }
 
-const AVAILABLE_LISTS = [
-  'VIP Enterprise',
-  'Webinar Leads',
-  'Newsletter Subscribers',
-  'Trial Users',
-  'Q3 Marketing Campaign',
-]
-
 const POPULAR_TAGS = ['Customer', 'Lead', 'High Value', 'Decision Maker', 'Engaged', 'Trial']
 
 export const ContactForm: React.FC<ContactFormProps> = ({
@@ -66,12 +58,11 @@ export const ContactForm: React.FC<ContactFormProps> = ({
       phone: initialData?.phone || '',
       company: initialData?.company || '',
       status: initialData?.status || 'active',
-      lists: initialData?.lists || ['Newsletter Subscribers'],
-      tags: initialData?.tags || ['Lead'],
-      customFields: [
-        { key: 'Chức danh / Vị trí', value: 'Marketing Manager' },
-        { key: 'Thành phố', value: 'Hà Nội' },
-      ],
+      lists: initialData?.lists || [],
+      tags: initialData?.tags || (isEdit ? [] : ['Lead']),
+      customFields: initialData?.customFields?.length
+        ? initialData.customFields
+        : [],
     },
   })
 
@@ -80,20 +71,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
     name: 'customFields',
   })
 
-  const selectedLists = watch('lists') || []
   const selectedTags = watch('tags') || []
-
-  const toggleList = (listName: string) => {
-    if (selectedLists.includes(listName)) {
-      setValue(
-        'lists',
-        selectedLists.filter((l) => l !== listName),
-        { shouldValidate: true }
-      )
-    } else {
-      setValue('lists', [...selectedLists, listName], { shouldValidate: true })
-    }
-  }
 
   const addTag = (tagToAdd: string) => {
     const trimmed = tagToAdd.trim()
@@ -241,29 +219,9 @@ export const ContactForm: React.FC<ContactFormProps> = ({
           {/* Lists Selection */}
           <div className="space-y-2">
             <FormLabel>Danh Sách Gửi (Contact Lists)</FormLabel>
-            <div className="flex flex-wrap gap-2 pt-1">
-              {AVAILABLE_LISTS.map((listName) => {
-                const isSelected = selectedLists.includes(listName)
-                return (
-                  <button
-                    key={listName}
-                    type="button"
-                    onClick={() => toggleList(listName)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer flex items-center gap-1.5 ${
-                      isSelected
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span>{listName}</span>
-                    {isSelected && <X className="w-3 h-3 ml-0.5" />}
-                  </button>
-                )
-              })}
+            <div className="p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/40 text-xs text-slate-500">
+              Danh sách tĩnh sẽ có ở phase Lists. Hiện tại bạn có thể gán thẻ tag cho liên hệ.
             </div>
-            <p className="text-[11px] text-slate-400">
-              Nhấp để chọn hoặc bỏ chọn danh sách người nhận.
-            </p>
           </div>
 
           {/* Tags Selection & Input */}

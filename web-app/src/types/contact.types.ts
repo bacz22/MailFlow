@@ -1,5 +1,10 @@
 export type ContactStatus = 'active' | 'unsubscribed' | 'bounced' | 'invalid' | 'blocked'
 
+export interface ContactCustomField {
+  key: string
+  value: string
+}
+
 export interface Contact {
   id: string
   firstName: string
@@ -11,6 +16,7 @@ export interface Contact {
   lists: string[]
   tags: string[]
   status: ContactStatus
+  customFields?: ContactCustomField[]
   createdAt: string
   updatedAt: string
   avatarColor?: string

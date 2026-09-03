@@ -7,6 +7,7 @@ import { PageHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
+import { SimpleSelect } from '../components/ui/Select'
 import { MetricWidget } from '../components/dashboard/MetricWidget'
 import { CampaignTable } from '../components/campaigns/CampaignTable'
 import { ReadOnlyBanner } from '../components/ui/ReadOnlyBanner'
@@ -346,17 +347,18 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({ onNavigate }) => {
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <select
+        <div className="w-48">
+          <SimpleSelect
+            size="sm"
             value={creatorFilter}
-            onChange={(e) => setCreatorFilter(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 focus-ring cursor-pointer"
-          >
-            <option value="all">Tất cả người tạo</option>
-            <option value="Trần Minh Marketing">Trần Minh Marketing</option>
-            <option value="Nguyễn Văn Editor">Nguyễn Văn Editor</option>
-            <option value="Lê Hoàng Content">Lê Hoàng Content</option>
-          </select>
+            onValueChange={(val) => setCreatorFilter(val)}
+            options={[
+              { value: 'all', label: 'Tất cả người tạo' },
+              { value: 'Trần Minh Marketing', label: 'Trần Minh Marketing' },
+              { value: 'Nguyễn Văn Editor', label: 'Nguyễn Văn Editor' },
+              { value: 'Lê Hoàng Content', label: 'Lê Hoàng Content' },
+            ]}
+          />
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import React from 'react'
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { cn } from '../../utils/cn'
+import { SimpleSelect } from './Select'
 
 export interface PaginationProps {
   currentPage: number
@@ -52,17 +53,14 @@ export const Pagination: React.FC<PaginationProps> = ({
         {onPageSizeChange && (
           <div className="flex items-center gap-1.5">
             <span>Hàng / trang:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-0.5 text-xs text-slate-800 dark:text-slate-200 focus-ring cursor-pointer"
-            >
-              {pageSizeOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
+            <div className="w-18">
+              <SimpleSelect
+                size="sm"
+                value={String(pageSize)}
+                onValueChange={(val) => onPageSizeChange(Number(val))}
+                options={pageSizeOptions.map((opt) => ({ value: String(opt), label: String(opt) }))}
+              />
+            </div>
           </div>
         )}
       </div>

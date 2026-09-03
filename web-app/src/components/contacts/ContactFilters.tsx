@@ -2,6 +2,7 @@ import React from 'react'
 import { Search, Filter, X, RotateCcw } from 'lucide-react'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
+import { SimpleSelect } from '../ui/Select'
 import type { ContactFilterState } from '../../types/contact.types'
 
 export interface ContactFiltersProps {
@@ -57,56 +58,60 @@ export const ContactFilters: React.FC<ContactFiltersProps> = ({
         </div>
 
         {/* Filter Dropdowns Group */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
           {/* Status Dropdown */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-slate-500 hidden sm:inline">Trạng thái:</span>
-            <select
-              value={filters.selectedStatus}
-              onChange={(e) => onFilterChange({ selectedStatus: e.target.value })}
-              className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 focus-ring cursor-pointer"
-            >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="active">Hoạt động (Active)</option>
-              <option value="unsubscribed">Hủy đăng ký</option>
-              <option value="bounced">Bounced (Trả về)</option>
-              <option value="invalid">Không hợp lệ</option>
-              <option value="blocked">Đã chặn (Spam)</option>
-            </select>
+          <div className="flex items-center gap-1.5 min-w-[140px]">
+            <span className="text-xs font-semibold text-slate-500 hidden sm:inline whitespace-nowrap">Trạng thái:</span>
+            <div className="w-40">
+              <SimpleSelect
+                size="sm"
+                value={filters.selectedStatus}
+                onValueChange={(val) => onFilterChange({ selectedStatus: val })}
+                options={[
+                  { value: 'all', label: 'Tất cả trạng thái' },
+                  { value: 'active', label: 'Hoạt động (Active)' },
+                  { value: 'unsubscribed', label: 'Hủy đăng ký' },
+                  { value: 'bounced', label: 'Bounced (Trả về)' },
+                  { value: 'invalid', label: 'Không hợp lệ' },
+                  { value: 'blocked', label: 'Đã chặn (Spam)' },
+                ]}
+                placeholder="Chọn trạng thái..."
+              />
+            </div>
           </div>
 
           {/* List Dropdown */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-slate-500 hidden sm:inline">Danh sách:</span>
-            <select
-              value={filters.selectedList}
-              onChange={(e) => onFilterChange({ selectedList: e.target.value })}
-              className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 focus-ring cursor-pointer"
-            >
-              <option value="all">Tất cả danh sách</option>
-              {availableLists.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center gap-1.5 min-w-[140px]">
+            <span className="text-xs font-semibold text-slate-500 hidden sm:inline whitespace-nowrap">Danh sách:</span>
+            <div className="w-44">
+              <SimpleSelect
+                size="sm"
+                value={filters.selectedList}
+                onValueChange={(val) => onFilterChange({ selectedList: val })}
+                options={[
+                  { value: 'all', label: 'Tất cả danh sách' },
+                  ...availableLists.map((l) => ({ value: l, label: l })),
+                ]}
+                placeholder="Chọn danh sách..."
+              />
+            </div>
           </div>
 
           {/* Tag Dropdown */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-slate-500 hidden sm:inline">Thẻ (Tag):</span>
-            <select
-              value={filters.selectedTag}
-              onChange={(e) => onFilterChange({ selectedTag: e.target.value })}
-              className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 focus-ring cursor-pointer"
-            >
-              <option value="all">Tất cả thẻ tag</option>
-              {availableTags.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center gap-1.5 min-w-[130px]">
+            <span className="text-xs font-semibold text-slate-500 hidden sm:inline whitespace-nowrap">Thẻ (Tag):</span>
+            <div className="w-36">
+              <SimpleSelect
+                size="sm"
+                value={filters.selectedTag}
+                onValueChange={(val) => onFilterChange({ selectedTag: val })}
+                options={[
+                  { value: 'all', label: 'Tất cả thẻ tag' },
+                  ...availableTags.map((t) => ({ value: t, label: t })),
+                ]}
+                placeholder="Chọn thẻ..."
+              />
+            </div>
           </div>
 
           {/* Clear Filters Button */}
