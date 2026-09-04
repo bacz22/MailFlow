@@ -9,6 +9,7 @@ export interface PaginationProps {
   totalItems?: number
   pageSize?: number
   pageSizeOptions?: number[]
+  itemLabel?: string
   onPageChange: (page: number) => void
   onPageSizeChange?: (size: number) => void
   className?: string
@@ -20,11 +21,12 @@ export const Pagination: React.FC<PaginationProps> = ({
   totalItems,
   pageSize = 20,
   pageSizeOptions = [10, 20, 50, 100],
+  itemLabel = 'bản ghi',
   onPageChange,
   onPageSizeChange,
   className,
 }) => {
-  const startItem = (currentPage - 1) * pageSize + 1
+  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1
   const endItem = totalItems ? Math.min(currentPage * pageSize, totalItems) : currentPage * pageSize
 
   return (
@@ -46,7 +48,7 @@ export const Pagination: React.FC<PaginationProps> = ({
             <strong className="text-slate-800 dark:text-slate-200 tabular-nums font-semibold">
               {totalItems.toLocaleString()}
             </strong>{' '}
-            bản ghi
+            {itemLabel}
           </div>
         )}
 

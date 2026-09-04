@@ -17,6 +17,7 @@ import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
 import { Card, CardContent, CardFooter } from '../components/ui/Card'
 import { ConfirmDialog } from '../components/ui/Dialog'
+import { Pagination } from '../components/ui/Pagination'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -26,7 +27,7 @@ import {
 } from '../components/ui/DropdownMenu'
 import { TemplatePreviewDialog } from '../components/templates/TemplatePreviewDialog'
 import { ReadOnlyBanner } from '../components/ui/ReadOnlyBanner'
-import { PermissionGate, PERMISSIONS, usePermission } from '../permissions'
+import { PermissionGate, PERMISSIONS } from '../permissions'
 import { useToast } from '../components/ui/Toast'
 import { ApiError } from '../services/apiClient'
 import { SimpleSelect, type SelectOption } from '../components/ui/Select'
@@ -55,7 +56,6 @@ export interface TemplatesPageProps {
 
 export const TemplatesPage: React.FC<TemplatesPageProps> = ({ onNavigate }) => {
   const { showToast } = useToast()
-  const { hasPermission } = usePermission()
 
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -66,6 +66,8 @@ export const TemplatesPage: React.FC<TemplatesPageProps> = ({ onNavigate }) => {
   const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(null)
   const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(12)
 
   const loadTemplates = useCallback(async () => {
     setIsLoading(true)
@@ -134,6 +136,12 @@ export const TemplatesPage: React.FC<TemplatesPageProps> = ({ onNavigate }) => {
       setIsDeleting(false)
     }
   }
+
+  const totalItems = templates.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage = Math.min(Math.max(1, currentPage), totalPages)
+  const startIndex = (safePage - 1) * pageSize
+  const paginatedTemplates = templates.slice(startIndex, startIndex + pageSize)
 
   return (
     <div className="space-y-6">
@@ -242,7 +250,7 @@ export const TemplatesPage: React.FC<TemplatesPageProps> = ({ onNavigate }) => {
         </div>
       ) : viewMode === 'grid' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {templates.map((template) => (
+          {paginatedTemplates.map((template) => (
             <Card
               key={template.id}
               className="overflow-hidden hover:shadow-lg transition-all group flex flex-col justify-between border-slate-200/90 dark:border-slate-800/90"
@@ -366,7 +374,7 @@ export const TemplatesPage: React.FC<TemplatesPageProps> = ({ onNavigate }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {templates.map((template) => (
+                {paginatedTemplates.map((template) => (
                   <tr
                     key={template.id}
                     className="hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition cursor-pointer"
@@ -446,6 +454,25 @@ export const TemplatesPage: React.FC<TemplatesPageProps> = ({ onNavigate }) => {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* 4. Pagination Footer */}
+      {!isLoading && totalItems > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 shadow-xs overflow-hidden">
+          <Pagination
+            currentPage={safePage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            pageSizeOptions={[6, 12, 24, 48]}
+            itemLabel="mẫu email"
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size)
+              setCurrentPage(1)
+            }}
+          />
         </div>
       )}
 

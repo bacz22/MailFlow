@@ -12,13 +12,22 @@ public final class EmailTemplateLayout {
     }
 
     public static String wrap(EmailTemplate template, String mergedBodyHtml) {
-        String from = bannerFromColor(template.getThumbnailGradient());
-        String to = bannerToColor(template.getThumbnailGradient());
-        String label = EmailTemplateMerge.escape(template.getBannerLabel());
+        return wrap(
+                template.getThumbnailGradient(),
+                template.getBannerLabel(),
+                template.getBannerTitle(),
+                mergedBodyHtml
+        );
+    }
+
+    public static String wrap(String thumbnailGradient, String bannerLabel, String bannerTitle, String mergedBodyHtml) {
+        String from = bannerFromColor(thumbnailGradient);
+        String to = bannerToColor(thumbnailGradient);
+        String label = EmailTemplateMerge.escape(bannerLabel);
         String title = EmailTemplateMerge.escape(
-                template.getBannerTitle() == null || template.getBannerTitle().isBlank()
+                bannerTitle == null || bannerTitle.isBlank()
                         ? "Bản Tin MailFlow"
-                        : template.getBannerTitle()
+                        : bannerTitle
         );
         String labelRow = label.isEmpty()
                 ? ""

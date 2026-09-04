@@ -117,14 +117,8 @@ const ROUTE_CONFIGS: Record<string, RouteConfig> = {
   '/campaigns': {
     title: 'Chiến Dịch Email (Campaigns)',
     section: 'Chiến dịch',
-    badgeText: '3 Live Sending',
     description: 'Khởi tạo, lên lịch gửi và theo dõi realtime tiến trình phân phối email.',
     icon: <Send className="w-5 h-5 text-blue-600" />,
-    stats: [
-      { label: 'Chiến Dịch Đang Gửi', value: '3 Active' },
-      { label: 'Bản Nháp (Drafts)', value: '6 Drafts' },
-      { label: 'Đã Hoàn Thành', value: '42 Sent' },
-    ],
   },
   '/templates': {
     title: 'Thư Viện Mẫu Email (Templates Library)',
@@ -396,6 +390,11 @@ export function AppContent() {
           ) : basePath === '/campaigns/create' ? (
             /* REAL CAMPAIGN WIZARD (PROMPT 14) */
             <CampaignWizardPage onNavigate={handleNavigate} />
+          ) : basePath.startsWith('/campaigns/') && basePath.endsWith('/edit') ? (
+            <CampaignWizardPage
+              campaignId={basePath.replace('/campaigns/', '').replace('/edit', '')}
+              onNavigate={handleNavigate}
+            />
           ) : basePath.startsWith('/campaigns/') && basePath.endsWith('/report') ? (
             /* REAL CAMPAIGN REPORT (PROMPT 24) */
             <CampaignReportPage

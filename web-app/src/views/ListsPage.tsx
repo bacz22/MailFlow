@@ -6,7 +6,6 @@ import {
   Users,
   Calendar,
   MoreVertical,
-  Eye,
   Edit3,
   Copy,
   Trash2,

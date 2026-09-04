@@ -33,12 +33,12 @@ export interface ApprovalStatusCardProps {
 export const ApprovalStatusCard: React.FC<ApprovalStatusCardProps> = ({
   status,
   campaignName: _campaignName,
-  submittedBy = 'Nguyễn Văn Editor',
-  submittedAt = '26/08/2026 10:15',
-  reviewedBy = 'Trần Minh Marketing (Marketing Manager)',
-  reviewedAt = '26/08/2026 16:45',
-  approvalNote = 'Nội dung và danh sách 45,200 người nhận đạt chuẩn 100%. Sẵn sàng phát hành.',
-  rejectionReason = 'Tiêu đề email chứa ký tự viết hoa quá nhiều có thể tăng spam score. Vui lòng điều chỉnh lại tiêu đề và kiểm tra lại link hủy nhận tin.',
+  submittedBy,
+  submittedAt,
+  reviewedBy,
+  reviewedAt,
+  approvalNote,
+  rejectionReason,
   onApproveClick,
   onRejectClick,
   onSubmitApprovalClick,
@@ -117,9 +117,8 @@ export const ApprovalStatusCard: React.FC<ApprovalStatusCardProps> = ({
                 </Badge>
               </div>
               <div className="text-xs text-amber-800/90 dark:text-amber-300 flex items-center gap-2 flex-wrap">
-                <span>Gửi bởi: <strong>{submittedBy}</strong></span>
-                <span>• Thời gian gửi: <span className="font-mono">{submittedAt}</span></span>
-                <span>• Người duyệt: <strong>{reviewedBy}</strong></span>
+                <span>Gửi bởi: <strong>{submittedBy || '—'}</strong></span>
+                <span>• Thời gian gửi: <span className="font-mono">{submittedAt || '—'}</span></span>
               </div>
             </div>
           </div>
@@ -158,8 +157,8 @@ export const ApprovalStatusCard: React.FC<ApprovalStatusCardProps> = ({
     )
   }
 
-  // 3. APPROVED STATE
-  if (status === 'APPROVED') {
+  // 3. APPROVED / SCHEDULED STATE
+  if (status === 'APPROVED' || status === 'SCHEDULED') {
     return (
       <div className="p-5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -170,14 +169,18 @@ export const ApprovalStatusCard: React.FC<ApprovalStatusCardProps> = ({
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-emerald-900 dark:text-emerald-200 text-sm">
-                  Chiến Dịch Đã Được Phê Duyệt (Approved)
+                  {status === 'SCHEDULED'
+                    ? 'Chiến Dịch Đã Lên Lịch (Scheduled)'
+                    : 'Chiến Dịch Đã Được Phê Duyệt (Approved)'}
                 </span>
                 <Badge variant="success" className="text-[10px]">
-                  Ready to Dispatch
+                  {status === 'SCHEDULED' ? 'Scheduled' : 'Ready to Dispatch'}
                 </Badge>
               </div>
               <div className="text-xs text-emerald-800/80 dark:text-emerald-300">
-                Phê duyệt bởi <strong>{reviewedBy}</strong> lúc <span className="font-mono">{reviewedAt}</span>
+                {reviewedAt
+                  ? <>Phê duyệt lúc <span className="font-mono">{reviewedAt}</span>{reviewedBy ? <> bởi <strong>{reviewedBy}</strong></> : null}</>
+                  : 'Đã phê duyệt, sẵn sàng phát hành.'}
               </div>
             </div>
           </div>
@@ -212,7 +215,9 @@ export const ApprovalStatusCard: React.FC<ApprovalStatusCardProps> = ({
                 </Badge>
               </div>
               <div className="text-xs text-rose-800/90 dark:text-rose-300">
-                Từ chối bởi <strong>{reviewedBy}</strong> lúc <span className="font-mono">{reviewedAt}</span>
+                {reviewedAt
+                  ? <>Từ chối lúc <span className="font-mono">{reviewedAt}</span>{reviewedBy ? <> bởi <strong>{reviewedBy}</strong></> : null}</>
+                  : 'Yêu cầu chỉnh sửa trước khi gửi duyệt lại.'}
               </div>
             </div>
           </div>
@@ -245,7 +250,7 @@ export const ApprovalStatusCard: React.FC<ApprovalStatusCardProps> = ({
             <span>Lý Do Từ Chối & Yêu Cầu Chỉnh Sửa:</span>
           </div>
           <p className="text-slate-700 dark:text-slate-300 leading-relaxed pl-5">
-            {rejectionReason}
+            {rejectionReason || 'Không có lý do chi tiết.'}
           </p>
         </div>
       </div>

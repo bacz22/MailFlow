@@ -45,6 +45,17 @@ public class WorkspaceAccessService {
             WorkspaceRole.ADMIN,
             WorkspaceRole.MARKETING_MANAGER,
             WorkspaceRole.CAMPAIGN_EDITOR);
+    private static final Set<WorkspaceRole> CAMPAIGN_READ_ROLES = CONTACT_READ_ROLES;
+    private static final Set<WorkspaceRole> CAMPAIGN_MUTATE_ROLES = TEMPLATE_MUTATE_ROLES;
+    private static final Set<WorkspaceRole> CAMPAIGN_APPROVE_ROLES = Set.of(
+            WorkspaceRole.OWNER,
+            WorkspaceRole.ADMIN,
+            WorkspaceRole.MARKETING_MANAGER);
+    private static final Set<WorkspaceRole> SENDER_READ_ROLES = CONTACT_READ_ROLES;
+    private static final Set<WorkspaceRole> SENDER_MUTATE_ROLES = Set.of(
+            WorkspaceRole.OWNER,
+            WorkspaceRole.ADMIN,
+            WorkspaceRole.MARKETING_MANAGER);
 
     private final WorkspaceMemberRepository memberRepository;
 
@@ -173,6 +184,36 @@ public class WorkspaceAccessService {
     public WorkspaceMember requireTemplateDelete(UUID userId, UUID workspaceId) {
         return requireRoles(userId, workspaceId, TEMPLATE_MUTATE_ROLES,
                 "Bạn không có quyền xóa mẫu email workspace này.");
+    }
+
+    public WorkspaceMember requireSenderRead(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, SENDER_READ_ROLES,
+                "Bạn không có quyền xem địa chỉ người gửi workspace này.");
+    }
+
+    public WorkspaceMember requireSenderWrite(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, SENDER_MUTATE_ROLES,
+                "Bạn không có quyền chỉnh sửa địa chỉ người gửi workspace này.");
+    }
+
+    public WorkspaceMember requireCampaignRead(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, CAMPAIGN_READ_ROLES,
+                "Bạn không có quyền xem chiến dịch workspace này.");
+    }
+
+    public WorkspaceMember requireCampaignWrite(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, CAMPAIGN_MUTATE_ROLES,
+                "Bạn không có quyền chỉnh sửa chiến dịch workspace này.");
+    }
+
+    public WorkspaceMember requireCampaignDelete(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, CAMPAIGN_MUTATE_ROLES,
+                "Bạn không có quyền xóa chiến dịch workspace này.");
+    }
+
+    public WorkspaceMember requireCampaignApprove(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, CAMPAIGN_APPROVE_ROLES,
+                "Bạn không có quyền phê duyệt chiến dịch workspace này.");
     }
 
     private WorkspaceMember requireRoles(

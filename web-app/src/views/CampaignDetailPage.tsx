@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   ArrowLeft,
   Clock,
@@ -41,6 +41,10 @@ import { ApprovalHistory, type ApprovalLogEntry } from '../components/campaigns/
 import { ReadOnlyBanner } from '../components/ui/ReadOnlyBanner'
 import { useToast } from '../components/ui/Toast'
 import { usePermission, PERMISSIONS } from '../permissions'
+import { ApiError } from '../services/apiClient'
+import { campaignService, type CampaignDetail } from '../services/campaign.service'
+import { templateService } from '../services/template.service'
+import { TemplatePreview } from '../components/templates/TemplatePreview'
 import type { Campaign, CampaignStatus } from '../types/campaign.types'
 
 export interface CampaignDetailPageProps {
@@ -59,78 +63,108 @@ interface CampaignTimelineEvent {
   note?: string
 }
 
-const MOCK_CAMPAIGN_DATA: Record<string, Campaign & {
+type CampaignDetailView = Campaign & {
   previewText?: string
   senderName: string
   senderEmail: string
   replyTo: string
+  sendType?: 'immediate' | 'scheduled'
   scheduledTimezone?: string
   batchSpeed: string
   htmlContent: string
-  selectedLists: { id: string; name: string; count: number }[]
-  selectedSegments: { id: string; name: string; count: number }[]
-  excludedLists: { id: string; name: string; count: number }[]
+  templateId?: string
+  thumbnailGradient?: string
+  bannerLabel?: string
+  bannerTitle?: string
+  submittedAt?: string
+  reviewedAt?: string
+  reviewNote?: string
+  selectedLists: { id: string; name: string; count?: number }[]
+  selectedSegments: { id: string; name: string; count?: number }[]
+  excludedLists: { id: string; name: string; count?: number }[]
   timeline: CampaignTimelineEvent[]
-}> = {
-  'cmp-1': {
-    id: 'cmp-1',
-    name: 'Bản Tin Công Nghệ & Khuyến Mãi Q3/2026',
-    status: 'PENDING_APPROVAL',
-    subject: '🔥 Khám phá các tính năng tự động hóa email mới nhất tháng 8',
-    previewText: 'Bí quyết tăng tỷ lệ mở hộp thư lên 99.8% cho doanh nghiệp SaaS.',
-    senderName: 'MailFlow Product Team',
-    senderEmail: 'newsletter@mailflow.vn',
-    replyTo: 'support@mailflow.vn',
-    recipientCount: 45200,
-    sentCount: 0,
-    openRate: 0,
-    clickRate: 0,
-    bounceRate: 0,
-    audienceName: 'VIP Enterprise Clients + 2 nhóm khác',
-    audienceType: 'list',
-    scheduledAt: '27/08/2026 09:00',
-    scheduledTimezone: 'Asia/Bangkok (UTC+07:00)',
-    batchSpeed: 'Tối đa (~10,000 email/phút)',
-    createdBy: 'Nguyễn Văn Editor',
-    createdAt: '25/08/2026 14:30',
-    updatedAt: '26/08/2026 10:15',
-    htmlContent: `
-      <p>Xin chào <strong>{{firstName}}</strong>,</p>
-      <p>Chúng tôi vô cùng hào hứng giới thiệu <strong>MailFlow 2.0</strong> — giải pháp gửi email hàng loạt với độ ổn định Inbox đạt 99.8%.</p>
-      <p>Với hạ tầng Dedicated IP và chuẩn mã hóa DKIM tự động, doanh nghiệp <em>{{company}}</em> sẽ tối ưu hiệu suất chuyển đổi lên tới 300%.</p>
-    `,
-    selectedLists: [
-      { id: 'lst-1', name: 'VIP Enterprise Clients', count: 32000 },
-      { id: 'lst-2', name: 'Subscribers Q3', count: 18000 },
-    ],
-    selectedSegments: [
-      { id: 'seg-1', name: 'Khách Hàng VIP Hà Nội', count: 4200 },
-    ],
-    excludedLists: [
-      { id: 'lst-ex', name: 'Khách Hàng Đã Mua Gần Đây', count: 2100 },
-    ],
-    timeline: [
-      {
-        id: 't-1',
-        action: 'Khởi tạo bản nháp chiến dịch',
-        actor: 'Nguyễn Văn Editor',
-        actorRole: 'Campaign Editor',
-        timestamp: '25/08/2026 14:30',
-        icon: <Edit3 className="w-3.5 h-3.5" />,
-        variant: 'default',
-      },
-      {
-        id: 't-2',
-        action: 'Gửi yêu cầu phê duyệt',
-        actor: 'Nguyễn Văn Editor',
-        actorRole: 'Campaign Editor',
-        timestamp: '26/08/2026 10:15',
-        icon: <Clock className="w-3.5 h-3.5" />,
-        variant: 'warning',
-        note: 'Đã hoàn tất kiểm tra nội dung và tệp 45,200 khách hàng.',
-      },
-    ],
-  },
+}
+
+function toDetailView(c: CampaignDetail): CampaignDetailView {
+  return {
+    ...c,
+    senderName: c.senderName || '—',
+    senderEmail: c.senderEmail || '—',
+    replyTo: c.replyTo || '—',
+    sendType: c.sendType,
+    batchSpeed: 'normal',
+    htmlContent: c.htmlContent || '',
+    templateId: c.templateId,
+    submittedAt: c.submittedAt,
+    reviewedAt: c.reviewedAt,
+    reviewNote: c.reviewNote,
+    selectedLists: c.lists.map((l) => ({ id: l.id, name: l.name })),
+    selectedSegments: c.segments.map((s) => ({ id: s.id, name: s.name })),
+    excludedLists: c.excludedLists.map((l) => ({ id: l.id, name: l.name })),
+    timeline: buildTimeline(c),
+  }
+}
+
+function buildTimeline(c: CampaignDetail): CampaignTimelineEvent[] {
+  const events: CampaignTimelineEvent[] = []
+  events.push({
+    id: 'created',
+    action: 'Tạo chiến dịch',
+    actor: c.createdBy || '—',
+    actorRole: 'Editor',
+    timestamp: c.createdAt,
+    icon: <FileEditIcon />,
+    variant: 'default',
+  })
+  if (c.submittedAt) {
+    events.push({
+      id: 'submitted',
+      action: 'Gửi yêu cầu phê duyệt',
+      actor: c.createdBy || '—',
+      actorRole: 'Editor',
+      timestamp: c.submittedAt,
+      icon: <SendIcon />,
+      variant: 'info',
+    })
+  }
+  if (c.reviewedAt && (c.status === 'APPROVED' || c.status === 'SCHEDULED')) {
+    events.push({
+      id: 'approved',
+      action: 'Phê duyệt chiến dịch',
+      actor: 'Người duyệt',
+      actorRole: 'Approver',
+      timestamp: c.reviewedAt,
+      icon: <CheckIcon />,
+      variant: 'success',
+      note: c.reviewNote,
+    })
+  }
+  if (c.reviewedAt && c.status === 'REJECTED') {
+    events.push({
+      id: 'rejected',
+      action: 'Từ chối phê duyệt',
+      actor: 'Người duyệt',
+      actorRole: 'Approver',
+      timestamp: c.reviewedAt,
+      icon: <XIcon />,
+      variant: 'danger',
+      note: c.reviewNote,
+    })
+  }
+  return events.reverse()
+}
+
+function FileEditIcon() {
+  return <Edit3 className="w-3.5 h-3.5" />
+}
+function SendIcon() {
+  return <Mail className="w-3.5 h-3.5" />
+}
+function CheckIcon() {
+  return <CheckCircle2 className="w-3.5 h-3.5" />
+}
+function XIcon() {
+  return <XCircle className="w-3.5 h-3.5" />
 }
 
 export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
@@ -142,9 +176,8 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
 
   const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'audience' | 'activity'>('overview')
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
-  const [currentStatus, setCurrentStatus] = useState<CampaignStatus>(
-    MOCK_CAMPAIGN_DATA[campaignId]?.status || 'PENDING_APPROVAL'
-  )
+  const [campaign, setCampaign] = useState<CampaignDetailView | null>(null)
+  const [currentStatus, setCurrentStatus] = useState<CampaignStatus>('DRAFT')
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
   const [modalAction, setModalAction] = useState<string | null>(null)
 
@@ -153,23 +186,58 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
   const [isRejectOpen, setIsRejectOpen] = useState(false)
   const [approvalNote, setApprovalNote] = useState<string>('')
   const [rejectionReason, setRejectionReason] = useState<string>('')
+  const [approvalLogs, setApprovalLogs] = useState<ApprovalLogEntry[]>([])
 
-  const [approvalLogs, setApprovalLogs] = useState<ApprovalLogEntry[]>([
-    {
-      id: 'app-1',
-      action: 'SUBMITTED',
-      actor: 'Nguyễn Văn Editor',
-      actorRole: 'Campaign Editor',
-      timestamp: '26/08/2026 10:15',
-      note: 'Đã hoàn tất kiểm tra tiêu đề, nội dung và tệp 45,200 người nhận.',
-    },
-  ])
+  const loadCampaign = useCallback(async () => {
+    try {
+      const data = await campaignService.get(campaignId)
+      let view = toDetailView(data)
+      if (data.templateId) {
+        try {
+          const tpl = await templateService.get(data.templateId)
+          view = {
+            ...view,
+            thumbnailGradient: tpl.thumbnailGradient,
+            bannerLabel: tpl.bannerLabel,
+            bannerTitle: tpl.bannerTitle,
+          }
+        } catch {
+          // keep defaults if template removed
+        }
+      }
+      setCampaign(view)
+      setCurrentStatus(view.status)
+      setApprovalNote(data.reviewNote || '')
+      setRejectionReason(data.status === 'REJECTED' ? data.reviewNote || '' : '')
+      setApprovalLogs(
+        view.timeline
+          .filter((event) => event.id === 'submitted' || event.id === 'approved' || event.id === 'rejected')
+          .map((event) => ({
+            id: event.id,
+            action:
+              event.id === 'submitted'
+                ? 'SUBMITTED'
+                : event.id === 'approved'
+                  ? 'APPROVED'
+                  : 'REJECTED',
+            actor: event.actor,
+            actorRole: event.actorRole,
+            timestamp: event.timestamp,
+            note: event.note,
+          }))
+      )
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không tải được chiến dịch',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    }
+  }, [campaignId, showToast])
 
-  const campaign = MOCK_CAMPAIGN_DATA[campaignId] || {
-    ...MOCK_CAMPAIGN_DATA['cmp-1'],
-    id: campaignId,
-    name: `Chiến Dịch Email #${campaignId}`,
-  }
+  useEffect(() => {
+    void loadCampaign()
+  }, [loadCampaign])
 
   // Handle Contextual Actions
   const handleActionClick = (action: string) => {
@@ -186,106 +254,186 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
   }
 
   // Approval Workflow Handlers
-  const handleConfirmApprove = (note?: string) => {
-    setCurrentStatus('APPROVED')
-    setApprovalNote(note || 'Nội dung và danh sách đạt chuẩn 100%. Sẵn sàng phát hành.')
-    setApprovalLogs((prev) => [
-      {
-        id: Date.now().toString(),
-        action: 'APPROVED',
-        actor: 'Trần Minh Marketing',
-        actorRole: 'Marketing Manager',
-        timestamp: 'Vừa xong',
-        note: note || 'Phê duyệt chiến dịch.',
-      },
-      ...prev,
-    ])
-    showToast({
-      type: 'success',
-      title: 'Đã phê duyệt chiến dịch',
-      description: 'Chiến dịch đã sẵn sàng phát hành theo lịch.',
-    })
-  }
-
-  const handleConfirmReject = (reason: string) => {
-    setCurrentStatus('REJECTED')
-    setRejectionReason(reason)
-    setApprovalLogs((prev) => [
-      {
-        id: Date.now().toString(),
-        action: 'REJECTED',
-        actor: 'Trần Minh Marketing',
-        actorRole: 'Marketing Manager',
-        timestamp: 'Vừa xong',
-        note: reason,
-      },
-      ...prev,
-    ])
-    showToast({
-      type: 'error',
-      title: 'Đã từ chối chiến dịch',
-      description: 'Yêu cầu chỉnh sửa đã được gửi tới tác giả.',
-    })
-  }
-
-  const handleSubmitForApproval = () => {
-    setCurrentStatus('PENDING_APPROVAL')
-    setApprovalLogs((prev) => [
-      {
-        id: Date.now().toString(),
-        action: 'RESUBMITTED',
-        actor: 'Nguyễn Văn Editor',
-        actorRole: 'Campaign Editor',
-        timestamp: 'Vừa xong',
-        note: 'Đã gửi duyệt lại sau khi chỉnh sửa theo phản hồi.',
-      },
-      ...prev,
-    ])
-    showToast({
-      type: 'success',
-      title: 'Đã gửi yêu cầu phê duyệt',
-      description: 'Chiến dịch đã được chuyển tới Admin để kiểm duyệt.',
-    })
-  }
-
-  const handleExecuteModalAction = () => {
-    setIsConfirmModalOpen(false)
-    if (modalAction === 'pause') {
-      setCurrentStatus('PAUSED')
-      showToast({
-        type: 'warning',
-        title: 'Đã tạm dừng chiến dịch',
-        description: 'Tiến trình gửi đã được dừng lại an toàn.',
-      })
-    } else if (modalAction === 'resume') {
-      setCurrentStatus('SENDING')
+  const handleConfirmApprove = async (note?: string) => {
+    try {
+      const updated = await campaignService.approve(campaignId, note)
+      setCurrentStatus(updated.status)
+      setApprovalNote(note || updated.reviewNote || '')
+      setApprovalLogs((prev) => [
+        {
+          id: Date.now().toString(),
+          action: 'APPROVED',
+          actor: 'Bạn',
+          actorRole: 'Approver',
+          timestamp: 'Vừa xong',
+          note: note || 'Phê duyệt chiến dịch.',
+        },
+        ...prev,
+      ])
+      await loadCampaign()
       showToast({
         type: 'success',
-        title: 'Đang tiếp tục gửi',
-        description: 'Chiến dịch đã được kích hoạt phân phối tiếp.',
+        title: 'Đã phê duyệt chiến dịch',
+        description: 'Chiến dịch đã sẵn sàng phát hành theo lịch.',
       })
-    } else if (modalAction === 'cancel') {
-      setCurrentStatus('CANCELLED')
-      showToast({
-        type: 'info',
-        title: 'Đã hủy chiến dịch',
-        description: 'Lịch phát hành chiến dịch đã được hủy bỏ.',
-      })
-    } else if (modalAction === 'delete') {
+    } catch (error) {
       showToast({
         type: 'error',
-        title: 'Đã xóa chiến dịch',
-        description: 'Chiến dịch đã được xóa khỏi hệ thống.',
+        title: 'Không phê duyệt được',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
       })
-      onNavigate('/campaigns')
-    } else if (modalAction === 'duplicate') {
+      throw error
+    }
+  }
+
+  const handleConfirmReject = async (reason: string) => {
+    try {
+      await campaignService.reject(campaignId, reason)
+      setCurrentStatus('REJECTED')
+      setRejectionReason(reason)
+      setApprovalLogs((prev) => [
+        {
+          id: Date.now().toString(),
+          action: 'REJECTED',
+          actor: 'Bạn',
+          actorRole: 'Approver',
+          timestamp: 'Vừa xong',
+          note: reason,
+        },
+        ...prev,
+      ])
+      await loadCampaign()
+      showToast({
+        type: 'error',
+        title: 'Đã từ chối chiến dịch',
+        description: 'Yêu cầu chỉnh sửa đã được gửi tới tác giả.',
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không từ chối được',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+      throw error
+    }
+  }
+
+  const handleSubmitForApproval = async () => {
+    try {
+      await campaignService.submit(campaignId)
+      setCurrentStatus('PENDING_APPROVAL')
+      setApprovalLogs((prev) => [
+        {
+          id: Date.now().toString(),
+          action: 'RESUBMITTED',
+          actor: 'Bạn',
+          actorRole: 'Editor',
+          timestamp: 'Vừa xong',
+          note: 'Đã gửi duyệt lại sau khi chỉnh sửa theo phản hồi.',
+        },
+        ...prev,
+      ])
+      await loadCampaign()
       showToast({
         type: 'success',
-        title: 'Đã nhân bản chiến dịch',
-        description: 'Bản sao mới đã được tạo dưới dạng Bản nháp (DRAFT).',
+        title: 'Đã gửi yêu cầu phê duyệt',
+        description: 'Chiến dịch đã được chuyển tới Admin để kiểm duyệt.',
       })
-      onNavigate('/campaigns/create')
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không gửi duyệt được',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
     }
+  }
+
+  const handleExecuteModalAction = async () => {
+    setIsConfirmModalOpen(false)
+    if (modalAction === 'pause' || modalAction === 'resume') {
+      showToast({
+        type: 'info',
+        title: 'Chưa hỗ trợ gửi hàng loạt',
+        description: 'Tạm dừng và tiếp tục gửi sẽ có khi có worker chiến dịch.',
+      })
+      return
+    }
+    if (modalAction === 'cancel') {
+      try {
+        await campaignService.cancel(campaignId)
+        setCurrentStatus('CANCELLED')
+        await loadCampaign()
+        showToast({
+          type: 'info',
+          title: 'Đã hủy chiến dịch',
+          description: 'Chiến dịch đã được chuyển sang trạng thái hủy.',
+        })
+      } catch (error) {
+        showToast({
+          type: 'error',
+          title: 'Không hủy được',
+          description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+        })
+      }
+      return
+    }
+    if (modalAction === 'delete') {
+      try {
+        await campaignService.delete(campaignId)
+        showToast({
+          type: 'error',
+          title: 'Đã xóa chiến dịch',
+          description: 'Chiến dịch đã được xóa khỏi hệ thống.',
+        })
+        onNavigate('/campaigns')
+      } catch (error) {
+        showToast({
+          type: 'error',
+          title: 'Không xóa được',
+          description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+        })
+      }
+      return
+    }
+    if (modalAction === 'duplicate' && campaign) {
+      try {
+        const source = await campaignService.get(campaignId)
+        const copy = await campaignService.create({
+          name: `${source.name} (Bản sao)`,
+          subject: source.subject,
+          previewText: source.previewText,
+          senderId: source.senderId,
+          replyTo: source.replyTo,
+          templateId: source.templateId,
+          htmlContent: source.htmlContent,
+          sendType: source.sendType,
+          scheduledAt: source.scheduledAtIso,
+          listIds: source.listIds,
+          segmentIds: source.segmentIds,
+          excludedListIds: source.excludedListIds,
+        })
+        showToast({
+          type: 'success',
+          title: 'Đã nhân bản chiến dịch',
+          description: 'Bản sao mới đã được tạo dưới dạng Bản nháp (DRAFT).',
+        })
+        onNavigate(`/campaigns/${copy.id}/edit`)
+      } catch (error) {
+        showToast({
+          type: 'error',
+          title: 'Không nhân bản được',
+          description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+        })
+      }
+    }
+  }
+
+  if (!campaign) {
+    return (
+      <div className="p-8 text-sm text-slate-500">
+        Đang tải chiến dịch...
+      </div>
+    )
   }
 
   const progressPercent = Math.round(
@@ -332,7 +480,7 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
                   variant="primary"
                   size="sm"
                   leftIcon={<Edit3 className="w-3.5 h-3.5" />}
-                  onClick={() => onNavigate('/campaigns/create')}
+                  onClick={() => onNavigate(`/campaigns/${campaignId}/edit`)}
                 >
                   Tiếp Tục Soạn
                 </Button>
@@ -501,20 +649,20 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
       {(currentStatus === 'DRAFT' ||
         currentStatus === 'PENDING_APPROVAL' ||
         currentStatus === 'APPROVED' ||
+        currentStatus === 'SCHEDULED' ||
         currentStatus === 'REJECTED') && (
         <ApprovalStatusCard
           status={currentStatus}
           campaignName={campaign.name}
           submittedBy={campaign.createdBy}
-          submittedAt="26/08/2026 10:15"
-          reviewedBy="Trần Minh Marketing (Marketing Manager)"
-          reviewedAt="26/08/2026 16:45"
-          approvalNote={approvalNote}
-          rejectionReason={rejectionReason}
+          submittedAt={campaign.submittedAt}
+          reviewedAt={campaign.reviewedAt}
+          approvalNote={approvalNote || undefined}
+          rejectionReason={rejectionReason || undefined}
           onApproveClick={() => setIsApproveOpen(true)}
           onRejectClick={() => setIsRejectOpen(true)}
           onSubmitApprovalClick={handleSubmitForApproval}
-          onEditClick={() => onNavigate('/campaigns/create')}
+          onEditClick={() => onNavigate(`/campaigns/${campaignId}/edit`)}
           onResubmitClick={handleSubmitForApproval}
         />
       )}
@@ -572,8 +720,8 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
                 </div>
 
                 <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
-                  <span>Tốc độ gửi: {campaign.batchSpeed}</span>
-                  <span className="text-emerald-600 font-semibold">Tỷ lệ lỗi Bounces: 0.18% (Rất thấp)</span>
+                  <span>Đã gửi: {campaign.sentCount.toLocaleString()}</span>
+                  <span>Tổng: {campaign.recipientCount.toLocaleString()}</span>
                 </div>
               </CardContent>
             </Card>
@@ -655,13 +803,15 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
                 <div>
                   <span className="text-slate-400 text-[11px]">Thời điểm kích hoạt:</span>
                   <div className="font-semibold text-slate-900 dark:text-slate-100 mt-0.5">
-                    {campaign.scheduledAt || 'Gửi ngay lập tức'} ({campaign.scheduledTimezone || 'Asia/Bangkok'})
+                    {campaign.sendType === 'scheduled' && campaign.scheduledAt
+                      ? campaign.scheduledAt
+                      : 'Gửi ngay lập tức'}
                   </div>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[11px]">Tốc độ phân phối:</span>
+                  <span className="text-slate-400 text-[11px]">Kiểu gửi:</span>
                   <div className="font-semibold text-indigo-600 mt-0.5">
-                    {campaign.batchSpeed}
+                    {campaign.sendType === 'scheduled' ? 'Lên lịch' : 'Immediate'}
                   </div>
                 </div>
                 <div>
@@ -684,7 +834,6 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
             <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
               Bản Xem Trước Nội Dung (Read-only Preview)
             </div>
-            {/* Viewport switch */}
             <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
               <button
                 type="button"
@@ -713,28 +862,29 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
             </div>
           </div>
 
-          <div className="bg-slate-100 dark:bg-slate-950 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 flex justify-center">
-            <div
-              className={`bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden ${
-                device === 'mobile' ? 'w-[360px]' : 'w-full max-w-2xl'
-              }`}
-            >
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 space-y-1 text-xs">
-                <div className="font-bold text-slate-900 dark:text-slate-100">{campaign.subject}</div>
-                <div className="text-[11px] text-slate-400">Từ: {campaign.senderName} &lt;{campaign.senderEmail}&gt;</div>
-              </div>
-              <div
-                className="p-6 text-xs leading-relaxed space-y-3 prose dark:prose-invert max-w-none"
-                dangerouslySetInnerHTML={{ __html: campaign.htmlContent }}
-              />
-            </div>
-          </div>
+          <TemplatePreview
+            subject={campaign.subject}
+            previewText={campaign.previewText}
+            htmlContent={campaign.htmlContent}
+            device={device}
+            thumbnailGradient={campaign.thumbnailGradient}
+            bannerLabel={campaign.bannerLabel || (campaign.templateId ? undefined : 'Chiến dịch')}
+            bannerTitle={campaign.bannerTitle || campaign.name}
+            fromName={campaign.senderName}
+            fromEmail={campaign.senderEmail}
+          />
         </div>
       )}
 
       {/* ================= TAB 3: AUDIENCE ================= */}
       {activeTab === 'audience' && (
         <div className="space-y-6 animate-in fade-in-0">
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
+            <span className="text-slate-400">Tổng người nhận ước tính: </span>
+            <strong className="font-mono text-slate-900 dark:text-slate-100">
+              {campaign.recipientCount.toLocaleString()}
+            </strong>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -744,17 +894,31 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
                 </div>
               </CardHeader>
               <CardContent className="pt-4 space-y-2">
-                {campaign.selectedLists.map((l) => (
-                  <div
-                    key={l.id}
-                    className="p-3 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/60 flex items-center justify-between text-xs"
-                  >
-                    <span className="font-semibold text-blue-900 dark:text-blue-200">{l.name}</span>
-                    <span className="font-mono font-bold text-blue-700 dark:text-blue-300">
-                      {l.count.toLocaleString()} liên hệ
-                    </span>
+                {campaign.selectedLists.length === 0 ? (
+                  <p className="text-xs text-slate-400">Chưa chọn danh sách nào.</p>
+                ) : (
+                  campaign.selectedLists.map((l) => (
+                    <div
+                      key={l.id}
+                      className="p-3 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/60 text-xs"
+                    >
+                      <span className="font-semibold text-blue-900 dark:text-blue-200">{l.name}</span>
+                    </div>
+                  ))
+                )}
+                {campaign.excludedLists.length > 0 && (
+                  <div className="pt-2 space-y-2">
+                    <div className="text-[11px] font-bold text-rose-600">Loại trừ</div>
+                    {campaign.excludedLists.map((l) => (
+                      <div
+                        key={l.id}
+                        className="p-3 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/60 text-xs"
+                      >
+                        <span className="font-semibold text-rose-900 dark:text-rose-200">{l.name}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </CardContent>
             </Card>
 
@@ -766,17 +930,18 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
                 </div>
               </CardHeader>
               <CardContent className="pt-4 space-y-2">
-                {campaign.selectedSegments.map((s) => (
-                  <div
-                    key={s.id}
-                    className="p-3 rounded-xl bg-violet-50/50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-900/60 flex items-center justify-between text-xs"
-                  >
-                    <span className="font-semibold text-violet-900 dark:text-violet-200">{s.name}</span>
-                    <span className="font-mono font-bold text-violet-700 dark:text-violet-300">
-                      {s.count.toLocaleString()} liên hệ
-                    </span>
-                  </div>
-                ))}
+                {campaign.selectedSegments.length === 0 ? (
+                  <p className="text-xs text-slate-400">Chưa chọn phân đoạn nào.</p>
+                ) : (
+                  campaign.selectedSegments.map((s) => (
+                    <div
+                      key={s.id}
+                      className="p-3 rounded-xl bg-violet-50/50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-900/60 text-xs"
+                    >
+                      <span className="font-semibold text-violet-900 dark:text-violet-200">{s.name}</span>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           </div>
@@ -802,6 +967,9 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
             </CardHeader>
 
             <CardContent className="pt-6">
+              {campaign.timeline.length === 0 ? (
+                <p className="text-xs text-slate-400">Chưa có nhật ký hoạt động.</p>
+              ) : (
               <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
                 {campaign.timeline.map((event) => (
                   <div key={event.id} className="relative group text-xs">
@@ -831,6 +999,7 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
                   </div>
                 ))}
               </div>
+              )}
             </CardContent>
           </Card>
         </div>

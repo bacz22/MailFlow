@@ -9,7 +9,6 @@ import {
   Check,
   Mail,
   Building2,
-  ShieldCheck,
   Activity,
   Send,
   MousePointerClick,

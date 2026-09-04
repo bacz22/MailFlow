@@ -14,11 +14,13 @@ import { FormField, FormLabel } from '../ui/FormGroup'
 import { useToast } from '../ui/Toast'
 import { ApiError } from '../../services/apiClient'
 import { templateService } from '../../services/template.service'
+import { campaignService } from '../../services/campaign.service'
 
 export interface SendTestDialogProps {
   isOpen: boolean
   onClose: () => void
   templateId?: string
+  campaignId?: string
   templateName: string
   subject: string
 }
@@ -27,6 +29,7 @@ export const SendTestDialog: React.FC<SendTestDialogProps> = ({
   isOpen,
   onClose,
   templateId,
+  campaignId,
   templateName,
   subject,
 }) => {
@@ -48,28 +51,33 @@ export const SendTestDialog: React.FC<SendTestDialogProps> = ({
       })
       return
     }
-    if (!templateId) {
+    if (!templateId && !campaignId) {
       showToast({
         type: 'warning',
-        title: 'Cần lưu mẫu trước',
-        description: 'Vui lòng lưu mẫu email trước khi gửi thử nghiệm.',
+        title: 'Cần lưu trước',
+        description: 'Vui lòng lưu mẫu hoặc chiến dịch trước khi gửi thử nghiệm.',
       })
       return
     }
 
     setIsSending(true)
     try {
-      await templateService.sendTest(templateId, {
+      const payload = {
         to: recipientEmail.trim(),
         firstName: testFirstName.trim() || undefined,
         lastName: testLastName.trim() || undefined,
         company: testCompany.trim() || undefined,
         phone: testPhone.trim() || undefined,
-      })
+      }
+      if (campaignId) {
+        await campaignService.sendTest(campaignId, payload)
+      } else if (templateId) {
+        await templateService.sendTest(templateId, payload)
+      }
       showToast({
         type: 'success',
         title: 'Đã gửi email thử nghiệm',
-        description: `Bản test mẫu "${templateName}" đã được gửi tới ${recipientEmail} thành công.`,
+        description: `Bản test "${templateName}" đã được gửi tới ${recipientEmail} thành công.`,
       })
       onClose()
     } catch (error) {

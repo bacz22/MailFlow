@@ -15,7 +15,7 @@ import { FormField, FormLabel } from '../../ui/FormGroup'
 export interface RejectCampaignDialogProps {
   isOpen: boolean
   onClose: () => void
-  onConfirmReject: (reason: string) => void
+  onConfirmReject: (reason: string) => Promise<void> | void
   campaignName: string
 }
 
@@ -43,12 +43,14 @@ export const RejectCampaignDialog: React.FC<RejectCampaignDialogProps> = ({
     }
 
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    setIsSubmitting(false)
-    onConfirmReject(reason.trim())
-    setReason('')
-    setError(null)
-    onClose()
+    try {
+      await onConfirmReject(reason.trim())
+      setReason('')
+      setError(null)
+      onClose()
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleSelectPreset = (pReason: string) => {

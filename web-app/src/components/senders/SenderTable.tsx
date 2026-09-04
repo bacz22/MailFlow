@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import {
   MoreVertical,
   Send,
@@ -9,6 +9,14 @@ import {
 } from 'lucide-react'
 import { SenderStatusBadge } from './SenderStatusBadge'
 import { Button } from '../ui/Button'
+import { Pagination } from '../ui/Pagination'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '../ui/DropdownMenu'
 import { usePermission, PERMISSIONS } from '../../permissions'
 import type { VerifiedSender } from '../../types/sender.types'
 
@@ -18,6 +26,8 @@ export interface SenderTableProps {
   onDeleteSender: (sender: VerifiedSender) => void
   onResendVerification: (sender: VerifiedSender) => void
   onSetDefault?: (sender: VerifiedSender) => void
+  defaultPageSize?: number
+  pageSizeOptions?: number[]
 }
 
 export const SenderTable: React.FC<SenderTableProps> = ({
@@ -26,11 +36,18 @@ export const SenderTable: React.FC<SenderTableProps> = ({
   onDeleteSender,
   onResendVerification,
   onSetDefault,
+  defaultPageSize = 10,
+  pageSizeOptions = [10, 20, 50, 100],
 }) => {
   const { hasPermission } = usePermission()
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
-
   const canManage = hasPermission(PERMISSIONS.SENDER_MANAGE)
+
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(defaultPageSize)
+
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [senders])
 
   if (senders.length === 0) {
     return (
@@ -40,21 +57,28 @@ export const SenderTable: React.FC<SenderTableProps> = ({
     )
   }
 
+  const totalItems = senders.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage = Math.min(Math.max(1, currentPage), totalPages)
+  const startIndex = (safePage - 1) * pageSize
+  const paginatedSenders = senders.slice(startIndex, startIndex + pageSize)
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs text-left border-collapse">
-        <thead>
-          <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-            <th className="py-3 px-4">Tên Người Gửi</th>
-            <th className="py-3 px-4">Địa Chỉ Email</th>
-            <th className="py-3 px-4">Trạng Thái Xác Minh</th>
-            <th className="py-3 px-4">Xác Thực Tên Miền</th>
-            <th className="py-3 px-4">Ngày Tạo</th>
-            <th className="py-3 px-4 text-center">Thao Tác</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-          {senders.map((s) => {
+    <div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              <th className="py-3 px-4">Tên Người Gửi</th>
+              <th className="py-3 px-4">Địa Chỉ Email</th>
+              <th className="py-3 px-4">Trạng Thái Xác Minh</th>
+              <th className="py-3 px-4">Xác Thực Tên Miền</th>
+              <th className="py-3 px-4">Ngày Tạo</th>
+              <th className="py-3 px-4 text-center">Thao Tác</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {paginatedSenders.map((s) => {
             const senderStatus = s.status || (s.isVerified ? 'VERIFIED' : 'PENDING')
             const isVerified = senderStatus === 'VERIFIED'
             const isPending = senderStatus === 'PENDING'
@@ -121,73 +145,71 @@ export const SenderTable: React.FC<SenderTableProps> = ({
                     )}
 
                     {canManage && (
-                      <div className="relative inline-block text-left">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0"
-                          onClick={() => setActiveMenuId(activeMenuId === s.id ? null : s.id)}
-                        >
-                          <MoreVertical className="w-4 h-4 text-slate-500" />
-                        </Button>
-
-                        {/* Dropdown menu */}
-                        {activeMenuId === s.id && (
-                          <div
-                            className="absolute right-0 mt-1 w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-30 py-1 text-xs animate-in fade-in-0"
-                            onClick={() => setActiveMenuId(null)}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                            title="Tùy chọn thao tác"
+                            aria-label="Tùy chọn thao tác"
                           >
-                            <button
-                              type="button"
-                              className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center gap-2 text-slate-700 dark:text-slate-200 cursor-pointer"
-                              onClick={() => onEditSender(s)}
-                            >
-                              <Edit3 className="w-3.5 h-3.5 text-blue-600" />
-                              <span>Sửa Tên Người Gửi</span>
-                            </button>
+                            <MoreVertical className="w-4 h-4 text-slate-500" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48 text-xs">
+                          <DropdownMenuItem onClick={() => onEditSender(s)}>
+                            <Edit3 className="w-3.5 h-3.5 mr-2 text-blue-600" />
+                            <span>Sửa</span>
+                          </DropdownMenuItem>
 
-                            {isVerified && !s.isDefault && onSetDefault && (
-                              <button
-                                type="button"
-                                className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center gap-2 text-amber-700 dark:text-amber-300 cursor-pointer"
-                                onClick={() => onSetDefault(s)}
-                              >
-                                <Star className="w-3.5 h-3.5 text-amber-500" />
-                                <span>Đặt Làm Mặc Định</span>
-                              </button>
-                            )}
+                          {isVerified && !s.isDefault && onSetDefault && (
+                            <DropdownMenuItem onClick={() => onSetDefault(s)}>
+                              <Star className="w-3.5 h-3.5 mr-2 text-amber-500" />
+                              <span>Đặt Làm Mặc Định</span>
+                            </DropdownMenuItem>
+                          )}
 
-                            {!isVerified && (
-                              <button
-                                type="button"
-                                className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center gap-2 text-blue-600 cursor-pointer"
-                                onClick={() => onResendVerification(s)}
-                              >
-                                <Send className="w-3.5 h-3.5" />
-                                <span>Gửi Lại Xác Thực</span>
-                              </button>
-                            )}
+                          {!isVerified && (
+                            <DropdownMenuItem onClick={() => onResendVerification(s)}>
+                              <Send className="w-3.5 h-3.5 mr-2 text-blue-600" />
+                              <span>Gửi Lại Xác Thực</span>
+                            </DropdownMenuItem>
+                          )}
 
-                            <button
-                              type="button"
-                              className="w-full text-left px-3.5 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 text-rose-600 cursor-pointer border-t border-slate-100 dark:border-slate-800"
-                              onClick={() => onDeleteSender(s)}
-                            >
-                              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                              <span>Xóa Người Gửi</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => onDeleteSender(s)}
+                            className="text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-2" />
+                            <span>Xóa</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </div>
                 </td>
               </tr>
             )
           })}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination Footer */}
+      <Pagination
+        currentPage={safePage}
+        totalPages={totalPages}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        pageSizeOptions={pageSizeOptions}
+        itemLabel="người gửi"
+        onPageChange={setCurrentPage}
+        onPageSizeChange={(size) => {
+          setPageSize(size)
+          setCurrentPage(1)
+        }}
+      />
     </div>
   )
 }

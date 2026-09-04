@@ -21,6 +21,9 @@ export interface CampaignStep3Content {
   templateId?: string
   templateName?: string
   htmlContent: string
+  thumbnailGradient?: string
+  bannerLabel?: string
+  bannerTitle?: string
 }
 
 export interface CampaignStep4PreviewTest {

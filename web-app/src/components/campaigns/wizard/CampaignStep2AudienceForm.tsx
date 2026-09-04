@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   Users,
   Search,
@@ -12,6 +12,8 @@ import {
 import { Input } from '../../ui/Input'
 import { Badge } from '../../ui/Badge'
 import { Card, CardHeader, CardTitle, CardContent } from '../../ui/Card'
+import { listService } from '../../../services/list.service'
+import { segmentService } from '../../../services/segment.service'
 import type { CampaignStep2Audience } from '../../../types/campaignWizard.types'
 
 export interface CampaignStep2AudienceFormProps {
@@ -27,84 +29,60 @@ interface AvailableAudienceItem {
   description: string
 }
 
-const AVAILABLE_LISTS: AvailableAudienceItem[] = [
-  {
-    id: 'lst-1',
-    name: 'VIP Enterprise Clients',
-    type: 'list',
-    count: 5420,
-    description: 'Khách hàng doanh nghiệp trọng điểm hợp đồng trên $5,000/năm.',
-  },
-  {
-    id: 'lst-2',
-    name: 'Webinar Leads Q3',
-    type: 'list',
-    count: 3850,
-    description: 'Người đăng ký tham gia chuỗi hội thảo Inbox Rate 2026.',
-  },
-  {
-    id: 'lst-3',
-    name: 'General Newsletter Subscribers',
-    type: 'list',
-    count: 8900,
-    description: 'Độc giả bản tin công nghệ và marketing hàng tuần.',
-  },
-  {
-    id: 'lst-4',
-    name: '14-Day Free Trial Users',
-    type: 'list',
-    count: 1240,
-    description: 'Tài khoản dùng thử trải nghiệm 14 ngày qua.',
-  },
-]
-
-const AVAILABLE_SEGMENTS: AvailableAudienceItem[] = [
-  {
-    id: 'seg-1',
-    name: 'Khách Hàng Doanh Nghiệp VIP (Hà Nội)',
-    type: 'segment',
-    count: 2315,
-    description: 'Lọc tự động: Thành phố = Hà Nội AND Tag contains "VIP".',
-  },
-  {
-    id: 'seg-2',
-    name: 'Tương Tác Cao (Engagement Score > 80)',
-    type: 'segment',
-    count: 4120,
-    description: 'Người nhận có điểm tương tác mở và click link cao nhất.',
-  },
-  {
-    id: 'seg-3',
-    name: 'Leads Mới Đăng Ký (Trong 14 Ngày)',
-    type: 'segment',
-    count: 890,
-    description: 'Liên hệ mới tạo trong vòng 14 ngày cần chuỗi chào mừng.',
-  },
-  {
-    id: 'seg-4',
-    name: 'Khách Hàng Nguy Cơ Rời Bỏ (Churn Risk)',
-    type: 'segment',
-    count: 650,
-    description: 'Không mở email trong hơn 60 ngày qua.',
-  },
-]
-
 export const CampaignStep2AudienceForm: React.FC<CampaignStep2AudienceFormProps> = ({
   data,
   onChange,
 }) => {
+  const [lists, setLists] = useState<AvailableAudienceItem[]>([])
+  const [segments, setSegments] = useState<AvailableAudienceItem[]>([])
   const [activeTab, setActiveTab] = useState<'lists' | 'segments'>('lists')
   const [searchQuery, setSearchQuery] = useState('')
   const [isExcludeExpanded, setIsExcludeExpanded] = useState(false)
 
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const [listRows, segmentRows] = await Promise.all([listService.list(), segmentService.list()])
+        if (cancelled) return
+        setLists(
+          listRows.map((l) => ({
+            id: l.id,
+            name: l.name,
+            type: 'list' as const,
+            count: l.activeCount || l.contactCount,
+            description: l.description || '',
+          }))
+        )
+        setSegments(
+          segmentRows.map((s) => ({
+            id: s.id,
+            name: s.name,
+            type: 'segment' as const,
+            count: s.contactCount,
+            description: s.description || '',
+          }))
+        )
+      } catch {
+        if (!cancelled) {
+          setLists([])
+          setSegments([])
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   // Filtered available items
-  const filteredLists = AVAILABLE_LISTS.filter(
+  const filteredLists = lists.filter(
     (l) =>
       l.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       l.description.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const filteredSegments = AVAILABLE_SEGMENTS.filter(
+  const filteredSegments = segments.filter(
     (s) =>
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.description.toLowerCase().includes(searchQuery.toLowerCase())
@@ -140,43 +118,37 @@ export const CampaignStep2AudienceForm: React.FC<CampaignStep2AudienceFormProps>
     calculateEstimated(data.selectedListIds, data.selectedSegmentIds, newExcluded)
   }
 
-  // Calculate unique estimated count with deduplication mock
+  // V1 estimate: sum selected list/segment counts, then subtract excluded lists.
+  // Not true unique-union yet (overlaps may be counted twice until bulk-send).
   const calculateEstimated = (listIds: string[], segIds: string[], excludeIds: string[]) => {
-    let rawTotal = 0
+    let total = 0
 
     listIds.forEach((id) => {
-      const match = AVAILABLE_LISTS.find((l) => l.id === id)
-      if (match) rawTotal += match.count
+      const match = lists.find((l) => l.id === id)
+      if (match) total += match.count
     })
 
     segIds.forEach((id) => {
-      const match = AVAILABLE_SEGMENTS.find((s) => s.id === id)
-      if (match) rawTotal += match.count
+      const match = segments.find((s) => s.id === id)
+      if (match) total += match.count
     })
 
-    // Deduplicate overlap ~15% if multiple groups selected
-    let deduplicated = rawTotal > 0 ? Math.round(rawTotal * 0.85) : 0
-
-    // Subtract excluded
     excludeIds.forEach((id) => {
-      const match =
-        AVAILABLE_LISTS.find((l) => l.id === id) || AVAILABLE_SEGMENTS.find((s) => s.id === id)
-      if (match) deduplicated = Math.max(0, deduplicated - Math.round(match.count * 0.4))
+      const match = lists.find((l) => l.id === id)
+      if (match) total = Math.max(0, total - match.count)
     })
 
     onChange({
       selectedListIds: listIds,
       selectedSegmentIds: segIds,
       excludedListIds: excludeIds,
-      estimatedRecipients: deduplicated,
+      estimatedRecipients: total,
     })
   }
 
-  const selectedLists = AVAILABLE_LISTS.filter((l) => data.selectedListIds.includes(l.id))
-  const selectedSegments = AVAILABLE_SEGMENTS.filter((s) => data.selectedSegmentIds.includes(s.id))
-  const excludedItems = [...AVAILABLE_LISTS, ...AVAILABLE_SEGMENTS].filter((item) =>
-    data.excludedListIds.includes(item.id)
-  )
+  const selectedLists = lists.filter((l) => data.selectedListIds.includes(l.id))
+  const selectedSegments = segments.filter((s) => data.selectedSegmentIds.includes(s.id))
+  const excludedItems = lists.filter((item) => data.excludedListIds.includes(item.id))
 
   return (
     <div className="space-y-6 animate-in fade-in-0">
@@ -369,7 +341,7 @@ export const CampaignStep2AudienceForm: React.FC<CampaignStep2AudienceFormProps>
                 </p>
 
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {[...AVAILABLE_LISTS, ...AVAILABLE_SEGMENTS].map((item) => {
+                  {lists.map((item) => {
                     const isExcluded = data.excludedListIds.includes(item.id)
 
                     return (
@@ -412,10 +384,10 @@ export const CampaignStep2AudienceForm: React.FC<CampaignStep2AudienceFormProps>
                   {data.estimatedRecipients.toLocaleString()}
                 </div>
                 <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Liên Hệ Độc Bản (Unique Recipients)
+                  Tổng người nhận ước tính
                 </div>
                 <div className="text-[11px] text-slate-400">
-                  Đã tự động khử trùng lặp qua thuật toán Deduplication
+                  Cộng số liên hệ ACTIVE của các nhóm đã chọn
                 </div>
               </div>
 
@@ -476,9 +448,9 @@ export const CampaignStep2AudienceForm: React.FC<CampaignStep2AudienceFormProps>
                 )}
               </div>
 
-              {/* Deduplication explanation note */}
+              {/* Estimate note (V1 approx) */}
               <div className="p-3 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 text-[11px] text-blue-900 dark:text-blue-200 leading-relaxed">
-                💡 <strong>Thuật toán Deduplication:</strong> Nếu một khách hàng nằm trong cả 2 danh sách được chọn, MailFlow sẽ tự động gộp và chỉ gửi đúng 1 email duy nhất.
+                💡 <strong>Ước lượng V1:</strong> Hệ thống cộng số liên hệ của từng danh sách/phân đoạn rồi trừ danh sách loại trừ. Liên hệ nằm trong nhiều nhóm có thể bị đếm trùng cho đến khi có bước gửi hàng loạt (unique union).
               </div>
             </CardContent>
           </Card>

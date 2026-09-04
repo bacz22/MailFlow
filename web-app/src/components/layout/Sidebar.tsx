@@ -24,6 +24,7 @@ import { Tooltip } from '../ui/Tooltip'
 import { usePermission } from '../../permissions/PermissionContext'
 import { useWorkspace } from '../../context/WorkspaceContext'
 import { contactService } from '../../services/contact.service'
+import { campaignService } from '../../services/campaign.service'
 
 function formatNavCount(value: number): string {
   if (value < 1000) {
@@ -63,6 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { canAccessRoute } = usePermission()
   const { currentWorkspaceId } = useWorkspace()
   const [contactCount, setContactCount] = useState<number | null>(null)
+  const [campaignCount, setCampaignCount] = useState<number | null>(null)
 
   const handleNav = (path: string) => {
     onNavigate?.(path)
@@ -108,6 +110,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
       cancelled = true
     }
   }, [canContacts, currentWorkspaceId, currentPath])
+
+  useEffect(() => {
+    if (!canCampaigns || !currentWorkspaceId) {
+      setCampaignCount(null)
+      return
+    }
+    let cancelled = false
+    campaignService
+      .list()
+      .then((rows) => {
+        if (!cancelled) {
+          setCampaignCount(rows.length)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCampaignCount(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [canCampaigns, currentWorkspaceId, currentPath])
 
   return (
     <aside
@@ -179,9 +204,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <SidebarItem
                 icon={<Send className="w-4 h-4" />}
                 label="Campaigns"
-                active={currentPath === '/campaigns'}
-                badge="3 Live"
-                badgeVariant="primary"
+                active={currentPath === '/campaigns' || currentPath.startsWith('/campaigns/')}
+                badge={campaignCount == null ? undefined : formatNavCount(campaignCount)}
                 collapsed={collapsed}
                 onClick={() => handleNav('/campaigns')}
               />

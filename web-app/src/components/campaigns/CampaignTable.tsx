@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import {
   Mail,
   Layers,
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { CampaignStatusBadge } from './CampaignStatusBadge'
 import { CampaignRowActions } from './CampaignRowActions'
+import { Pagination } from '../ui/Pagination'
 import type { Campaign } from '../../types/campaign.types'
 
 export interface CampaignTableProps {
@@ -20,6 +21,8 @@ export interface CampaignTableProps {
   onResumeCampaign?: (campaign: Campaign) => void
   onDeleteCampaign?: (campaign: Campaign) => void
   onViewReport?: (campaign: Campaign) => void
+  defaultPageSize?: number
+  pageSizeOptions?: number[]
 }
 
 export const CampaignTable: React.FC<CampaignTableProps> = ({
@@ -33,7 +36,12 @@ export const CampaignTable: React.FC<CampaignTableProps> = ({
   onResumeCampaign,
   onDeleteCampaign,
   onViewReport,
+  defaultPageSize = 10,
+  pageSizeOptions = [10, 20, 50, 100],
 }) => {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(defaultPageSize)
+
   if (campaigns.length === 0) {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 p-12 text-center space-y-3 shadow-xs">
@@ -51,6 +59,12 @@ export const CampaignTable: React.FC<CampaignTableProps> = ({
       </div>
     )
   }
+
+  const totalItems = campaigns.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage = Math.min(Math.max(1, currentPage), totalPages)
+  const startIndex = (safePage - 1) * pageSize
+  const paginatedCampaigns = campaigns.slice(startIndex, startIndex + pageSize)
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 shadow-xs overflow-hidden">
@@ -71,7 +85,7 @@ export const CampaignTable: React.FC<CampaignTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {campaigns.map((c) => {
+            {paginatedCampaigns.map((c) => {
               const deliveryPercent =
                 c.recipientCount > 0 ? Math.round((c.sentCount / c.recipientCount) * 100) : 0
 
@@ -196,6 +210,21 @@ export const CampaignTable: React.FC<CampaignTableProps> = ({
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Footer */}
+      <Pagination
+        currentPage={safePage}
+        totalPages={totalPages}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        pageSizeOptions={pageSizeOptions}
+        itemLabel="chiến dịch"
+        onPageChange={setCurrentPage}
+        onPageSizeChange={(size) => {
+          setPageSize(size)
+          setCurrentPage(1)
+        }}
+      />
     </div>
   )
 }

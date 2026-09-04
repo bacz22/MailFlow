@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   PlusCircle,
   Search,
@@ -24,6 +24,8 @@ import {
 import { useToast } from '../components/ui/Toast'
 import { usePermission, PERMISSIONS } from '../permissions'
 import { SimpleSelect, type SelectOption } from '../components/ui/Select'
+import { ApiError } from '../services/apiClient'
+import { senderService } from '../services/sender.service'
 import type { VerifiedSender } from '../types/sender.types'
 
 const SENDER_STATUS_OPTIONS: SelectOption[] = [
@@ -31,59 +33,6 @@ const SENDER_STATUS_OPTIONS: SelectOption[] = [
   { value: 'VERIFIED', label: 'Đã xác minh (Verified)' },
   { value: 'PENDING', label: 'Chờ xác thực (Pending)' },
   { value: 'FAILED', label: 'Thất bại (Failed)' },
-]
-
-const INITIAL_SENDERS: VerifiedSender[] = [
-  {
-    id: 'snd-1',
-    name: 'MailFlow Product Team',
-    email: 'newsletter@mailflow.vn',
-    domain: 'mailflow.vn',
-    status: 'VERIFIED',
-    isVerified: true,
-    isDefault: true,
-    dkimStatus: 'verified',
-    spfStatus: 'verified',
-    createdAt: '01/01/2026',
-    lastUsedAt: '27/08/2026',
-  },
-  {
-    id: 'snd-2',
-    name: 'MailFlow Customer Support',
-    email: 'support@mailflow.vn',
-    domain: 'mailflow.vn',
-    status: 'VERIFIED',
-    isVerified: true,
-    isDefault: false,
-    dkimStatus: 'verified',
-    spfStatus: 'verified',
-    createdAt: '10/01/2026',
-    lastUsedAt: '25/08/2026',
-  },
-  {
-    id: 'snd-3',
-    name: 'Phòng Kinh Doanh & Đối Tác',
-    email: 'sales@partner.mailflow.vn',
-    domain: 'partner.mailflow.vn',
-    status: 'PENDING',
-    isVerified: false,
-    isDefault: false,
-    dkimStatus: 'pending',
-    spfStatus: 'verified',
-    createdAt: '26/08/2026',
-  },
-  {
-    id: 'snd-4',
-    name: 'Khuyến Mãi Cuối Tuần',
-    email: 'promo@unverified-test.vn',
-    domain: 'unverified-test.vn',
-    status: 'FAILED',
-    isVerified: false,
-    isDefault: false,
-    dkimStatus: 'failed',
-    spfStatus: 'failed',
-    createdAt: '20/08/2026',
-  },
 ]
 
 export interface SendersPageProps {
@@ -94,7 +43,7 @@ export const SendersPage: React.FC<SendersPageProps> = ({ onNavigate }) => {
   const { showToast } = useToast()
   const { hasPermission } = usePermission()
 
-  const [senders, setSenders] = useState<VerifiedSender[]>(INITIAL_SENDERS)
+  const [senders, setSenders] = useState<VerifiedSender[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
@@ -104,6 +53,23 @@ export const SendersPage: React.FC<SendersPageProps> = ({ onNavigate }) => {
   const [deletingSender, setDeletingSender] = useState<VerifiedSender | null>(null)
 
   const canManage = hasPermission(PERMISSIONS.SENDER_MANAGE)
+
+  const loadSenders = useCallback(async () => {
+    try {
+      const data = await senderService.list()
+      setSenders(data)
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không tải được người gửi',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    }
+  }, [showToast])
+
+  useEffect(() => {
+    void loadSenders()
+  }, [loadSenders])
 
   // Filtered senders
   const filteredSenders = senders.filter((s) => {
@@ -118,70 +84,87 @@ export const SendersPage: React.FC<SendersPageProps> = ({ onNavigate }) => {
   })
 
   // Handlers
-  const handleAddSender = (name: string, email: string) => {
-    const domain = email.split('@')[1] || 'mailflow.vn'
-    const newSender: VerifiedSender = {
-      id: `snd-${Date.now()}`,
-      name,
-      email,
-      domain,
-      status: 'PENDING',
-      isVerified: false,
-      isDefault: false,
-      dkimStatus: 'pending',
-      spfStatus: 'pending',
-      createdAt: new Date().toLocaleDateString('vi-VN'),
+  const handleAddSender = async (name: string, email: string) => {
+    try {
+      await senderService.create({ name, email })
+      await loadSenders()
+      showToast({
+        type: 'success',
+        title: 'Đã thêm người gửi',
+        description: `${name} <${email}> đã sẵn sàng dùng cho chiến dịch.`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không thêm được người gửi',
+        description: error instanceof ApiError ? (error.detail || error.message) : 'Vui lòng thử lại.',
+      })
+      throw error
     }
-
-    setSenders((prev) => [newSender, ...prev])
-    showToast({
-      type: 'success',
-      title: 'Đã gửi email xác thực',
-      description: `Vui lòng kiểm tra hòm thư ${email} để hoàn tất xác minh người gửi.`,
-    })
   }
 
-  const handleEditSender = (senderId: string, newName: string) => {
-    setSenders((prev) =>
-      prev.map((s) => (s.id === senderId ? { ...s, name: newName } : s))
-    )
-    showToast({
-      type: 'success',
-      title: 'Đã cập nhật tên người gửi',
-      description: `Tên người gửi đã được đổi thành "${newName}".`,
-    })
+  const handleEditSender = async (senderId: string, newName: string) => {
+    try {
+      await senderService.update(senderId, { name: newName })
+      await loadSenders()
+      showToast({
+        type: 'success',
+        title: 'Đã cập nhật tên người gửi',
+        description: `Tên người gửi đã được đổi thành "${newName}".`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không cập nhật được người gửi',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+      throw error
+    }
   }
 
-  const handleDeleteSender = (senderId: string) => {
-    setSenders((prev) => prev.filter((s) => s.id !== senderId))
-    setDeletingSender(null)
-    showToast({
-      type: 'success',
-      title: 'Đã xóa người gửi',
-      description: 'Địa chỉ người gửi đã được xóa khỏi hệ thống.',
-    })
+  const handleDeleteSender = async (senderId: string) => {
+    try {
+      await senderService.delete(senderId)
+      setDeletingSender(null)
+      await loadSenders()
+      showToast({
+        type: 'success',
+        title: 'Đã xóa người gửi',
+        description: 'Địa chỉ người gửi đã được xóa khỏi hệ thống.',
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không xóa được người gửi',
+        description: error instanceof ApiError ? error.detail : 'Người gửi có thể đang được chiến dịch sử dụng.',
+      })
+    }
   }
 
   const handleResendVerification = (sender: VerifiedSender) => {
     showToast({
       type: 'info',
-      title: 'Đang gửi lại email xác thực',
-      description: `Đã gửi mã xác minh mới tới ${sender.email}.`,
+      title: 'Không cần xác thực email',
+      description: `Người gửi ${sender.email} dùng trạng thái ACTIVE/DISABLED. Xác minh DKIM sẽ có ở bước Domains.`,
     })
   }
 
-  const handleSetDefault = (sender: VerifiedSender) => {
-    setSenders((prev) =>
-      prev.map((s) => ({
-        ...s,
-        isDefault: s.id === sender.id,
-      }))
-    )
-    showToast({
-      type: 'success',
-      title: 'Đã đặt người gửi mặc định',
-      description: `"${sender.name}" (${sender.email}) đã được đặt làm người gửi mặc định cho các chiến dịch mới.`,
-    })
+  const handleSetDefault = async (sender: VerifiedSender) => {
+    try {
+      await senderService.setDefault(sender.id)
+      await loadSenders()
+      showToast({
+        type: 'success',
+        title: 'Đã đặt người gửi mặc định',
+        description: `"${sender.name}" (${sender.email}) đã được đặt làm người gửi mặc định cho các chiến dịch mới.`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không đặt được mặc định',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    }
   }
 
   return (
@@ -359,7 +342,7 @@ export const SendersPage: React.FC<SendersPageProps> = ({ onNavigate }) => {
               className="bg-rose-600 hover:bg-rose-700 font-bold"
               onClick={() => {
                 if (deletingSender) {
-                  handleDeleteSender(deletingSender.id)
+                  void handleDeleteSender(deletingSender.id)
                 }
               }}
             >

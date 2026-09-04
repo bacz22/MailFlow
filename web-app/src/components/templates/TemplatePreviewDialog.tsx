@@ -4,7 +4,6 @@ import {
   Monitor,
   Mail,
   Send,
-  ShieldCheck,
   X,
 } from 'lucide-react'
 import {

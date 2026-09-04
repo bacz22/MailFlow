@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { PageHeader } from '../components/layout/PageHeader'
 import {
@@ -20,59 +20,134 @@ import { CampaignStep3ContentForm } from '../components/campaigns/wizard/Campaig
 import { CampaignStep4PreviewTestForm } from '../components/campaigns/wizard/CampaignStep4PreviewTestForm'
 import { CampaignStep5ScheduleForm } from '../components/campaigns/wizard/CampaignStep5ScheduleForm'
 import { CampaignStep6ReviewForm } from '../components/campaigns/wizard/CampaignStep6ReviewForm'
+import { Spinner } from '../components/ui/Spinner'
 import { useToast } from '../components/ui/Toast'
-import { usePermission, PERMISSIONS } from '../permissions'
+import { ApiError } from '../services/apiClient'
+import { campaignService, type CampaignDetail, type CampaignWritePayload } from '../services/campaign.service'
+import { templateService } from '../services/template.service'
 import type {
   CampaignWizardStep,
   CampaignWizardState,
 } from '../types/campaignWizard.types'
 
-const INITIAL_WIZARD_STATE: CampaignWizardState = {
+const EMPTY_WIZARD_STATE: CampaignWizardState = {
   step1: {
-    campaignName: 'Chiến Dịch Tháng 8 - Tối Ưu Tỷ Lệ Mở Hộp Thư',
-    subject: '🔥 5 Chiến lược gửi email đạt 99.8% Inbox Rate cùng MailFlow',
-    previewText: 'Bí quyết cấu hình DKIM/SPF và tuân thủ RFC 8058 cho doanh nghiệp.',
-    senderId: 'snd-1',
-    senderName: 'MailFlow Product Team',
-    senderEmail: 'newsletter@mailflow.vn',
-    replyTo: 'newsletter@mailflow.vn',
+    campaignName: '',
+    subject: '',
+    previewText: '',
+    senderId: '',
+    senderName: '',
+    senderEmail: '',
+    replyTo: '',
   },
   step2: {
-    selectedListIds: ['lst-1'],
-    selectedSegmentIds: ['seg-1'],
+    selectedListIds: [],
+    selectedSegmentIds: [],
     excludedListIds: [],
-    estimatedRecipients: 7735,
+    estimatedRecipients: 0,
   },
   step3: {
-    templateId: 'tpl-1',
-    templateName: 'Product Launch 2.0 - Dark & Light Modern',
-    htmlContent: '<p>Xin chào <strong>{{firstName}}</strong>,</p><p>Khám phá bản cập nhật MailFlow 2.0 ngay hôm nay.</p>',
+    htmlContent: '',
   },
   step4: {
-    testEmail: 'developer@mailflow.vn',
-    isTestSent: true,
+    testEmail: '',
+    isTestSent: false,
   },
   step5: {
     sendType: 'immediate',
-    batchSpeed: 'fast',
+    batchSpeed: 'normal',
   },
 }
 
+function pad(value: number): string {
+  return String(value).padStart(2, '0')
+}
+
+function splitIso(iso?: string): { scheduledDate?: string; scheduledTime?: string } {
+  if (!iso) return {}
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return {}
+  return {
+    scheduledDate: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    scheduledTime: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+  }
+}
+
+function toWizardState(campaign: CampaignDetail): CampaignWizardState {
+  const schedule = splitIso(campaign.scheduledAtIso)
+  return {
+    step1: {
+      campaignName: campaign.name,
+      subject: campaign.subject,
+      previewText: campaign.previewText || '',
+      senderId: campaign.senderId || '',
+      senderName: campaign.senderName || '',
+      senderEmail: campaign.senderEmail || '',
+      replyTo: campaign.replyTo || '',
+    },
+    step2: {
+      selectedListIds: campaign.listIds,
+      selectedSegmentIds: campaign.segmentIds,
+      excludedListIds: campaign.excludedListIds,
+      estimatedRecipients: campaign.recipientCount,
+    },
+    step3: {
+      templateId: campaign.templateId,
+      htmlContent: campaign.htmlContent || '',
+    },
+    step4: {
+      testEmail: '',
+      isTestSent: false,
+    },
+    step5: {
+      sendType: campaign.sendType || 'immediate',
+      scheduledDate: schedule.scheduledDate,
+      scheduledTime: schedule.scheduledTime,
+      batchSpeed: 'normal',
+    },
+  }
+}
+
+function toWritePayload(state: CampaignWizardState): CampaignWritePayload {
+  let scheduledAt: string | undefined
+  if (state.step5.sendType === 'scheduled' && state.step5.scheduledDate && state.step5.scheduledTime) {
+    const local = new Date(`${state.step5.scheduledDate}T${state.step5.scheduledTime}:00`)
+    if (!Number.isNaN(local.getTime())) {
+      scheduledAt = local.toISOString()
+    }
+  }
+  return {
+    name: state.step1.campaignName.trim(),
+    subject: state.step1.subject.trim(),
+    previewText: state.step1.previewText.trim() || undefined,
+    senderId: state.step1.senderId || undefined,
+    replyTo: state.step1.replyTo.trim() || undefined,
+    templateId: state.step3.templateId,
+    htmlContent: state.step3.htmlContent,
+    sendType: state.step5.sendType,
+    scheduledAt,
+    listIds: state.step2.selectedListIds,
+    segmentIds: state.step2.selectedSegmentIds,
+    excludedListIds: state.step2.excludedListIds,
+  }
+}
+
 export interface CampaignWizardPageProps {
+  campaignId?: string
   onNavigate: (path: string) => void
 }
 
-export const CampaignWizardPage: React.FC<CampaignWizardPageProps> = ({ onNavigate }) => {
+export const CampaignWizardPage: React.FC<CampaignWizardPageProps> = ({ campaignId, onNavigate }) => {
   const { showToast } = useToast()
-  const { hasPermission } = usePermission()
-  const canSend = hasPermission(PERMISSIONS.CAMPAIGN_SEND)
 
   // Stepper & State
   const [currentStep, setCurrentStep] = useState<CampaignWizardStep>(1)
-  const [wizardData, setWizardData] = useState<CampaignWizardState>(INITIAL_WIZARD_STATE)
+  const [wizardData, setWizardData] = useState<CampaignWizardState>(EMPTY_WIZARD_STATE)
+  const [savedId, setSavedId] = useState<string | undefined>(campaignId)
   const [isDirty, setIsDirty] = useState(false)
   const [isExitDialogOpen, setIsExitDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoadingCampaign, setIsLoadingCampaign] = useState<boolean>(!!campaignId)
 
   // Step 1, 2, 3, 5 validation
   const isStep1Valid =
@@ -109,46 +184,111 @@ export const CampaignWizardPage: React.FC<CampaignWizardPageProps> = ({ onNaviga
     }
   }
 
+  const persistDraft = useCallback(async (options?: { stay?: boolean }): Promise<string> => {
+    const payload = toWritePayload(wizardData)
+    if (savedId) {
+      await campaignService.update(savedId, payload)
+      return savedId
+    }
+    const created = await campaignService.create(payload)
+    setSavedId(created.id)
+    if (!options?.stay) {
+      onNavigate(`/campaigns/${created.id}/edit`)
+    }
+    return created.id
+  }, [onNavigate, savedId, wizardData])
+
+  useEffect(() => {
+    if (!campaignId) {
+      setIsLoadingCampaign(false)
+      return
+    }
+    let cancelled = false
+    setIsLoadingCampaign(true)
+    void (async () => {
+      try {
+        const campaign = await campaignService.get(campaignId)
+        if (cancelled) return
+        let next = toWizardState(campaign)
+        if (campaign.templateId) {
+          try {
+            const tpl = await templateService.get(campaign.templateId)
+            if (!cancelled) {
+              next = {
+                ...next,
+                step3: {
+                  ...next.step3,
+                  templateName: tpl.name,
+                  thumbnailGradient: tpl.thumbnailGradient,
+                  bannerLabel: tpl.bannerLabel,
+                  bannerTitle: tpl.bannerTitle,
+                },
+              }
+            }
+          } catch {
+            // layout defaults if template deleted
+          }
+        }
+        setSavedId(campaign.id)
+        setWizardData(next)
+        setIsDirty(false)
+      } catch (error) {
+        showToast({
+          type: 'error',
+          title: 'Không tải được chiến dịch',
+          description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+        })
+      } finally {
+        if (!cancelled) setIsLoadingCampaign(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [campaignId, showToast])
+
   const handleSaveDraft = async () => {
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    setIsSubmitting(false)
-    setIsDirty(false)
-    showToast({
-      type: 'success',
-      title: 'Đã lưu bản nháp',
-      description: `Bản nháp "${wizardData.step1.campaignName}" đã được lưu an toàn.`,
-    })
+    try {
+      await persistDraft()
+      setIsDirty(false)
+      showToast({
+        type: 'success',
+        title: 'Đã lưu bản nháp',
+        description: `Bản nháp "${wizardData.step1.campaignName}" đã được lưu an toàn.`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không lưu được bản nháp',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handlePublish = async () => {
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    setIsSubmitting(false)
-
-    if (canSend) {
-      if (wizardData.step5.sendType === 'immediate') {
-        showToast({
-          type: 'success',
-          title: 'Đã đưa vào hàng đợi gửi (Queue)',
-          description: `Chiến dịch "${wizardData.step1.campaignName}" đang được phân phối tới ${wizardData.step2.estimatedRecipients.toLocaleString()} người nhận!`,
-        })
-      } else {
-        showToast({
-          type: 'success',
-          title: 'Lập lịch thành công',
-          description: `Chiến dịch "${wizardData.step1.campaignName}" sẽ tự động gửi lúc ${wizardData.step5.scheduledTime}, ${wizardData.step5.scheduledDate}.`,
-        })
-      }
-    } else {
+    try {
+      const id = await persistDraft({ stay: true })
+      await campaignService.submit(id)
+      setIsDirty(false)
       showToast({
         type: 'success',
         title: 'Đã gửi yêu cầu phê duyệt',
         description: `Chiến dịch "${wizardData.step1.campaignName}" đã được chuyển tới Admin để kiểm duyệt trước khi phát hành.`,
       })
+      onNavigate('/campaigns')
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không gửi duyệt được',
+        description: error instanceof ApiError ? error.detail : 'Kiểm tra người gửi, nội dung và đối tượng nhận.',
+      })
+    } finally {
+      setIsSubmitting(false)
     }
-
-    onNavigate('/campaigns')
   }
 
   const handleExitConfirm = () => {
@@ -191,55 +331,63 @@ export const CampaignWizardPage: React.FC<CampaignWizardPageProps> = ({ onNaviga
       />
 
       {/* 3. STEP CONTENT FORMS */}
+      {isLoadingCampaign ? (
+        <div className="flex items-center justify-center p-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+          <Spinner size="lg" />
+        </div>
+      ) : (
+        <>
+          {/* ================= STEP 1: CAMPAIGN INFORMATION ================= */}
+          {currentStep === 1 && (
+            <CampaignStep1InfoForm
+              data={wizardData.step1}
+              onChange={(updated, markDirty = true) => {
+                if (markDirty) {
+                  setIsDirty(true)
+                }
+                setWizardData((prev) => ({
+                  ...prev,
+                  step1: { ...prev.step1, ...updated },
+                }))
+              }}
+              onNavigateSettings={() => onNavigate('/senders')}
+            />
+          )}
 
-      {/* ================= STEP 1: CAMPAIGN INFORMATION ================= */}
-      {currentStep === 1 && (
-        <CampaignStep1InfoForm
-          data={wizardData.step1}
-          onChange={(updated) => {
-            setIsDirty(true)
-            setWizardData((prev) => ({
-              ...prev,
-              step1: { ...prev.step1, ...updated },
-            }))
-          }}
-          onNavigateSettings={() => onNavigate('/settings')}
-        />
-      )}
+          {/* ================= STEP 2: AUDIENCE SELECTION ================= */}
+          {currentStep === 2 && (
+            <CampaignStep2AudienceForm
+              data={wizardData.step2}
+              onChange={(updated) => {
+                setIsDirty(true)
+                setWizardData((prev) => ({
+                  ...prev,
+                  step2: { ...prev.step2, ...updated },
+                }))
+              }}
+            />
+          )}
 
-      {/* ================= STEP 2: AUDIENCE SELECTION ================= */}
-      {currentStep === 2 && (
-        <CampaignStep2AudienceForm
-          data={wizardData.step2}
-          onChange={(updated) => {
-            setIsDirty(true)
-            setWizardData((prev) => ({
-              ...prev,
-              step2: { ...prev.step2, ...updated },
-            }))
-          }}
-        />
-      )}
+          {/* ================= STEP 3: CONTENT & TEMPLATE ================= */}
+          {currentStep === 3 && (
+            <CampaignStep3ContentForm
+              data={wizardData.step3}
+              campaignSubject={wizardData.step1.subject}
+              campaignPreviewText={wizardData.step1.previewText}
+              onChange={(updated) => {
+                setIsDirty(true)
+                setWizardData((prev) => ({
+                  ...prev,
+                  step3: { ...prev.step3, ...updated },
+                }))
+              }}
+            />
+          )}
 
-      {/* ================= STEP 3: CONTENT & TEMPLATE ================= */}
-      {currentStep === 3 && (
-        <CampaignStep3ContentForm
-          data={wizardData.step3}
-          campaignSubject={wizardData.step1.subject}
-          campaignPreviewText={wizardData.step1.previewText}
-          onChange={(updated) => {
-            setIsDirty(true)
-            setWizardData((prev) => ({
-              ...prev,
-              step3: { ...prev.step3, ...updated },
-            }))
-          }}
-        />
-      )}
-
-      {/* ================= STEP 4: PREVIEW & TEST ================= */}
-      {currentStep === 4 && (
+          {/* ================= STEP 4: PREVIEW & TEST ================= */}
+          {currentStep === 4 && (
         <CampaignStep4PreviewTestForm
+          campaignId={savedId}
           step1={wizardData.step1}
           step3={wizardData.step3}
           data={wizardData.step4}
@@ -250,34 +398,42 @@ export const CampaignWizardPage: React.FC<CampaignWizardPageProps> = ({ onNaviga
               step4: { ...prev.step4, ...updated },
             }))
           }}
-        />
-      )}
-
-      {/* ================= STEP 5: SCHEDULE & SPEED ================= */}
-      {currentStep === 5 && (
-        <CampaignStep5ScheduleForm
-          data={wizardData.step5}
-          onChange={(updated) => {
-            setIsDirty(true)
+          onStep3LayoutChange={(layout) => {
             setWizardData((prev) => ({
               ...prev,
-              step5: { ...prev.step5, ...updated },
+              step3: { ...prev.step3, ...layout },
             }))
           }}
         />
-      )}
+          )}
 
-      {/* ================= STEP 6: REVIEW & AUDIT (PROMPT 20) ================= */}
-      {currentStep === 6 && (
-        <CampaignStep6ReviewForm
-          wizardData={wizardData}
-          onJumpToStep={(step) => {
-            setCurrentStep(step)
-            window.scrollTo({ top: 0, behavior: 'smooth' })
-          }}
-          onConfirmSubmit={handlePublish}
-          isSubmitting={isSubmitting}
-        />
+          {/* ================= STEP 5: SCHEDULE & SPEED ================= */}
+          {currentStep === 5 && (
+            <CampaignStep5ScheduleForm
+              data={wizardData.step5}
+              onChange={(updated) => {
+                setIsDirty(true)
+                setWizardData((prev) => ({
+                  ...prev,
+                  step5: { ...prev.step5, ...updated },
+                }))
+              }}
+            />
+          )}
+
+          {/* ================= STEP 6: REVIEW & AUDIT (PROMPT 20) ================= */}
+          {currentStep === 6 && (
+            <CampaignStep6ReviewForm
+              wizardData={wizardData}
+              onJumpToStep={(step) => {
+                setCurrentStep(step)
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+              }}
+              onConfirmSubmit={handlePublish}
+              isSubmitting={isSubmitting}
+            />
+          )}
+        </>
       )}
 
       {/* 4. STEPPER FOOTER ACTIONS */}

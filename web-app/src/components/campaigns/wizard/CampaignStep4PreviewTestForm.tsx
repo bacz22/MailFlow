@@ -1,14 +1,16 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   Monitor,
   Smartphone,
   Send,
   User,
   AlertTriangle,
-  ShieldCheck,
 } from 'lucide-react'
 import { Button } from '../../ui/Button'
+import { SimpleSelect } from '../../ui/Select'
+import { TemplatePreview } from '../../templates/TemplatePreview'
 import { SendTestDialog } from '../../templates/SendTestDialog'
+import { templateService } from '../../../services/template.service'
 import type {
   CampaignStep1Info,
   CampaignStep3Content,
@@ -56,23 +58,56 @@ export const SAMPLE_TEST_CONTACTS: SampleContact[] = [
 ]
 
 export interface CampaignStep4PreviewTestFormProps {
+  campaignId?: string
   step1: CampaignStep1Info
   step3: CampaignStep3Content
   data: CampaignStep4PreviewTest
   onChange: (data: Partial<CampaignStep4PreviewTest>) => void
+  onStep3LayoutChange?: (layout: Partial<CampaignStep3Content>) => void
 }
 
 export const CampaignStep4PreviewTestForm: React.FC<CampaignStep4PreviewTestFormProps> = ({
+  campaignId,
   step1,
   step3,
   data: _data,
   onChange,
+  onStep3LayoutChange,
 }) => {
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [selectedContact, setSelectedContact] = useState<SampleContact>(SAMPLE_TEST_CONTACTS[0])
   const [isSendTestOpen, setIsSendTestOpen] = useState(false)
 
-  // Pre-flight validation checks
+  // If campaign was saved with templateId but layout fields missing (edit reload), hydrate from API
+  useEffect(() => {
+    if (!step3.templateId) return
+    if (step3.thumbnailGradient || step3.bannerLabel || step3.bannerTitle) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const tpl = await templateService.get(step3.templateId!)
+        if (cancelled || !onStep3LayoutChange) return
+        onStep3LayoutChange({
+          templateName: tpl.name,
+          thumbnailGradient: tpl.thumbnailGradient,
+          bannerLabel: tpl.bannerLabel,
+          bannerTitle: tpl.bannerTitle,
+        })
+      } catch {
+        // keep defaults
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    step3.templateId,
+    step3.thumbnailGradient,
+    step3.bannerLabel,
+    step3.bannerTitle,
+    onStep3LayoutChange,
+  ])
+
   const hasUnsubscribe =
     (step3.htmlContent || '').includes('unsubscribe') ||
     (step3.htmlContent || '').includes('hủy đăng ký') ||
@@ -80,7 +115,6 @@ export const CampaignStep4PreviewTestForm: React.FC<CampaignStep4PreviewTestForm
   const hasSender = !!step1.senderEmail
   const isContentEmpty = !step3.htmlContent || step3.htmlContent.trim().length === 0
 
-  // Check for broken variables (e.g. {{invalid_var}})
   const detectedVariables = (step3.htmlContent || '').match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []
   const knownVariables = [
     '{{firstName}}',
@@ -92,90 +126,88 @@ export const CampaignStep4PreviewTestForm: React.FC<CampaignStep4PreviewTestForm
   ]
   const invalidVariables = detectedVariables.filter((v) => !knownVariables.includes(v))
 
-  // Render subject and HTML with selected sample contact
-  const resolveVariables = (text: string) => {
-    if (!text) return ''
-    return text
-      .replace(/\{\{firstName\}\}/g, `<strong>${selectedContact.firstName}</strong>`)
-      .replace(/\{\{lastName\}\}/g, `<strong>${selectedContact.lastName}</strong>`)
-      .replace(/\{\{email\}\}/g, `<span class="text-blue-600">${selectedContact.email}</span>`)
-      .replace(/\{\{company\}\}/g, `<strong>${selectedContact.company}</strong>`)
-      .replace(/\{\{phone\}\}/g, `<span>${selectedContact.phone}</span>`)
-      .replace(
-        /\{\{unsubscribeUrl\}\}/g,
-        `<span class="underline text-blue-500 cursor-pointer">hủy nhận thư tại đây (RFC 8058)</span>`
-      )
-  }
-
-  const resolvedSubject = resolveVariables(step1.subject || '(Chưa nhập tiêu đề)')
-  const resolvedBody = resolveVariables(step3.htmlContent || '')
+  // Match backend send-test: template layout if linked, else campaign-name banner
+  const previewGradient =
+    step3.thumbnailGradient || 'bg-gradient-to-tr from-blue-600 to-indigo-600'
+  const previewBannerLabel = step3.templateId
+    ? step3.bannerLabel
+    : step3.bannerLabel || 'Chiến dịch'
+  const previewBannerTitle = step3.bannerTitle?.trim()
+    || (step3.templateId ? undefined : step1.campaignName)
+    || 'Bản Tin MailFlow'
 
   return (
     <div className="space-y-6 animate-in fade-in-0">
-      {/* 1. TOP CONTROL BAR: DEVICE TOGGLE, SAMPLE CONTACT SELECTOR & SEND TEST BUTTON */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 shadow-xs flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-        {/* Sample Contact Selector for Live Personalization */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-            <User className="w-4 h-4 text-blue-600" />
-            <span>Mô Phỏng Cá Nhân Hóa Theo:</span>
+      {/* 1. TOP CONTROL BAR */}
+      <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 shadow-xs">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-4 lg:gap-6 items-end">
+          <div className="min-w-0 space-y-1.5">
+            <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+              <User className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <span>Mô phỏng cá nhân hóa theo</span>
+            </label>
+            <SimpleSelect
+              size="sm"
+              value={selectedContact.id}
+              onValueChange={(id) => {
+                const found = SAMPLE_TEST_CONTACTS.find((c) => c.id === id)
+                if (found) setSelectedContact(found)
+              }}
+              options={SAMPLE_TEST_CONTACTS.map((c) => ({
+                value: c.id,
+                label: `${c.fullName} · ${c.company}`,
+                textValue: `${c.fullName} ${c.company} ${c.email}`,
+              }))}
+              className="w-full max-w-xl rounded-xl font-semibold"
+            />
+            <p className="text-[11px] text-slate-400 truncate">
+              Preview dùng dữ liệu: {selectedContact.email}
+            </p>
           </div>
 
-          <select
-            value={selectedContact.id}
-            onChange={(e) => {
-              const found = SAMPLE_TEST_CONTACTS.find((c) => c.id === e.target.value)
-              if (found) setSelectedContact(found)
-            }}
-            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus-ring cursor-pointer"
-          >
-            {SAMPLE_TEST_CONTACTS.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.fullName} ({c.company} • {c.email})
-              </option>
-            ))}
-          </select>
-        </div>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-end">
+            <div
+              className="inline-flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs self-start sm:self-auto"
+              role="group"
+              aria-label="Chế độ xem trước"
+            >
+              <button
+                type="button"
+                onClick={() => setDevice('desktop')}
+                className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 font-bold ${
+                  device === 'desktop'
+                    ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <Monitor className="w-3.5 h-3.5" />
+                <span>Desktop</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDevice('mobile')}
+                className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 font-bold ${
+                  device === 'mobile'
+                    ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <Smartphone className="w-3.5 h-3.5" />
+                <span>Mobile</span>
+              </button>
+            </div>
 
-        {/* Device Switcher & Send Test Trigger */}
-        <div className="flex items-center gap-3 self-end lg:self-auto flex-wrap">
-          {/* Device Tabs */}
-          <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
-            <button
+            <Button
               type="button"
-              onClick={() => setDevice('desktop')}
-              className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 font-bold ${
-                device === 'desktop'
-                  ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
+              variant="primary"
+              size="sm"
+              className="w-full sm:w-auto shrink-0"
+              leftIcon={<Send className="w-3.5 h-3.5" />}
+              onClick={() => setIsSendTestOpen(true)}
             >
-              <Monitor className="w-3.5 h-3.5" />
-              <span>Desktop</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setDevice('mobile')}
-              className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 font-bold ${
-                device === 'mobile'
-                  ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>Mobile</span>
-            </button>
+              Gửi thử nghiệm
+            </Button>
           </div>
-
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            leftIcon={<Send className="w-3.5 h-3.5" />}
-            onClick={() => setIsSendTestOpen(true)}
-          >
-            Gửi Thử Nghiệm (Send Test)
-          </Button>
         </div>
       </div>
 
@@ -204,95 +236,34 @@ export const CampaignStep4PreviewTestForm: React.FC<CampaignStep4PreviewTestForm
         </div>
       )}
 
-      {/* 3. SIMULATED EMAIL INBOX CONTAINER */}
-      <div className="bg-slate-100 dark:bg-slate-950 p-4 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-start justify-center min-h-[580px] overflow-y-auto">
-        <div
-          className={`transition-all duration-300 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-2xl shadow-xl border border-slate-200/80 dark:border-slate-800 overflow-hidden ${
-            device === 'mobile' ? 'w-[360px] min-h-[580px]' : 'w-full max-w-2xl min-h-[500px]'
-          }`}
-        >
-          {/* Simulated Email Client Header */}
-          <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 space-y-2 text-xs select-none">
-            <div className="flex items-center justify-between text-[11px] text-slate-400">
-              <div className="flex items-center gap-1.5 truncate">
-                <span className="font-bold text-slate-800 dark:text-slate-200">
-                  {step1.senderName || 'MailFlow Sender'}
-                </span>
-                <span className="font-mono">&lt;{step1.senderEmail || 'newsletter@mailflow.vn'}&gt;</span>
-              </div>
-              <span className="shrink-0 font-mono">10:00 AM</span>
-            </div>
+      {/* 3. Same preview component as template editor */}
+      <TemplatePreview
+        subject={step1.subject || '(Chưa nhập tiêu đề)'}
+        previewText={step1.previewText}
+        htmlContent={step3.htmlContent || ''}
+        device={device}
+        thumbnailGradient={previewGradient}
+        bannerLabel={previewBannerLabel}
+        bannerTitle={previewBannerTitle}
+        fromName={step1.senderName || 'MailFlow Sender'}
+        fromEmail={step1.senderEmail || 'newsletter@mailflow.vn'}
+        toDisplay={`${selectedContact.fullName} <${selectedContact.email}>`}
+        sampleRecipient={{
+          firstName: selectedContact.firstName,
+          lastName: selectedContact.lastName,
+          email: selectedContact.email,
+          company: selectedContact.company,
+          phone: selectedContact.phone,
+        }}
+      />
 
-            <div className="flex items-center gap-2 text-[11px] text-slate-500">
-              <span>Gửi tới:</span>
-              <strong className="text-slate-800 dark:text-slate-200">
-                {selectedContact.fullName} &lt;{selectedContact.email}&gt;
-              </strong>
-            </div>
-
-            {/* Resolved Subject */}
-            <div
-              className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm pt-1"
-              dangerouslySetInnerHTML={{ __html: resolvedSubject }}
-            />
-
-            {step1.previewText && (
-              <div className="text-[11px] text-slate-500 truncate">
-                {step1.previewText}
-              </div>
-            )}
-          </div>
-
-          {/* Rendered Email Body Canvas */}
-          <div className="p-6 sm:p-8 space-y-6">
-            {/* Top Brand Banner */}
-            <div className="p-6 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-center space-y-1">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-blue-200">
-                MailFlow Communication
-              </div>
-              <h3 className="text-lg sm:text-xl font-extrabold tracking-tight">
-                {step1.campaignName || 'Chiến Dịch Email'}
-              </h3>
-            </div>
-
-            {/* HTML / Rich Text Rendered Content */}
-            <div
-              className="text-xs sm:text-sm leading-relaxed space-y-3 prose dark:prose-invert max-w-none"
-              dangerouslySetInnerHTML={{
-                __html: resolvedBody || '<p class="text-slate-400 italic">Chưa có nội dung thư.</p>',
-              }}
-            />
-
-            {/* Call to Action Button */}
-            <div className="pt-2 text-center">
-              <span className="inline-block px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-600/30 cursor-pointer">
-                Xem Chi Tiết Ngay
-              </span>
-            </div>
-
-            {/* RFC 8058 1-Click Unsubscribe Footer */}
-            <div className="pt-6 border-t border-slate-100 dark:border-slate-800 text-center space-y-1.5 text-[10px] text-slate-400">
-              <div className="flex items-center justify-center gap-1 text-emerald-600 dark:text-emerald-400">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Bảo mật DKIM/SPF & RFC 8058 1-Click Unsubscribe</span>
-              </div>
-              <p>© 2026 MailFlow Inc. 54 Liễu Giai, Ba Đình, Hà Nội.</p>
-              <p>
-                Email này được gửi đến {selectedContact.email} theo đăng ký của doanh nghiệp {selectedContact.company}.{' '}
-                <span className="underline text-blue-600 cursor-pointer">Hủy đăng ký tại đây</span>
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. SEND TEST DIALOG */}
       <SendTestDialog
         isOpen={isSendTestOpen}
         onClose={() => {
           setIsSendTestOpen(false)
           onChange({ isTestSent: true })
         }}
+        campaignId={campaignId}
         templateName={step1.campaignName}
         subject={step1.subject}
       />

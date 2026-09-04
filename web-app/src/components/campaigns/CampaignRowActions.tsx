@@ -116,7 +116,7 @@ export const CampaignRowActions: React.FC<CampaignRowActionsProps> = ({
           </DropdownMenuItem>
 
           {/* Edit - only if DRAFT or SCHEDULED or PENDING_APPROVAL and has CAMPAIGN_UPDATE */}
-          {(campaign.status === 'DRAFT' || campaign.status === 'SCHEDULED' || campaign.status === 'PENDING_APPROVAL') &&
+          {(campaign.status === 'DRAFT' || campaign.status === 'REJECTED') &&
             hasPermission(PERMISSIONS.CAMPAIGN_UPDATE) && (
               <DropdownMenuItem onClick={() => onEdit(campaign)}>
                 <Edit3 className="w-3.5 h-3.5 mr-2 text-blue-600" />
@@ -154,7 +154,7 @@ export const CampaignRowActions: React.FC<CampaignRowActionsProps> = ({
           )}
 
           {/* Delete action */}
-          {(campaign.status === 'DRAFT' || campaign.status === 'CANCELLED' || campaign.status === 'FAILED') &&
+          {(campaign.status === 'DRAFT' || campaign.status === 'CANCELLED' || campaign.status === 'REJECTED') &&
             hasPermission(PERMISSIONS.CAMPAIGN_DELETE) && (
               <>
                 <DropdownMenuSeparator />

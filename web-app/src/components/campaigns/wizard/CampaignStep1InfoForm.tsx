@@ -7,13 +7,13 @@ import {
 import { Input } from '../../ui/Input'
 import { FormField, FormLabel } from '../../ui/FormGroup'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../ui/Card'
-import { SenderSelector, SAMPLE_SENDERS } from './SenderSelector'
+import { SenderSelector } from './SenderSelector'
 import type { CampaignStep1Info } from '../../../types/campaignWizard.types'
 import type { VerifiedSender } from '../../../types/sender.types'
 
 export interface CampaignStep1InfoFormProps {
   data: CampaignStep1Info
-  onChange: (data: Partial<CampaignStep1Info>) => void
+  onChange: (data: Partial<CampaignStep1Info>, markDirty?: boolean) => void
   onNavigateSettings?: () => void
 }
 
@@ -51,13 +51,13 @@ export const CampaignStep1InfoForm: React.FC<CampaignStep1InfoFormProps> = ({
     }, 50)
   }
 
-  const handleSelectSender = (sender: VerifiedSender) => {
+  const handleSelectSender = (sender: VerifiedSender, markDirty: boolean = true) => {
     onChange({
       senderId: sender.id,
       senderName: sender.name,
       senderEmail: sender.email,
       replyTo: data.replyTo || sender.email,
-    })
+    }, markDirty)
   }
 
   const subjectCharCount = (data.subject || '').length
@@ -157,7 +157,7 @@ export const CampaignStep1InfoForm: React.FC<CampaignStep1InfoFormProps> = ({
         {/* 4. Sender Selector Component */}
         <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
           <SenderSelector
-            selectedSenderId={data.senderId || SAMPLE_SENDERS[0].id}
+            selectedSenderId={data.senderId}
             onSelectSender={handleSelectSender}
             onNavigateSettings={onNavigateSettings}
           />

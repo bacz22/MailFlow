@@ -15,7 +15,7 @@ import { FormField, FormLabel } from '../../ui/FormGroup'
 export interface ApproveCampaignDialogProps {
   isOpen: boolean
   onClose: () => void
-  onConfirmApprove: (note?: string) => void
+  onConfirmApprove: (note?: string) => Promise<void> | void
   campaignName: string
   recipientCount: number
   scheduledAt?: string
@@ -34,11 +34,13 @@ export const ApproveCampaignDialog: React.FC<ApproveCampaignDialogProps> = ({
 
   const handleApprove = async () => {
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    setIsSubmitting(false)
-    onConfirmApprove(note.trim() || undefined)
-    setNote('')
-    onClose()
+    try {
+      await onConfirmApprove(note.trim() || undefined)
+      setNote('')
+      onClose()
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (

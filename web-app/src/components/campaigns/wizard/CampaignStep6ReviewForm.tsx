@@ -78,11 +78,11 @@ export const CampaignStep6ReviewForm: React.FC<CampaignStep6ReviewFormProps> = (
           </div>
 
           {/* Recipient Count Highlight */}
-          <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-center sm:text-right shrink-0">
-            <div className="text-3xl font-extrabold font-mono text-white">
+          <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-center flex flex-col items-center justify-center min-w-[140px] shrink-0">
+            <div className="text-3xl font-extrabold font-mono text-white text-center w-full">
               {recipientCount.toLocaleString()}
             </div>
-            <div className="text-[11px] text-blue-100 font-medium">Người Nhận Hợp Lệ</div>
+            <div className="text-[11px] text-blue-100 font-medium text-center">Người Nhận Hợp Lệ</div>
           </div>
         </div>
       </div>

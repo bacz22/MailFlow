@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   Code,
   Search,
@@ -8,6 +8,10 @@ import {
   FileText,
   Layers,
   ArrowRight,
+  LayoutGrid,
+  List,
+  X,
+  RotateCcw,
 } from 'lucide-react'
 import { Input } from '../../ui/Input'
 import { Textarea } from '../../ui/Textarea'
@@ -15,87 +19,21 @@ import { Button } from '../../ui/Button'
 import { Badge } from '../../ui/Badge'
 import { SimpleSelect, type SelectOption } from '../../ui/Select'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../ui/Card'
+import { Pagination } from '../../ui/Pagination'
 import { VariablePicker } from '../../templates/VariablePicker'
 import { TemplatePreviewDialog } from '../../templates/TemplatePreviewDialog'
 import { useToast } from '../../ui/Toast'
+import { templateService } from '../../../services/template.service'
 import type { CampaignStep3Content } from '../../../types/campaignWizard.types'
 import type { EmailTemplate } from '../../../types/template.types'
 
 const TEMPLATE_FILTER_OPTIONS: SelectOption[] = [
   { value: 'all', label: 'Tất cả phân loại' },
+  { value: 'Transactional', label: 'Transactional' },
+  { value: 'Onboarding', label: 'Onboarding' },
+  { value: 'Promotional', label: 'Promotional' },
   { value: 'Product', label: 'Product Launch' },
   { value: 'Newsletter', label: 'Newsletter' },
-  { value: 'Promotional', label: 'Promotional' },
-  { value: 'Onboarding', label: 'Onboarding' },
-]
-
-const AVAILABLE_TEMPLATES: EmailTemplate[] = [
-  {
-    id: 'tpl-1',
-    name: 'Product Launch 2.0 - Dark & Light Modern',
-    subject: '🚀 Ra mắt MailFlow 2.0: Trải nghiệm email marketing đỉnh cao',
-    previewText: 'Khám phá hạ tầng gửi 500,000 email/phút và tự động hóa RFC 8058 hoàn toàn mới.',
-    category: 'Product',
-    status: 'published',
-    createdBy: 'Nguyễn Văn Editor',
-    createdAt: '10/08/2026',
-    updatedAt: '25/08/2026',
-    thumbnailGradient: 'bg-gradient-to-tr from-blue-600 to-indigo-600',
-    htmlContent: `
-      <p>Xin chào <strong>{{firstName}}</strong>,</p>
-      <p>Chúng tôi vô cùng hào hứng giới thiệu <strong>MailFlow 2.0</strong> — giải pháp gửi email hàng loạt với độ ổn định Inbox đạt 99.8%.</p>
-      <p>Với hạ tầng Dedicated IP và chuẩn mã hóa DKIM tự động, doanh nghiệp <em>{{company}}</em> sẽ tối ưu hiệu suất chuyển đổi lên tới 300%.</p>
-    `,
-  },
-  {
-    id: 'tpl-2',
-    name: 'Weekly Tech & SaaS Newsletter #48',
-    subject: 'Bản tin hàng tuần: 5 mẹo tối ưu Inbox Rate với RFC 8058',
-    previewText: 'Các chiến thuật tối ưu chiến dịch email marketing B2B không thể bỏ qua tuần này.',
-    category: 'Newsletter',
-    status: 'published',
-    createdBy: 'Trần Minh Marketing',
-    createdAt: '15/08/2026',
-    updatedAt: '24/08/2026',
-    thumbnailGradient: 'bg-gradient-to-tr from-emerald-600 to-teal-600',
-    htmlContent: `
-      <p>Chào <strong>{{firstName}}</strong>,</p>
-      <p>Chào mừng bạn đến với bản tin số #48. Hôm nay chúng ta cùng phân tích cách cấu hình <strong>List-Unsubscribe RFC 8058</strong> giúp tăng uy tín với Google & Yahoo Mail.</p>
-      <p>Chúc bạn và doanh nghiệp <em>{{company}}</em> có tuần làm việc hiệu quả!</p>
-    `,
-  },
-  {
-    id: 'tpl-3',
-    name: 'Black Friday VIP Exclusive 30% Off',
-    subject: 'Ưu đãi độc quyền giảm 30% cho khách hàng thân thiết',
-    previewText: 'Cơ hội nâng cấp gói Enterprise với chi phí tối ưu nhất trong năm.',
-    category: 'Promotional',
-    status: 'published',
-    createdBy: 'Lê Hoàng Content',
-    createdAt: '18/08/2026',
-    updatedAt: '25/08/2026',
-    thumbnailGradient: 'bg-gradient-to-tr from-amber-600 to-rose-600',
-    htmlContent: `
-      <p>Kính gửi <strong>{{firstName}} {{lastName}}</strong>,</p>
-      <p>Dành riêng cho <em>{{company}}</em>: Mã ưu đãi <strong>VIP30</strong> giảm ngay 30% cho chu kỳ đăng ký năm tiếp theo.</p>
-    `,
-  },
-  {
-    id: 'tpl-4',
-    name: 'Welcome & 14-Day Onboarding Sequence',
-    subject: 'Chào mừng bạn đến với MailFlow — Bắt đầu 3 bước thiết lập đầu tiên',
-    previewText: 'Hướng dẫn xác thực tên miền DNS và nạp danh bạ liên hệ trong 5 phút.',
-    category: 'Onboarding',
-    status: 'published',
-    createdBy: 'Nguyễn Văn Editor',
-    createdAt: '01/08/2026',
-    updatedAt: '20/08/2026',
-    thumbnailGradient: 'bg-gradient-to-tr from-violet-600 to-purple-600',
-    htmlContent: `
-      <p>Chào mừng <strong>{{firstName}}</strong> gia nhập cộng đồng hơn 14,000 doanh nghiệp tin dùng MailFlow!</p>
-      <p>Để bắt đầu gửi chiến dịch email đầu tiên, bạn chỉ cần thực hiện 3 bước cấu hình đơn giản.</p>
-    `,
-  },
 ]
 
 export interface CampaignStep3ContentFormProps {
@@ -121,11 +59,33 @@ export const CampaignStep3ContentForm: React.FC<CampaignStep3ContentFormProps> =
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(null)
+  const [templates, setTemplates] = useState<EmailTemplate[]>([])
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(6)
 
-  const filteredTemplates = AVAILABLE_TEMPLATES.filter((t) => {
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      if (!t.name.toLowerCase().includes(q) && !t.subject.toLowerCase().includes(q)) {
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const rows = await templateService.list({ status: 'published' })
+        if (!cancelled) setTemplates(rows)
+      } catch {
+        if (!cancelled) setTemplates([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const filteredTemplates = templates.filter((t) => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      const matchName = t.name.toLowerCase().includes(q)
+      const matchSubject = t.subject?.toLowerCase().includes(q)
+      const matchPreview = t.previewText?.toLowerCase().includes(q)
+      if (!matchName && !matchSubject && !matchPreview) {
         return false
       }
     }
@@ -133,12 +93,39 @@ export const CampaignStep3ContentForm: React.FC<CampaignStep3ContentFormProps> =
     return true
   })
 
+  const totalItems = filteredTemplates.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage = Math.min(currentPage, totalPages)
+  const paginatedTemplates = filteredTemplates.slice(
+    (safePage - 1) * pageSize,
+    safePage * pageSize
+  )
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value)
+    setCurrentPage(1)
+  }
+
+  const handleCategoryChange = (value: string) => {
+    setCategoryFilter(value)
+    setCurrentPage(1)
+  }
+
+  const handleClearFilters = () => {
+    setSearchQuery('')
+    setCategoryFilter('all')
+    setCurrentPage(1)
+  }
+
   // Select Template and import HTML into Campaign Content
   const handleSelectTemplate = (template: EmailTemplate) => {
     onChange({
       templateId: template.id,
       templateName: template.name,
       htmlContent: template.htmlContent.trim(),
+      thumbnailGradient: template.thumbnailGradient,
+      bannerLabel: template.bannerLabel,
+      bannerTitle: template.bannerTitle,
     })
     setContentMode('custom')
     showToast({
@@ -228,105 +215,315 @@ export const CampaignStep3ContentForm: React.FC<CampaignStep3ContentFormProps> =
 
       {/* ================= PATHWAY A: EXISTING TEMPLATE BROWSER ================= */}
       {contentMode === 'template' && (
-        <Card className="animate-in fade-in-0">
-          <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-base">Chọn Mẫu Email Từ Thư Viện</CardTitle>
-              <CardDescription className="text-xs">
-                Nội dung từ mẫu được chọn sẽ được nạp vào chiến dịch này. Bạn hoàn toàn có thể tùy biến văn bản mà không ảnh hưởng tới mẫu gốc.
-              </CardDescription>
-            </div>
-
-            {/* Filter */}
-            <div className="w-48">
-              <SimpleSelect
-                size="sm"
-                value={categoryFilter}
-                onValueChange={setCategoryFilter}
-                options={TEMPLATE_FILTER_OPTIONS}
-                className="rounded-xl font-semibold"
-              />
-            </div>
-          </CardHeader>
-
-          <CardContent className="space-y-4 pt-4">
-            <Input
-              placeholder="Tìm kiếm mẫu email theo tên hoặc chủ đề..."
-              leftIcon={<Search className="w-4 h-4 text-slate-400" />}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-
-            {/* Templates Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {filteredTemplates.map((tpl) => {
-                const isCurrentActive = data.templateId === tpl.id
-
-                return (
-                  <div
-                    key={tpl.id}
-                    className={`rounded-2xl border transition-all overflow-hidden flex flex-col justify-between ${
-                      isCurrentActive
-                        ? 'border-blue-600 ring-2 ring-blue-500/20 shadow-md'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
-                    }`}
-                  >
-                    {/* Simulated Banner */}
-                    <div
-                      className={`h-28 p-3 text-white flex flex-col justify-between ${
-                        tpl.thumbnailGradient || 'bg-gradient-to-r from-blue-600 to-indigo-600'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-bold uppercase">
-                          {tpl.category}
-                        </span>
-                        {isCurrentActive && (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center gap-1">
-                            <Check className="w-3 h-3" />
-                            <span>Đang Chọn</span>
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="font-bold text-xs line-clamp-1">{tpl.name}</div>
-                    </div>
-
-                    {/* Content preview */}
-                    <div className="p-3.5 space-y-3 bg-white dark:bg-slate-900 flex-1 flex flex-col justify-between text-xs">
-                      <div className="text-slate-500 line-clamp-2 text-[11px]">
-                        {tpl.previewText}
-                      </div>
-
-                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs"
-                          leftIcon={<Eye className="w-3.5 h-3.5" />}
-                          onClick={() => setPreviewTemplate(tpl)}
-                        >
-                          Xem Trước
-                        </Button>
-
-                        <Button
-                          type="button"
-                          variant={isCurrentActive ? 'secondary' : 'primary'}
-                          size="sm"
-                          rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                          onClick={() => handleSelectTemplate(tpl)}
-                        >
-                          {isCurrentActive ? 'Tiếp Tục Soạn' : 'Áp Dụng Mẫu Này'}
-                        </Button>
-                      </div>
-                    </div>
+        <div className="space-y-4 animate-in fade-in-0">
+          {/* Currently Selected Template Banner (if any) */}
+          {data.templateId && (
+            <div className="p-3.5 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Check className="w-4 h-4" />
+                </div>
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900 dark:text-slate-100">
+                      Mẫu Đang Áp Dụng: <span className="text-blue-600 dark:text-blue-400 font-semibold">{data.templateName || 'Đã chọn'}</span>
+                    </span>
+                    <Badge variant="success" size="sm" className="font-medium">
+                      Đã nạp vào chiến dịch
+                    </Badge>
                   </div>
-                )
-              })}
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Nội dung mẫu này đang được dùng trong chiến dịch. Bạn có thể chọn mẫu khác bên dưới hoặc tiếp tục tùy biến.
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                className="text-xs shrink-0 self-end sm:self-auto"
+                rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                onClick={() => setContentMode('custom')}
+              >
+                Vào Soạn Thảo Nội Dung
+              </Button>
             </div>
-          </CardContent>
-        </Card>
+          )}
+
+          <Card className="shadow-xs border-slate-200/90 dark:border-slate-800/90">
+            <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base">Chọn Mẫu Email Từ Thư Viện</CardTitle>
+                  <Badge variant="secondary" size="sm" className="font-mono font-bold">
+                    {totalItems.toLocaleString()} mẫu
+                  </Badge>
+                </div>
+                <CardDescription className="text-xs mt-0.5">
+                  Nội dung từ mẫu được chọn sẽ được nạp vào chiến dịch này. Bạn hoàn toàn có thể tùy biến văn bản mà không ảnh hưởng tới mẫu gốc.
+                </CardDescription>
+              </div>
+
+              {/* View mode toggle */}
+              <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0 self-end sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                    viewMode === 'grid'
+                      ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                      : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                  }`}
+                  title="Dạng lưới thẻ (Grid)"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                    viewMode === 'list'
+                      ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                      : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                  }`}
+                  title="Dạng danh sách gọn (Compact List)"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-4 pt-4">
+              {/* Toolbar: Search + Category Filter */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="flex-1">
+                  <Input
+                    placeholder="Tìm kiếm mẫu email theo tên hoặc chủ đề..."
+                    leftIcon={<Search className="w-4 h-4 text-slate-400" />}
+                    rightIcon={
+                      searchQuery ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSearchChange('')}
+                          className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                          title="Xóa tìm kiếm"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      ) : null
+                    }
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                  />
+                </div>
+
+                <div className="w-full sm:w-56">
+                  <SimpleSelect
+                    size="md"
+                    value={categoryFilter}
+                    onValueChange={handleCategoryChange}
+                    options={TEMPLATE_FILTER_OPTIONS}
+                    className="rounded-xl font-semibold"
+                  />
+                </div>
+              </div>
+
+              {/* Templates Container */}
+              {totalItems === 0 ? (
+                /* Empty state */
+                <div className="py-12 px-4 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col items-center justify-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                    <Search className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                      Không tìm thấy mẫu email phù hợp
+                    </p>
+                    <p className="text-xs text-slate-500 max-w-sm">
+                      {searchQuery
+                        ? `Không có mẫu nào khớp với "${searchQuery}".`
+                        : 'Không có mẫu nào trong phân loại đã chọn.'}
+                    </p>
+                  </div>
+                  {(searchQuery || categoryFilter !== 'all') && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
+                      onClick={handleClearFilters}
+                    >
+                      Xóa Bộ Lọc
+                    </Button>
+                  )}
+                </div>
+              ) : viewMode === 'grid' ? (
+                /* Grid View */
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {paginatedTemplates.map((tpl) => {
+                    const isCurrentActive = data.templateId === tpl.id
+
+                    return (
+                      <div
+                        key={tpl.id}
+                        className={`rounded-2xl border transition-all overflow-hidden flex flex-col justify-between ${
+                          isCurrentActive
+                            ? 'border-blue-600 ring-2 ring-blue-500/20 shadow-md'
+                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'
+                        }`}
+                      >
+                        {/* Simulated Banner */}
+                        <div
+                          className={`h-28 p-3 text-white flex flex-col justify-between ${
+                            tpl.thumbnailGradient || 'bg-gradient-to-r from-blue-600 to-indigo-600'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-bold uppercase tracking-wider">
+                              {tpl.category}
+                            </span>
+                            {isCurrentActive && (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center gap-1 shadow-xs">
+                                <Check className="w-3 h-3" />
+                                <span>Đang Chọn</span>
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="font-bold text-xs line-clamp-1 drop-shadow-xs">{tpl.name}</div>
+                        </div>
+
+                        {/* Content preview */}
+                        <div className="p-3.5 space-y-3 bg-white dark:bg-slate-900 flex-1 flex flex-col justify-between text-xs">
+                          <div className="text-slate-500 dark:text-slate-400 line-clamp-2 text-[11px] h-8 leading-relaxed">
+                            {tpl.previewText || tpl.subject || 'Không có mô tả xem trước'}
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs text-slate-600 dark:text-slate-300"
+                              leftIcon={<Eye className="w-3.5 h-3.5" />}
+                              onClick={() => setPreviewTemplate(tpl)}
+                            >
+                              Xem Trước
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant={isCurrentActive ? 'secondary' : 'primary'}
+                              size="sm"
+                              className="text-xs"
+                              rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                              onClick={() => handleSelectTemplate(tpl)}
+                            >
+                              {isCurrentActive ? 'Tiếp Tục Soạn' : 'Áp Dụng Mẫu'}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                /* Compact List View */
+                <div className="space-y-2">
+                  {paginatedTemplates.map((tpl) => {
+                    const isCurrentActive = data.templateId === tpl.id
+
+                    return (
+                      <div
+                        key={tpl.id}
+                        className={`p-3 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                          isCurrentActive
+                            ? 'border-blue-600 bg-blue-50/25 dark:bg-blue-950/20 ring-2 ring-blue-500/20 shadow-xs'
+                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
+                        }`}
+                      >
+                        {/* Left: Thumbnail & Details */}
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div
+                            className={`w-11 h-11 rounded-xl text-white shrink-0 flex items-center justify-center font-bold text-xs shadow-xs ${
+                              tpl.thumbnailGradient || 'bg-gradient-to-r from-blue-600 to-indigo-600'
+                            }`}
+                          >
+                            <Layers className="w-5 h-5 opacity-90" />
+                          </div>
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-xs text-slate-800 dark:text-slate-100 truncate">
+                                {tpl.name}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-semibold uppercase">
+                                {tpl.category}
+                              </span>
+                              {isCurrentActive && (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center gap-1 shadow-xs">
+                                  <Check className="w-3 h-3" />
+                                  <span>Đang Chọn</span>
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-slate-500 dark:text-slate-400 text-[11px] truncate">
+                              {tpl.previewText || tpl.subject || 'Không có mô tả xem trước'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right: Actions */}
+                        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-slate-600 dark:text-slate-300"
+                            leftIcon={<Eye className="w-3.5 h-3.5" />}
+                            onClick={() => setPreviewTemplate(tpl)}
+                          >
+                            Xem Trước
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant={isCurrentActive ? 'secondary' : 'primary'}
+                            size="sm"
+                            className="text-xs"
+                            rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                            onClick={() => handleSelectTemplate(tpl)}
+                          >
+                            {isCurrentActive ? 'Tiếp Tục Soạn' : 'Áp Dụng Mẫu'}
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Pagination Controls */}
+              {totalItems > 0 && (
+                <div className="pt-2">
+                  <Pagination
+                    currentPage={safePage}
+                    totalPages={totalPages}
+                    totalItems={totalItems}
+                    pageSize={pageSize}
+                    pageSizeOptions={[6, 12, 24, 48]}
+                    itemLabel="mẫu email"
+                    onPageChange={(page) => setCurrentPage(page)}
+                    onPageSizeChange={(size) => {
+                      setPageSize(size)
+                      setCurrentPage(1)
+                    }}
+                    className="px-0 py-2 border-t border-slate-100 dark:border-slate-800"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* ================= PATHWAY B: CAMPAIGN CONTENT EDITOR ================= */}

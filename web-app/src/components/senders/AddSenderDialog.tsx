@@ -7,15 +7,17 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
+  ConfirmDialog,
 } from '../ui/Dialog'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { FormField, FormLabel } from '../ui/FormGroup'
+import { ApiError } from '../../services/apiClient'
 
 export interface AddSenderDialogProps {
   isOpen: boolean
   onClose: () => void
-  onAddSender: (name: string, email: string) => void
+  onAddSender: (name: string, email: string) => Promise<void>
 }
 
 export const AddSenderDialog: React.FC<AddSenderDialogProps> = ({
@@ -27,8 +29,9 @@ export const AddSenderDialog: React.FC<AddSenderDialogProps> = ({
   const [email, setEmail] = useState('')
   const [errors, setErrors] = useState<{ name?: string; email?: string }>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
-  const handleSubmit = async () => {
+  const handleInitiateSubmit = () => {
     const errs: { name?: string; email?: string } = {}
     if (!name.trim()) errs.name = 'Vui lòng nhập tên hiển thị người gửi.'
     if (!email.trim() || !email.includes('@')) errs.email = 'Vui lòng nhập địa chỉ email hợp lệ.'
@@ -38,18 +41,44 @@ export const AddSenderDialog: React.FC<AddSenderDialogProps> = ({
       return
     }
 
-    setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    setIsSubmitting(false)
-    onAddSender(name.trim(), email.trim())
-    setName('')
-    setEmail('')
     setErrors({})
-    onClose()
+    setShowConfirm(true)
+  }
+
+  const handleConfirmSubmit = async () => {
+    setIsSubmitting(true)
+    try {
+      await onAddSender(name.trim(), email.trim())
+      setName('')
+      setEmail('')
+      setErrors({})
+      setShowConfirm(false)
+      onClose()
+    } catch (error) {
+      setShowConfirm(false)
+      if (error instanceof ApiError) {
+        if (error.code === 'SENDER_EMAIL_EXISTS' || error.status === 409) {
+          setErrors((prev) => ({
+            ...prev,
+            email: error.detail || error.message || 'Địa chỉ email này đã tồn tại trong workspace.',
+          }))
+        } else if (error.errors && error.errors.length > 0) {
+          const fieldErrs: { name?: string; email?: string } = {}
+          error.errors.forEach((fe) => {
+            if (fe.field === 'email') fieldErrs.email = fe.message
+            if (fe.field === 'name') fieldErrs.name = fe.message
+          })
+          setErrors(fieldErrs)
+        }
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-2 text-blue-600">
@@ -125,14 +154,28 @@ export const AddSenderDialog: React.FC<AddSenderDialogProps> = ({
             type="button"
             variant="primary"
             size="sm"
-            isLoading={isSubmitting}
-            onClick={handleSubmit}
+            onClick={handleInitiateSubmit}
           >
-            Đăng Ký & Gửi Email Xác Thực
+            Đăng Ký
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <ConfirmDialog
+      open={showConfirm}
+      onOpenChange={(open) => {
+        if (!open && !isSubmitting) setShowConfirm(false)
+      }}
+      title="Xác Nhận Đăng Ký Người Gửi"
+      description={`Bạn có chắc chắn muốn đăng ký địa chỉ "${name.trim()}" <${email.trim()}> làm người gửi thư cho tổ chức?`}
+      confirmText="Xác nhận & Lưu"
+      cancelText="Quay lại"
+      variant="primary"
+      isLoading={isSubmitting}
+      onConfirm={() => void handleConfirmSubmit()}
+    />
+    </>
   )
 }
 
