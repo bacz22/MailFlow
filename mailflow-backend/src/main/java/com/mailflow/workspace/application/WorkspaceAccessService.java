@@ -216,6 +216,11 @@ public class WorkspaceAccessService {
                 "Bạn không có quyền phê duyệt chiến dịch workspace này.");
     }
 
+    public WorkspaceMember requireCampaignSend(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, CAMPAIGN_APPROVE_ROLES,
+                "Bạn không có quyền gửi chiến dịch workspace này.");
+    }
+
     private WorkspaceMember requireRoles(
             UUID userId,
             UUID workspaceId,

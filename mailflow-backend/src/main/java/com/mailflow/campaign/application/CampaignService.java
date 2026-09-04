@@ -11,10 +11,14 @@ import com.mailflow.campaign.api.request.SendTestCampaignRequest;
 import com.mailflow.campaign.api.request.UpsertCampaignRequest;
 import com.mailflow.campaign.api.response.CampaignResponse;
 import com.mailflow.campaign.domain.model.Campaign;
+import com.mailflow.campaign.domain.model.CampaignRecipient;
+import com.mailflow.campaign.domain.model.CampaignRecipientStatus;
 import com.mailflow.campaign.domain.model.CampaignStatus;
+import com.mailflow.campaign.domain.repository.CampaignRecipientRepository;
 import com.mailflow.campaign.domain.repository.CampaignRepository;
 import com.mailflow.common.exception.AppException;
 import com.mailflow.common.exception.ResourceNotFoundException;
+import com.mailflow.contact.domain.model.Contact;
 import com.mailflow.emailsender.domain.model.EmailSenderIdentity;
 import com.mailflow.emailsender.domain.model.EmailSenderStatus;
 import com.mailflow.emailsender.domain.repository.EmailSenderIdentityRepository;
@@ -27,6 +31,7 @@ import com.mailflow.user.domain.model.User;
 import com.mailflow.user.domain.repository.UserRepository;
 import com.mailflow.workspace.application.WorkspaceAccessService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +49,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CampaignService {
@@ -57,9 +63,17 @@ public class CampaignService {
             CampaignStatus.PENDING_APPROVAL,
             CampaignStatus.APPROVED,
             CampaignStatus.SCHEDULED,
+            CampaignStatus.SENDING,
+            CampaignStatus.PAUSED,
             CampaignStatus.REJECTED);
+    private static final Set<CampaignRecipientStatus> SKIPPABLE = EnumSet.of(
+            CampaignRecipientStatus.PENDING,
+            CampaignRecipientStatus.SENDING);
 
     private final CampaignRepository campaignRepository;
+    private final CampaignRecipientRepository recipientRepository;
+    private final CampaignAudienceResolver audienceResolver;
+    private final CampaignSendProcessor sendProcessor;
     private final EmailSenderIdentityRepository senderRepository;
     private final EmailTemplateRepository templateRepository;
     private final AudienceListRepository audienceListRepository;
@@ -157,10 +171,15 @@ public class CampaignService {
         }
         assertReadyToSubmit(workspaceId, campaign);
         boolean scheduled = "scheduled".equals(campaign.getSendType()) && campaign.getScheduledAt() != null;
-        campaign.setStatus(scheduled ? CampaignStatus.SCHEDULED : CampaignStatus.APPROVED);
         campaign.setReviewedAt(Instant.now());
         campaign.setReviewNote(blankToNull(request == null ? null : request.getNote()));
-        campaign = campaignRepository.save(campaign);
+        if (scheduled) {
+            campaign.setStatus(CampaignStatus.SCHEDULED);
+            campaign = campaignRepository.save(campaign);
+        } else {
+            campaign = campaignRepository.save(campaign);
+            campaign = startSending(campaign);
+        }
         return toResponses(workspaceId, List.of(campaign)).getFirst();
     }
 
@@ -198,8 +217,120 @@ public class CampaignService {
                     "Không thể hủy chiến dịch ở trạng thái hiện tại.");
         }
         campaign.setStatus(CampaignStatus.CANCELLED);
+        campaign.setCompletedAt(Instant.now());
+        recipientRepository.skipByCampaignIdAndStatusIn(campaign.getId(), SKIPPABLE);
         campaign = campaignRepository.save(campaign);
         return toResponses(workspaceId, List.of(campaign)).getFirst();
+    }
+
+    @Transactional
+    public CampaignResponse send(UUID userId, UUID workspaceId, UUID campaignId) {
+        accessService.requireCampaignSend(userId, workspaceId);
+        Campaign campaign = requireCampaign(workspaceId, campaignId);
+        if (campaign.getStatus() != CampaignStatus.APPROVED) {
+            throw new AppException(HttpStatus.CONFLICT, "CAMPAIGN_SEND_INVALID",
+                    "Chỉ gửi chiến dịch đã được phê duyệt.");
+        }
+        campaign = startSending(campaign);
+        return toResponses(workspaceId, List.of(campaign)).getFirst();
+    }
+
+    @Transactional
+    public CampaignResponse pause(UUID userId, UUID workspaceId, UUID campaignId) {
+        accessService.requireCampaignSend(userId, workspaceId);
+        Campaign campaign = requireCampaign(workspaceId, campaignId);
+        if (campaign.getStatus() != CampaignStatus.SENDING) {
+            throw new AppException(HttpStatus.CONFLICT, "CAMPAIGN_PAUSE_INVALID",
+                    "Chỉ tạm dừng chiến dịch đang gửi.");
+        }
+        campaign.setStatus(CampaignStatus.PAUSED);
+        campaign = campaignRepository.save(campaign);
+        return toResponses(workspaceId, List.of(campaign)).getFirst();
+    }
+
+    @Transactional
+    public CampaignResponse resume(UUID userId, UUID workspaceId, UUID campaignId) {
+        accessService.requireCampaignSend(userId, workspaceId);
+        Campaign campaign = requireCampaign(workspaceId, campaignId);
+        if (campaign.getStatus() != CampaignStatus.PAUSED) {
+            throw new AppException(HttpStatus.CONFLICT, "CAMPAIGN_RESUME_INVALID",
+                    "Chỉ tiếp tục chiến dịch đang tạm dừng.");
+        }
+        campaign.setStatus(CampaignStatus.SENDING);
+        campaign = campaignRepository.save(campaign);
+        return toResponses(workspaceId, List.of(campaign)).getFirst();
+    }
+
+    @Transactional
+    public void startDueScheduledCampaigns() {
+        Instant now = Instant.now();
+        List<Campaign> due = campaignRepository.findByStatusAndScheduledAtLessThanEqual(
+                CampaignStatus.SCHEDULED, now);
+        for (Campaign campaign : due) {
+            try {
+                startSending(campaign);
+            } catch (Exception ex) {
+                log.error("Không khởi chạy chiến dịch lịch [{}]: {}", campaign.getId(), ex.getMessage(), ex);
+                campaign.setStatus(CampaignStatus.FAILED);
+                campaign.setCompletedAt(Instant.now());
+                campaignRepository.save(campaign);
+            }
+        }
+    }
+
+    /**
+     * Claim PENDING recipients one-by-one (each in its own TX via {@link CampaignSendProcessor}).
+     */
+    public int processPendingRecipients(int batchSize) {
+        sendProcessor.recoverStuckSendingRecipients();
+        List<UUID> ids = sendProcessor.findPendingRecipientIds(batchSize);
+        for (UUID recipientId : ids) {
+            try {
+                sendProcessor.processOne(recipientId);
+            } catch (Exception ex) {
+                log.error("processOne [{}] failed: {}", recipientId, ex.getMessage(), ex);
+            }
+        }
+        sendProcessor.finalizeSendingCampaigns();
+        return ids.size();
+    }
+
+    private Campaign startSending(Campaign campaign) {
+        enqueueRecipients(campaign);
+        campaign.setStatus(CampaignStatus.SENDING);
+        if (campaign.getStartedAt() == null) {
+            campaign.setStartedAt(Instant.now());
+        }
+        campaign.setCompletedAt(null);
+        return campaignRepository.save(campaign);
+    }
+
+    private void enqueueRecipients(Campaign campaign) {
+        if (recipientRepository.existsByCampaignId(campaign.getId())) {
+            long pending = recipientRepository.countByCampaignIdAndStatus(
+                    campaign.getId(), CampaignRecipientStatus.PENDING);
+            if (pending == 0 && campaign.getSentCount() == 0) {
+                // Already enqueued and finished or empty — allow re-count from existing rows
+                long total = recipientRepository.countByCampaignId(campaign.getId());
+                campaign.setEstimatedRecipients(total);
+            }
+            return;
+        }
+        List<Contact> contacts = audienceResolver.resolveActiveRecipients(campaign);
+        List<CampaignRecipient> rows = new ArrayList<>(contacts.size());
+        for (Contact contact : contacts) {
+            rows.add(new CampaignRecipient(
+                    campaign.getId(),
+                    campaign.getWorkspaceId(),
+                    contact.getId(),
+                    contact.getEmail()
+            ));
+        }
+        if (!rows.isEmpty()) {
+            recipientRepository.saveAll(rows);
+        }
+        campaign.setEstimatedRecipients(rows.size());
+        campaign.setSentCount(0);
     }
 
     @Transactional(readOnly = true)
@@ -233,14 +364,23 @@ public class CampaignService {
                 ? null
                 : templateRepository.findByIdAndWorkspaceId(campaign.getTemplateId(), workspaceId).orElse(null);
         String wrapped = template != null
-                ? EmailTemplateLayout.wrap(template, body)
+                ? EmailTemplateLayout.wrap(template, body, unsubscribeUrl)
                 : EmailTemplateLayout.wrap(
                         EmailTemplate.DEFAULT_THUMBNAIL,
                         "Chiến dịch",
                         campaign.getName(),
-                        body
+                        body,
+                        unsubscribeUrl
                 );
-        emailSender.sendHtmlEmail(to, subject, wrapped);
+        EmailSenderIdentity sender = campaign.getSenderId() == null
+                ? null
+                : senderRepository.findByIdAndWorkspaceId(campaign.getSenderId(), workspaceId).orElse(null);
+        String fromName = sender != null ? sender.getName() : null;
+        String fromEmail = sender != null ? sender.getEmail() : null;
+        String replyTo = campaign.getReplyTo() != null && !campaign.getReplyTo().isBlank()
+                ? campaign.getReplyTo()
+                : fromEmail;
+        emailSender.sendHtmlEmail(to, subject, wrapped, fromName, fromEmail, replyTo);
     }
 
     private void applyContent(UUID workspaceId, Campaign campaign, UpsertCampaignRequest request) {
@@ -416,10 +556,11 @@ public class CampaignService {
                 .audienceName(audienceName)
                 .audienceType(audienceType)
                 .recipientCount(campaign.getEstimatedRecipients())
-                .sentCount(0)
+                .sentCount(campaign.getSentCount())
                 .openRate(0)
                 .clickRate(0)
                 .scheduledAt(campaign.getScheduledAt())
+                .sentAt(campaign.getStartedAt())
                 .createdBy(createdBy)
                 .createdAt(campaign.getCreatedAt())
                 .updatedAt(campaign.getUpdatedAt())

@@ -239,7 +239,6 @@ export const CampaignStep4PreviewTestForm: React.FC<CampaignStep4PreviewTestForm
       {/* 3. Same preview component as template editor */}
       <TemplatePreview
         subject={step1.subject || '(Chưa nhập tiêu đề)'}
-        previewText={step1.previewText}
         htmlContent={step3.htmlContent || ''}
         device={device}
         thumbnailGradient={previewGradient}

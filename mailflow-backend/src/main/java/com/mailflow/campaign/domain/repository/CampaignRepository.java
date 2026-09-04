@@ -22,6 +22,13 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
 
     long countByWorkspaceId(UUID workspaceId);
 
+    List<Campaign> findByStatusAndScheduledAtLessThanEqual(
+            CampaignStatus status,
+            java.time.Instant scheduledAt
+    );
+
+    List<Campaign> findByStatus(CampaignStatus status);
+
     @Query("""
             SELECT c FROM Campaign c
             WHERE c.workspaceId = :workspaceId

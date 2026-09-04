@@ -80,6 +80,15 @@ public class Campaign {
     @Column(name = "estimated_recipients", nullable = false)
     private long estimatedRecipients;
 
+    @Column(name = "sent_count", nullable = false)
+    private long sentCount;
+
+    @Column(name = "started_at")
+    private Instant startedAt;
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
     @Column(name = "created_by")
     private UUID createdBy;
 

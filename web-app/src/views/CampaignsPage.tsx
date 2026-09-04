@@ -51,6 +51,17 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({ onNavigate }) => {
     void loadCampaigns()
   }, [loadCampaigns])
 
+  useEffect(() => {
+    const hasActiveSend = campaigns.some(
+      (c) => c.status === 'SENDING' || c.status === 'PAUSED' || c.status === 'SCHEDULED'
+    )
+    if (!hasActiveSend) return
+    const timer = window.setInterval(() => {
+      void loadCampaigns()
+    }, 4000)
+    return () => window.clearInterval(timer)
+  }, [campaigns, loadCampaigns])
+
   const tabCounts = {
     ALL: campaigns.length,
     SENDING: campaigns.filter((c) => c.status === 'SENDING' || c.status === 'QUEUED').length,
@@ -128,20 +139,40 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({ onNavigate }) => {
     }
   }
 
-  const handlePause = (c: Campaign) => {
-    showToast({
-      type: 'info',
-      title: 'Chưa hỗ trợ gửi hàng loạt',
-      description: `Tạm dừng "${c.name}" sẽ có khi có worker gửi chiến dịch.`,
-    })
+  const handlePause = async (c: Campaign) => {
+    try {
+      await campaignService.pause(c.id)
+      await loadCampaigns()
+      showToast({
+        type: 'success',
+        title: 'Đã tạm dừng',
+        description: `Chiến dịch "${c.name}" đã tạm dừng gửi.`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không tạm dừng được',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    }
   }
 
-  const handleResume = (c: Campaign) => {
-    showToast({
-      type: 'info',
-      title: 'Chưa hỗ trợ gửi hàng loạt',
-      description: `Tiếp tục gửi "${c.name}" sẽ có khi có worker gửi chiến dịch.`,
-    })
+  const handleResume = async (c: Campaign) => {
+    try {
+      await campaignService.resume(c.id)
+      await loadCampaigns()
+      showToast({
+        type: 'success',
+        title: 'Tiếp tục gửi',
+        description: `Chiến dịch "${c.name}" đang gửi lại.`,
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không tiếp tục được',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    }
   }
 
   const handleDuplicate = async (c: Campaign) => {

@@ -127,7 +127,15 @@ function buildTimeline(c: CampaignDetail): CampaignTimelineEvent[] {
       variant: 'info',
     })
   }
-  if (c.reviewedAt && (c.status === 'APPROVED' || c.status === 'SCHEDULED')) {
+  if (
+    c.reviewedAt &&
+    (c.status === 'APPROVED' ||
+      c.status === 'SCHEDULED' ||
+      c.status === 'SENDING' ||
+      c.status === 'PAUSED' ||
+      c.status === 'COMPLETED' ||
+      c.status === 'FAILED')
+  ) {
     events.push({
       id: 'approved',
       action: 'Phê duyệt chiến dịch',
@@ -238,6 +246,16 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
   useEffect(() => {
     void loadCampaign()
   }, [loadCampaign])
+
+  useEffect(() => {
+    if (currentStatus !== 'SENDING' && currentStatus !== 'PAUSED') {
+      return
+    }
+    const timer = window.setInterval(() => {
+      void loadCampaign()
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [currentStatus, loadCampaign])
 
   // Handle Contextual Actions
   const handleActionClick = (action: string) => {
@@ -350,12 +368,42 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
 
   const handleExecuteModalAction = async () => {
     setIsConfirmModalOpen(false)
-    if (modalAction === 'pause' || modalAction === 'resume') {
-      showToast({
-        type: 'info',
-        title: 'Chưa hỗ trợ gửi hàng loạt',
-        description: 'Tạm dừng và tiếp tục gửi sẽ có khi có worker chiến dịch.',
-      })
+    if (modalAction === 'pause') {
+      try {
+        await campaignService.pause(campaignId)
+        setCurrentStatus('PAUSED')
+        await loadCampaign()
+        showToast({
+          type: 'success',
+          title: 'Đã tạm dừng',
+          description: 'Chiến dịch đã tạm dừng gửi.',
+        })
+      } catch (error) {
+        showToast({
+          type: 'error',
+          title: 'Không tạm dừng được',
+          description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+        })
+      }
+      return
+    }
+    if (modalAction === 'resume') {
+      try {
+        await campaignService.resume(campaignId)
+        setCurrentStatus('SENDING')
+        await loadCampaign()
+        showToast({
+          type: 'success',
+          title: 'Tiếp tục gửi',
+          description: 'Chiến dịch đang gửi lại.',
+        })
+      } catch (error) {
+        showToast({
+          type: 'error',
+          title: 'Không tiếp tục được',
+          description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+        })
+      }
       return
     }
     if (modalAction === 'cancel') {
@@ -864,7 +912,6 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
 
           <TemplatePreview
             subject={campaign.subject}
-            previewText={campaign.previewText}
             htmlContent={campaign.htmlContent}
             device={device}
             thumbnailGradient={campaign.thumbnailGradient}

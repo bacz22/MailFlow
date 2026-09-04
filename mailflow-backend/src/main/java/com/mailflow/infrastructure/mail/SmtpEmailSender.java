@@ -149,6 +149,18 @@ public class SmtpEmailSender implements EmailSender {
 
     @Override
     public void sendHtmlEmail(String toEmail, String subject, String htmlBody) {
+        sendHtmlEmail(toEmail, subject, htmlBody, null, null, null);
+    }
+
+    @Override
+    public void sendHtmlEmail(
+            String toEmail,
+            String subject,
+            String htmlBody,
+            String fromNameOverride,
+            String fromEmailOverride,
+            String replyTo
+    ) {
         log.info("Chuẩn bị gửi HTML tới [{}]", toEmail);
         if (mailSender == null || smtpUsername == null || smtpUsername.isBlank()) {
             throw new AppException(HttpStatus.SERVICE_UNAVAILABLE, "SMTP_NOT_CONFIGURED",
@@ -158,17 +170,35 @@ public class SmtpEmailSender implements EmailSender {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(
                     message, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
-            helper.setFrom(fromEmail, fromName);
+            String displayName = (fromNameOverride != null && !fromNameOverride.isBlank())
+                    ? fromNameOverride.trim()
+                    : fromName;
+            // Gmail SMTP chỉ cho phép From = tài khoản đăng nhập; giữ fromEmail hệ thống, đổi display name.
+            helper.setFrom(fromEmail, displayName);
             helper.setTo(toEmail);
+            String effectiveReplyTo = firstNonBlank(replyTo, fromEmailOverride);
+            if (effectiveReplyTo != null) {
+                helper.setReplyTo(effectiveReplyTo);
+            }
             helper.setSubject(subject == null ? "" : subject);
             helper.setText(htmlBody == null ? "" : htmlBody, true);
             mailSender.send(message);
-            log.info("Đã gửi HTML tới [{}]", toEmail);
+            log.info("Đã gửi HTML tới [{}] as [{}] reply-to [{}]", toEmail, displayName, effectiveReplyTo);
         } catch (MessagingException | UnsupportedEncodingException | MailException e) {
             log.error("Không thể gửi HTML tới [{}]: {}", toEmail, e.getMessage(), e);
             throw new AppException(HttpStatus.BAD_GATEWAY, "SMTP_SEND_FAILED",
-                    "Không gửi được email thử nghiệm: " + e.getMessage());
+                    "Không gửi được email: " + e.getMessage());
         }
+    }
+
+    private static String firstNonBlank(String a, String b) {
+        if (a != null && !a.isBlank()) {
+            return a.trim();
+        }
+        if (b != null && !b.isBlank()) {
+            return b.trim();
+        }
+        return null;
     }
 
     public String buildVerificationUrl(String rawToken) {

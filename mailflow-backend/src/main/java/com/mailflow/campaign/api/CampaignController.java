@@ -149,6 +149,42 @@ public class CampaignController {
         ));
     }
 
+    @PostMapping("/{campaignId}/send")
+    public ResponseEntity<CampaignResponse> send(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID campaignId
+    ) {
+        return ResponseEntity.ok(campaignService.send(
+                UUID.fromString(jwt.getSubject()),
+                WorkspaceService.requireCurrentWorkspaceId(jwt),
+                campaignId
+        ));
+    }
+
+    @PostMapping("/{campaignId}/pause")
+    public ResponseEntity<CampaignResponse> pause(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID campaignId
+    ) {
+        return ResponseEntity.ok(campaignService.pause(
+                UUID.fromString(jwt.getSubject()),
+                WorkspaceService.requireCurrentWorkspaceId(jwt),
+                campaignId
+        ));
+    }
+
+    @PostMapping("/{campaignId}/resume")
+    public ResponseEntity<CampaignResponse> resume(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID campaignId
+    ) {
+        return ResponseEntity.ok(campaignService.resume(
+                UUID.fromString(jwt.getSubject()),
+                WorkspaceService.requireCurrentWorkspaceId(jwt),
+                campaignId
+        ));
+    }
+
     @PostMapping("/{campaignId}/send-test")
     public ResponseEntity<Void> sendTest(
             @AuthenticationPrincipal Jwt jwt,

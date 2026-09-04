@@ -12,15 +12,30 @@ public final class EmailTemplateLayout {
     }
 
     public static String wrap(EmailTemplate template, String mergedBodyHtml) {
+        return wrap(template, mergedBodyHtml, "#");
+    }
+
+    public static String wrap(EmailTemplate template, String mergedBodyHtml, String unsubscribeUrl) {
         return wrap(
                 template.getThumbnailGradient(),
                 template.getBannerLabel(),
                 template.getBannerTitle(),
-                mergedBodyHtml
+                mergedBodyHtml,
+                unsubscribeUrl
         );
     }
 
     public static String wrap(String thumbnailGradient, String bannerLabel, String bannerTitle, String mergedBodyHtml) {
+        return wrap(thumbnailGradient, bannerLabel, bannerTitle, mergedBodyHtml, "#");
+    }
+
+    public static String wrap(
+            String thumbnailGradient,
+            String bannerLabel,
+            String bannerTitle,
+            String mergedBodyHtml,
+            String unsubscribeUrl
+    ) {
         String from = bannerFromColor(thumbnailGradient);
         String to = bannerToColor(thumbnailGradient);
         String label = EmailTemplateMerge.escape(bannerLabel);
@@ -35,6 +50,8 @@ public final class EmailTemplateLayout {
                   + label
                   + "</div>";
         String body = mergedBodyHtml == null ? "" : mergedBodyHtml;
+        String unsub = (unsubscribeUrl == null || unsubscribeUrl.isBlank()) ? "#" : unsubscribeUrl.trim();
+        String unsubHref = EmailTemplateMerge.escape(unsub);
 
         return """
             <!DOCTYPE html>
@@ -72,13 +89,12 @@ public final class EmailTemplateLayout {
                 + body
                 + """
                     </div>
-                    <div style="text-align:center;padding:16px 0 8px;">
-                      <a href="#" style="display:inline-block;background-color:#2563eb;color:#ffffff;font-size:13px;font-weight:700;padding:12px 28px;border-radius:10px;text-decoration:none;">Truy Cập Nền Tảng</a>
-                    </div>
                     <div style="margin-top:24px;padding-top:18px;border-top:1px solid #e2e8f0;text-align:center;font-size:11px;color:#94a3b8;line-height:1.6;">
-                      <div style="color:#059669;font-weight:600;margin-bottom:6px;">Chuẩn bảo mật xác thực DKIM &amp; RFC 8058 1-Click Unsubscribe</div>
                       <div>© 2026 MailFlow Inc. Tất cả quyền được bảo lưu.</div>
-                      <div>Bạn nhận được email này theo yêu cầu nhận tin. <a href="#" style="color:#2563eb;">Hủy đăng ký</a></div>
+                      <div>Bạn nhận được email này theo yêu cầu nhận tin. <a href=\""""
+                + unsubHref
+                + """
+            " style="color:#2563eb;">Hủy đăng ký</a></div>
                     </div>
                   </td>
                 </tr>

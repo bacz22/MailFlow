@@ -8,6 +8,10 @@ public enum CampaignStatus {
     APPROVED,
     REJECTED,
     SCHEDULED,
+    SENDING,
+    PAUSED,
+    COMPLETED,
+    FAILED,
     CANCELLED;
 
     public static CampaignStatus fromApi(String raw) {

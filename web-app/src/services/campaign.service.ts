@@ -192,6 +192,27 @@ export const campaignService = {
     return mapCampaign(data)
   },
 
+  async send(campaignId: string): Promise<CampaignDetail> {
+    const data = await apiClient<Record<string, unknown>>(`/campaigns/${campaignId}/send`, {
+      method: 'POST',
+    })
+    return mapCampaign(data)
+  },
+
+  async pause(campaignId: string): Promise<CampaignDetail> {
+    const data = await apiClient<Record<string, unknown>>(`/campaigns/${campaignId}/pause`, {
+      method: 'POST',
+    })
+    return mapCampaign(data)
+  },
+
+  async resume(campaignId: string): Promise<CampaignDetail> {
+    const data = await apiClient<Record<string, unknown>>(`/campaigns/${campaignId}/resume`, {
+      method: 'POST',
+    })
+    return mapCampaign(data)
+  },
+
   async sendTest(
     campaignId: string,
     payload: { to: string; firstName?: string; lastName?: string; company?: string; phone?: string }

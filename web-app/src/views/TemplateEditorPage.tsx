@@ -68,9 +68,6 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
   const [subject, setSubject] = useState(
     initialData?.subject || (isEdit ? '' : 'Khám phá giải pháp tối ưu email từ MailFlow')
   )
-  const [previewText, setPreviewText] = useState(
-    initialData?.previewText || ''
-  )
   const [category, setCategory] = useState<EmailTemplate['category']>(
     initialData?.category || 'Newsletter'
   )
@@ -106,7 +103,6 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
         setSavedId(data.id)
         setName(data.name)
         setSubject(data.subject)
-        setPreviewText(data.previewText || '')
         setCategory(data.category)
         setContent(data.htmlContent)
         setThumbnailGradient(data.thumbnailGradient || DEFAULT_THUMBNAIL_GRADIENT)
@@ -194,7 +190,6 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
       const payload = {
         name: name.trim(),
         subject: subject.trim(),
-        previewText: previewText.trim() || undefined,
         category,
         status: (isDraft ? 'draft' : 'published') as EmailTemplate['status'],
         htmlContent: content,
@@ -293,7 +288,7 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
                 </div>
               </div>
 
-              {/* Subject & Preview Text */}
+              {/* Subject */}
               <FormField>
                 <FormLabel required>Tiêu Đề Email (Subject Line)</FormLabel>
                 <Input
@@ -301,18 +296,6 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
                   value={subject}
                   onChange={(e) => {
                     setSubject(e.target.value)
-                    setIsDirty(true)
-                  }}
-                />
-              </FormField>
-
-              <FormField>
-                <FormLabel>Đoạn Văn Xem Trước (Preview Text / Preheader)</FormLabel>
-                <Input
-                  placeholder="Đoạn văn ngắn xuất hiện cạnh tiêu đề trên Gmail/Apple Mail..."
-                  value={previewText}
-                  onChange={(e) => {
-                    setPreviewText(e.target.value)
                     setIsDirty(true)
                   }}
                 />
@@ -427,7 +410,6 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
 
           <TemplatePreview
             subject={subject}
-            previewText={previewText}
             htmlContent={content}
             device={device}
             thumbnailGradient={thumbnailGradient}

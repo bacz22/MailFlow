@@ -27,4 +27,18 @@ public interface EmailSender {
      * Ném lỗi nếu SMTP chưa cấu hình hoặc gửi thất bại.
      */
     void sendHtmlEmail(String toEmail, String subject, String htmlBody);
+
+    /**
+     * Gửi HTML với From hiển thị / Reply-To (campaign bulk / send-test).
+     * {@code fromName}/{@code fromEmail} null → dùng cấu hình hệ thống.
+     * Với SMTP Gmail, địa chỉ From thường vẫn là tài khoản SMTP; fromName + replyTo phản ánh người gửi campaign.
+     */
+    void sendHtmlEmail(
+            String toEmail,
+            String subject,
+            String htmlBody,
+            String fromName,
+            String fromEmail,
+            String replyTo
+    );
 }
