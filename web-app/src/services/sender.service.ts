@@ -21,6 +21,7 @@ function mapSender(raw: Record<string, unknown>): VerifiedSender {
     name: String(raw.name ?? ''),
     email: String(raw.email ?? ''),
     domain: String(raw.domain ?? ''),
+    domainId: raw.domainId ? String(raw.domainId) : undefined,
     status,
     isVerified: Boolean(raw.isVerified),
     isDefault: Boolean(raw.isDefault),

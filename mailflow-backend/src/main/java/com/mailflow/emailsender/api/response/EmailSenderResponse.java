@@ -21,6 +21,7 @@ public class EmailSenderResponse {
     private String name;
     private String email;
     private String domain;
+    private UUID domainId;
     private String status;
     @JsonProperty("isVerified")
     private boolean isVerified;

@@ -9,6 +9,7 @@ import {
   HelpCircle,
   Info,
   RefreshCw,
+  AlertTriangle,
 } from 'lucide-react'
 import {
   Dialog,
@@ -22,7 +23,10 @@ import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { FormField, FormLabel } from '../ui/FormGroup'
 import { Badge } from '../ui/Badge'
-import type { DomainItem, DnsRecord } from '../../types/domain.types'
+import { useToast } from '../ui/Toast'
+import { ApiError } from '../../services/apiClient'
+import { domainService } from '../../services/domain.service'
+import type { DomainItem } from '../../types/domain.types'
 
 export interface AddDomainWizardDialogProps {
   isOpen: boolean
@@ -35,93 +39,98 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
   onClose,
   onComplete,
 }) => {
+  const { showToast } = useToast()
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [domainInput, setDomainInput] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [isCreating, setIsCreating] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
+  const [createdDomain, setCreatedDomain] = useState<DomainItem | null>(null)
   const [verificationDone, setVerificationDone] = useState(false)
 
-  // Step 1: Validate Domain
-  const handleNextStep2 = () => {
-    const cleanDomain = domainInput.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+  const reset = () => {
+    setStep(1)
+    setDomainInput('')
+    setError(null)
+    setCreatedDomain(null)
+    setVerificationDone(false)
+    setIsCreating(false)
+    setIsVerifying(false)
+  }
+
+  const handleClose = () => {
+    reset()
+    onClose()
+  }
+
+  const handleNextStep2 = async () => {
+    const cleanDomain = domainInput
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/.*$/, '')
     if (!cleanDomain || !cleanDomain.includes('.')) {
       setError('Vui lòng nhập tên miền hợp lệ (ví dụ: congty.vn hoặc mail.congty.com).')
       return
     }
     setDomainInput(cleanDomain)
     setError(null)
-    setStep(2)
+    setIsCreating(true)
+    try {
+      const created = await domainService.create(cleanDomain)
+      setCreatedDomain(created)
+      setStep(2)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : 'Không tạo được tên miền.')
+    } finally {
+      setIsCreating(false)
+    }
   }
 
-  // Generated records based on domain
-  const generatedRecords: DnsRecord[] = [
-    {
-      id: 'rec-spf',
-      type: 'TXT',
-      name: 'SPF Authentication',
-      host: '@',
-      value: 'v=spf1 include:mailflow.vn ~all',
-      status: 'VERIFIED',
-      purpose: 'SPF',
-      description: 'Cho phép máy chủ MailFlow gửi thư đại diện cho tên miền của bạn',
-    },
-    {
-      id: 'rec-dkim',
-      type: 'TXT',
-      name: 'DKIM Signature',
-      host: 'mailflow._domainkey',
-      value: `v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3...${domainInput.slice(0, 4)}...DAQAB`,
-      status: 'VERIFIED',
-      purpose: 'DKIM',
-      description: 'Chữ ký điện tử mã hóa chống giả mạo email',
-    },
-    {
-      id: 'rec-dmarc',
-      type: 'TXT',
-      name: 'DMARC Policy',
-      host: '_dmarc',
-      value: 'v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@mailflow.vn',
-      status: 'VERIFIED',
-      purpose: 'DMARC',
-      description: 'Chính sách bảo vệ hộp thư và báo cáo spam',
-    },
-  ]
-
-  // Step 3: Trigger Verification
   const handleVerifyStep3 = async () => {
+    if (!createdDomain) return
     setIsVerifying(true)
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    setIsVerifying(false)
-    setVerificationDone(true)
+    try {
+      const verified = await domainService.verify(createdDomain.id)
+      setCreatedDomain(verified)
+      setVerificationDone(true)
+      if (verified.status !== 'VERIFIED') {
+        showToast({
+          type: 'warning',
+          title: 'DNS chưa khớp đủ',
+          description: `Trạng thái hiện tại: ${verified.status}. Có thể thử lại sau khi DNS lan truyền.`,
+        })
+      }
+    } catch (err) {
+      showToast({
+        type: 'error',
+        title: 'Không kiểm tra được DNS',
+        description: err instanceof ApiError ? err.detail : 'Vui lòng thử lại.',
+      })
+    } finally {
+      setIsVerifying(false)
+    }
   }
 
   const handleFinish = () => {
-    const newDomainItem: DomainItem = {
-      id: `dom-${Date.now()}`,
-      domain: domainInput,
-      status: 'VERIFIED',
-      createdAt: new Date().toLocaleDateString('vi-VN'),
-      lastVerifiedAt: 'Vừa xong',
-      records: generatedRecords,
-      sendersCount: 0,
+    if (createdDomain) {
+      onComplete(createdDomain)
     }
-    onComplete(newDomainItem)
-    // Reset
-    setStep(1)
-    setDomainInput('')
-    setVerificationDone(false)
+    reset()
     onClose()
   }
 
   const handleCopy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text)
+    void navigator.clipboard.writeText(text)
     setCopiedKey(key)
     setTimeout(() => setCopiedKey(null), 1500)
   }
 
+  const records = createdDomain?.records ?? []
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <div className="flex items-center gap-2 text-blue-600">
@@ -133,7 +142,6 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Stepper Progress Indicator */}
         <div className="flex items-center justify-between gap-2 px-2 py-3 border-b border-slate-100 dark:border-slate-800 text-xs">
           {[
             { num: 1, label: '1. Nhập Tên Miền' },
@@ -146,8 +154,8 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
                 step === s.num
                   ? 'text-blue-600'
                   : step > s.num
-                  ? 'text-emerald-600'
-                  : 'text-slate-400'
+                    ? 'text-emerald-600'
+                    : 'text-slate-400'
               }`}
             >
               <div
@@ -155,8 +163,8 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
                   step === s.num
                     ? 'bg-blue-600 text-white shadow-xs'
                     : step > s.num
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
                 }`}
               >
                 {step > s.num ? <Check className="w-3.5 h-3.5" /> : s.num}
@@ -166,7 +174,6 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
           ))}
         </div>
 
-        {/* ================= STEP 1 ================= */}
         {step === 1 && (
           <div className="space-y-4 py-3 text-xs">
             <FormField>
@@ -191,52 +198,55 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
                 <span>Tại Sao Cần Xác Thực Tên Miền?</span>
               </div>
               <p className="text-[11px] text-blue-800/80 dark:text-blue-300 leading-relaxed pl-5">
-                Xác thực tên miền giúp các nhà cung cấp hòm thư như Gmail, Outlook và Yahoo xác nhận bạn là chủ sở hữu hợp pháp, ngăn chặn thư bị phân loại vào Spam hoặc hòm rác.
+                Xác thực tên miền giúp các nhà cung cấp hòm thư như Gmail, Outlook và Yahoo xác nhận bạn là chủ sở hữu hợp pháp.
               </p>
             </div>
           </div>
         )}
 
-        {/* ================= STEP 2 ================= */}
-        {step === 2 && (
+        {step === 2 && createdDomain && (
           <div className="space-y-4 py-2 text-xs">
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div>
                 <span className="text-slate-400 text-[11px]">Tên miền đang cấu hình:</span>
                 <div className="font-bold text-slate-900 dark:text-slate-100 font-mono text-sm">
-                  {domainInput}
+                  {createdDomain.domain}
                 </div>
               </div>
               <span className="text-[11px] text-blue-600 font-semibold">
-                Sao chép 3 bản ghi dưới đây vào trang DNS:
+                Sao chép các bản ghi dưới đây vào trang DNS:
               </span>
             </div>
 
-            <div className="space-y-3">
-              {generatedRecords.map((rec) => (
+            <div className="space-y-3 max-h-[340px] overflow-y-auto">
+              {records.map((rec) => (
                 <div
                   key={rec.id}
                   className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-2"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <Badge variant="default" className="font-mono text-[10px]">
                         {rec.type}
                       </Badge>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">
+                      <span className="font-bold text-slate-800 dark:text-slate-200 truncate">
                         {rec.name} ({rec.purpose})
                       </span>
                     </div>
-                    <span className="text-[10px] text-slate-400">{rec.description}</span>
                   </div>
+                  {rec.description ? (
+                    <p className="text-[10px] text-slate-400">{rec.description}</p>
+                  ) : null}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                    <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800/60 flex items-center justify-between font-mono">
-                      <span className="truncate">Host: <strong>{rec.host}</strong></span>
+                    <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800/60 flex items-center justify-between font-mono gap-2">
+                      <span className="truncate">
+                        Host: <strong>{rec.host}</strong>
+                      </span>
                       <button
                         type="button"
                         onClick={() => handleCopy(rec.host, `host-${rec.id}`)}
-                        className="text-slate-400 hover:text-blue-600 transition cursor-pointer p-0.5"
+                        className="text-slate-400 hover:text-blue-600 transition cursor-pointer p-0.5 shrink-0"
                       >
                         {copiedKey === `host-${rec.id}` ? (
                           <Check className="w-3 h-3 text-emerald-600" />
@@ -246,14 +256,14 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
                       </button>
                     </div>
 
-                    <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800/60 flex items-center justify-between font-mono">
+                    <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800/60 flex items-center justify-between font-mono gap-2">
                       <span className="truncate" title={rec.value}>
-                        Value: <strong>{rec.value.slice(0, 20)}...</strong>
+                        Value: <strong>{rec.value.slice(0, 28)}...</strong>
                       </span>
                       <button
                         type="button"
                         onClick={() => handleCopy(rec.value, `val-${rec.id}`)}
-                        className="text-slate-400 hover:text-blue-600 transition cursor-pointer p-0.5"
+                        className="text-slate-400 hover:text-blue-600 transition cursor-pointer p-0.5 shrink-0"
                       >
                         {copiedKey === `val-${rec.id}` ? (
                           <Check className="w-3 h-3 text-emerald-600" />
@@ -274,8 +284,7 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
           </div>
         )}
 
-        {/* ================= STEP 3 ================= */}
-        {step === 3 && (
+        {step === 3 && createdDomain && (
           <div className="space-y-4 py-4 text-xs text-center">
             {!verificationDone ? (
               <div className="py-6 space-y-3">
@@ -286,19 +295,20 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
                   Kiểm Tra Tình Trạng Bản Ghi DNS
                 </div>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Hệ thống sẽ gửi truy vấn DNS đến tên miền <strong>{domainInput}</strong> để đối soát bản ghi SPF, DKIM và DMARC.
+                  Hệ thống sẽ đối soát bản ghi SPF, DKIM và DMARC cho{' '}
+                  <strong>{createdDomain.domain}</strong>.
                 </p>
                 <Button
                   type="button"
                   variant="primary"
                   size="sm"
                   isLoading={isVerifying}
-                  onClick={handleVerifyStep3}
+                  onClick={() => void handleVerifyStep3()}
                 >
                   Bắt Đầu Kiểm Tra Ngay
                 </Button>
               </div>
-            ) : (
+            ) : createdDomain.status === 'VERIFIED' ? (
               <div className="py-6 space-y-3 animate-in fade-in-0">
                 <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 mx-auto flex items-center justify-center">
                   <CheckCircle2 className="w-6 h-6" />
@@ -307,8 +317,32 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
                   Xác Thực Tên Miền Thành Công!
                 </div>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Tất cả các bản ghi SPF, DKIM và DMARC của tên miền <strong>{domainInput}</strong> đã được đồng bộ chuẩn xác. Bạn có thể gán địa chỉ người gửi ngay bây giờ.
+                  Tên miền <strong>{createdDomain.domain}</strong> đã sẵn sàng gắn với địa chỉ người gửi.
                 </p>
+              </div>
+            ) : (
+              <div className="py-6 space-y-3 animate-in fade-in-0">
+                <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 mx-auto flex items-center justify-center">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div className="font-bold text-amber-900 dark:text-amber-200 text-base">
+                  Chưa khớp đủ bản ghi ({createdDomain.status})
+                </div>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Bạn vẫn có thể đóng và thử xác minh lại sau khi DNS cập nhật.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  isLoading={isVerifying}
+                  onClick={() => {
+                    setVerificationDone(false)
+                    void handleVerifyStep3()
+                  }}
+                >
+                  Kiểm tra lại
+                </Button>
               </div>
             )}
           </div>
@@ -320,7 +354,7 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
               variant="outline"
               size="sm"
               leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-              onClick={() => setStep((step - 1) as any)}
+              onClick={() => setStep((step - 1) as 1 | 2 | 3)}
             >
               Quay Lại
             </Button>
@@ -332,7 +366,8 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
               variant="primary"
               size="sm"
               rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-              onClick={handleNextStep2}
+              isLoading={isCreating}
+              onClick={() => void handleNextStep2()}
             >
               Tiếp Tục
             </Button>

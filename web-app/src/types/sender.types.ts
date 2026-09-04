@@ -5,6 +5,7 @@ export interface VerifiedSender {
   name: string
   email: string
   domain: string
+  domainId?: string
   status?: SenderVerificationStatus
   isVerified: boolean
   isDefault?: boolean

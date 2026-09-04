@@ -120,6 +120,16 @@ export const SenderTable: React.FC<SenderTableProps> = ({
                         DKIM & SPF OK
                       </span>
                     )}
+                    {s.dkimStatus === 'pending' && (
+                      <span className="text-[10px] text-amber-600 font-bold px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/50">
+                        Chờ Domains
+                      </span>
+                    )}
+                    {s.dkimStatus === 'failed' && (
+                      <span className="text-[10px] text-rose-600 font-bold px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/50">
+                        DNS lỗi
+                      </span>
+                    )}
                   </div>
                 </td>
 

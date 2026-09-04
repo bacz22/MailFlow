@@ -24,4 +24,6 @@ public class CreateEmailSenderRequest {
     @Email(message = "Email người gửi không hợp lệ.")
     @Size(max = 320)
     private String email;
+
+    private java.util.UUID domainId;
 }

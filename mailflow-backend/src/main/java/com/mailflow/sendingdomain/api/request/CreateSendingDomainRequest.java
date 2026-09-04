@@ -1,5 +1,6 @@
-package com.mailflow.emailsender.api.request;
+package com.mailflow.sendingdomain.api.request;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,13 +13,9 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UpdateEmailSenderRequest {
+public class CreateSendingDomainRequest {
 
-    @Size(max = 160)
-    private String name;
-
-    @Size(max = 20)
-    private String status;
-
-    private java.util.UUID domainId;
+    @NotBlank
+    @Size(max = 255)
+    private String domain;
 }

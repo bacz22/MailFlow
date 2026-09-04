@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   PlusCircle,
   Search,
@@ -21,6 +21,8 @@ import {
 import { useToast } from '../components/ui/Toast'
 import { usePermission, PERMISSIONS } from '../permissions'
 import { SimpleSelect, type SelectOption } from '../components/ui/Select'
+import { ApiError } from '../services/apiClient'
+import { domainService } from '../services/domain.service'
 import type { DomainItem } from '../types/domain.types'
 
 const DOMAIN_STATUS_OPTIONS: SelectOption[] = [
@@ -28,89 +30,6 @@ const DOMAIN_STATUS_OPTIONS: SelectOption[] = [
   { value: 'VERIFIED', label: 'Đã xác thực (Verified)' },
   { value: 'PENDING', label: 'Chờ cập nhật (Pending)' },
   { value: 'FAILED', label: 'Thất bại (Failed)' },
-]
-
-const INITIAL_DOMAINS: DomainItem[] = [
-  {
-    id: 'dom-1',
-    domain: 'mailflow.vn',
-    status: 'VERIFIED',
-    createdAt: '01/01/2026',
-    lastVerifiedAt: 'Vừa xong',
-    sendersCount: 2,
-    records: [
-      {
-        id: 'rec-1',
-        type: 'TXT',
-        name: 'SPF Authentication',
-        host: '@',
-        value: 'v=spf1 include:mailflow.vn ~all',
-        status: 'VERIFIED',
-        purpose: 'SPF',
-        description: 'Chỉ định máy chủ MailFlow được phép gửi email từ tên miền này.',
-      },
-      {
-        id: 'rec-2',
-        type: 'TXT',
-        name: 'DKIM Signature',
-        host: 'mailflow._domainkey',
-        value: 'v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3K...DAQAB',
-        status: 'VERIFIED',
-        purpose: 'DKIM',
-        description: 'Chữ ký điện tử 2048-bit mã hóa nội dung chống giả mạo email.',
-      },
-      {
-        id: 'rec-3',
-        type: 'TXT',
-        name: 'DMARC Policy',
-        host: '_dmarc',
-        value: 'v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@mailflow.vn',
-        status: 'VERIFIED',
-        purpose: 'DMARC',
-        description: 'Quy chuẩn bảo vệ chống phishing và tự động nhận báo cáo vi phạm.',
-      },
-    ],
-  },
-  {
-    id: 'dom-2',
-    domain: 'partner.mailflow.vn',
-    status: 'PENDING',
-    createdAt: '26/08/2026',
-    lastVerifiedAt: '26/08/2026 10:15',
-    sendersCount: 1,
-    records: [
-      {
-        id: 'rec-4',
-        type: 'TXT',
-        name: 'SPF Authentication',
-        host: '@',
-        value: 'v=spf1 include:mailflow.vn ~all',
-        status: 'VERIFIED',
-        purpose: 'SPF',
-        description: 'Chỉ định máy chủ MailFlow được phép gửi email từ tên miền này.',
-      },
-      {
-        id: 'rec-5',
-        type: 'TXT',
-        name: 'DKIM Signature',
-        host: 'mailflow._domainkey',
-        value: 'v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQD8F...DAQAB',
-        status: 'PENDING',
-        purpose: 'DKIM',
-        description: 'Chữ ký điện tử 2048-bit mã hóa nội dung chống giả mạo email.',
-      },
-      {
-        id: 'rec-6',
-        type: 'TXT',
-        name: 'DMARC Policy',
-        host: '_dmarc',
-        value: 'v=DMARC1; p=none; rua=mailto:dmarc@mailflow.vn',
-        status: 'PENDING',
-        purpose: 'DMARC',
-        description: 'Quy chuẩn bảo vệ chống phishing và tự động nhận báo cáo vi phạm.',
-      },
-    ],
-  },
 ]
 
 export interface DomainsPageProps {
@@ -121,17 +40,36 @@ export const DomainsPage: React.FC<DomainsPageProps> = ({ onNavigate: _onNavigat
   const { showToast } = useToast()
   const { hasPermission } = usePermission()
 
-  const [domains, setDomains] = useState<DomainItem[]>(INITIAL_DOMAINS)
+  const [domains, setDomains] = useState<DomainItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
-  // Modals
   const [isWizardOpen, setIsWizardOpen] = useState(false)
   const [deletingDomain, setDeletingDomain] = useState<DomainItem | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const canManage = hasPermission(PERMISSIONS.DOMAIN_MANAGE)
 
-  // Filtered domains
+  const loadDomains = useCallback(async () => {
+    try {
+      const rows = await domainService.list()
+      setDomains(rows)
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không tải được tên miền',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }, [showToast])
+
+  useEffect(() => {
+    void loadDomains()
+  }, [loadDomains])
+
   const filteredDomains = domains.filter((d) => {
     if (statusFilter !== 'all' && d.status !== statusFilter) return false
     if (searchQuery && !d.domain.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -140,54 +78,66 @@ export const DomainsPage: React.FC<DomainsPageProps> = ({ onNavigate: _onNavigat
     return true
   })
 
-  // Handlers
   const handleCompleteWizard = (newDomain: DomainItem) => {
-    setDomains((prev) => [newDomain, ...prev])
+    setDomains((prev) => {
+      const without = prev.filter((d) => d.id !== newDomain.id)
+      return [newDomain, ...without]
+    })
     showToast({
       type: 'success',
-      title: 'Đã thêm tên miền thành công',
-      description: `Tên miền ${newDomain.domain} đã được kích hoạt thành công.`,
+      title: 'Đã thêm tên miền',
+      description: `Tên miền ${newDomain.domain} đã được lưu (trạng thái: ${newDomain.status}).`,
     })
   }
 
   const handleVerifyAgain = async (domainId: string) => {
-    await new Promise((resolve) => setTimeout(resolve, 700))
-    setDomains((prev) =>
-      prev.map((d) => {
-        if (d.id === domainId) {
-          return {
-            ...d,
-            status: 'VERIFIED',
-            lastVerifiedAt: 'Vừa xong',
-            records: d.records.map((r) => ({ ...r, status: 'VERIFIED' })),
-          }
-        }
-        return d
+    try {
+      const updated = await domainService.verify(domainId)
+      setDomains((prev) => prev.map((d) => (d.id === domainId ? updated : d)))
+      showToast({
+        type: updated.status === 'VERIFIED' ? 'success' : 'warning',
+        title: updated.status === 'VERIFIED' ? 'Đã xác thực DNS' : 'DNS chưa khớp đủ',
+        description:
+          updated.status === 'VERIFIED'
+            ? 'Tất cả bản ghi SPF/DKIM/DMARC đã được đánh dấu hợp lệ.'
+            : `Trạng thái hiện tại: ${updated.status}.`,
       })
-    )
-    showToast({
-      type: 'success',
-      title: 'Đã hoàn tất kiểm tra DNS',
-      description: 'Tất cả các bản ghi SPF, DKIM và DMARC đã khớp chuẩn xác 100%.',
-    })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không kiểm tra được DNS',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    }
   }
 
-  const handleDeleteDomain = (domainId: string) => {
-    setDomains((prev) => prev.filter((d) => d.id !== domainId))
-    setDeletingDomain(null)
-    showToast({
-      type: 'success',
-      title: 'Đã xóa tên miền',
-      description: 'Tên miền đã được gỡ bỏ khỏi hệ thống.',
-    })
+  const handleDeleteDomain = async (domainId: string) => {
+    setIsDeleting(true)
+    try {
+      await domainService.delete(domainId)
+      setDomains((prev) => prev.filter((d) => d.id !== domainId))
+      setDeletingDomain(null)
+      showToast({
+        type: 'success',
+        title: 'Đã xóa tên miền',
+        description: 'Tên miền đã được gỡ bỏ khỏi hệ thống.',
+      })
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Không xóa được tên miền',
+        description: error instanceof ApiError ? error.detail : 'Vui lòng thử lại.',
+      })
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* 1. Page Header with Add Domain Action */}
       <PageHeader
         title="Quản Lý & Xác Thực Tên Miền (Domain Authentication)"
-        description="Cấu hình bản ghi DNS (SPF, DKIM, DMARC) để bảo vệ uy tín thương hiệu và đảm bảo 99.8% email được gửi thẳng vào hộp thư Inbox chính."
+        description="Cấu hình bản ghi DNS (SPF, DKIM, DMARC) để bảo vệ uy tín thương hiệu và cải thiện tỷ lệ vào Inbox."
         actions={
           canManage && (
             <Button
@@ -203,7 +153,6 @@ export const DomainsPage: React.FC<DomainsPageProps> = ({ onNavigate: _onNavigat
         }
       />
 
-      {/* 2. Top Summary KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 shadow-xs space-y-1">
           <div className="text-[11px] font-semibold text-slate-500">Tổng Tên Miền</div>
@@ -230,13 +179,14 @@ export const DomainsPage: React.FC<DomainsPageProps> = ({ onNavigate: _onNavigat
         </div>
 
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 shadow-xs space-y-1">
-          <div className="text-[11px] font-semibold text-slate-500">Điểm Uy Tín Tên Miền</div>
-          <div className="text-2xl font-extrabold font-mono text-blue-600">99 / 100</div>
-          <div className="text-[10px] text-blue-600 font-medium">Mức Tối Ưu (Optimal)</div>
+          <div className="text-[11px] font-semibold text-slate-500">Thất bại / lệch DNS</div>
+          <div className="text-2xl font-extrabold font-mono text-rose-600">
+            {domains.filter((d) => d.status === 'FAILED').length}
+          </div>
+          <div className="text-[10px] text-rose-600 font-medium">Cần kiểm tra lại</div>
         </div>
       </div>
 
-      {/* 3. DNS Knowledge Help Box */}
       <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/70 to-indigo-50/40 dark:from-blue-950/30 dark:to-indigo-950/20 border border-blue-200/80 dark:border-blue-900/60 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
         <div className="flex items-start gap-3">
           <BookOpen className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
@@ -251,7 +201,6 @@ export const DomainsPage: React.FC<DomainsPageProps> = ({ onNavigate: _onNavigat
         </div>
       </div>
 
-      {/* 4. Filter & Search Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="w-52">
           <SimpleSelect
@@ -273,11 +222,14 @@ export const DomainsPage: React.FC<DomainsPageProps> = ({ onNavigate: _onNavigat
         </div>
       </div>
 
-      {/* 5. Domain Cards List */}
       <div className="space-y-4">
-        {filteredDomains.length === 0 ? (
+        {isLoading ? (
           <div className="p-12 text-center text-xs text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
-            Không tìm thấy tên miền nào khớp với tiêu chí tìm kiếm.
+            Đang tải tên miền...
+          </div>
+        ) : filteredDomains.length === 0 ? (
+          <div className="p-12 text-center text-xs text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+            Chưa có tên miền nào. Hãy thêm tên miền để xác thực SPF/DKIM.
           </div>
         ) : (
           filteredDomains.map((dom) => (
@@ -291,19 +243,13 @@ export const DomainsPage: React.FC<DomainsPageProps> = ({ onNavigate: _onNavigat
         )}
       </div>
 
-      {/* MODALS */}
-      {/* 1. Add Domain Step-by-Step Wizard Dialog */}
       <AddDomainWizardDialog
         isOpen={isWizardOpen}
         onClose={() => setIsWizardOpen(false)}
         onComplete={handleCompleteWizard}
       />
 
-      {/* 2. Delete Confirmation Dialog */}
-      <Dialog
-        open={!!deletingDomain}
-        onOpenChange={() => setDeletingDomain(null)}
-      >
+      <Dialog open={!!deletingDomain} onOpenChange={() => setDeletingDomain(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <div className="flex items-center gap-2 text-rose-600">
@@ -317,7 +263,7 @@ export const DomainsPage: React.FC<DomainsPageProps> = ({ onNavigate: _onNavigat
 
           <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-xs text-rose-800 dark:text-rose-300 space-y-1">
             <p className="text-[11px] leading-relaxed">
-              Mọi địa chỉ người gửi thuộc tên miền này ({deletingDomain?.sendersCount} địa chỉ) sẽ bị hủy quyền gửi thư cho tới khi tên miền được xác thực lại.
+              Mọi địa chỉ người gửi thuộc tên miền này ({deletingDomain?.sendersCount} địa chỉ) sẽ mất liên kết domain (FK SET NULL).
             </p>
           </div>
 
@@ -330,9 +276,10 @@ export const DomainsPage: React.FC<DomainsPageProps> = ({ onNavigate: _onNavigat
               variant="primary"
               size="sm"
               className="bg-rose-600 hover:bg-rose-700 font-bold"
+              isLoading={isDeleting}
               onClick={() => {
                 if (deletingDomain) {
-                  handleDeleteDomain(deletingDomain.id)
+                  void handleDeleteDomain(deletingDomain.id)
                 }
               }}
             >

@@ -41,4 +41,6 @@ public interface EmailSenderIdentityRepository extends JpaRepository<EmailSender
     @Modifying
     @Query("UPDATE EmailSenderIdentity s SET s.isDefault = false WHERE s.workspaceId = :workspaceId AND s.isDefault = true")
     void clearDefault(@Param("workspaceId") UUID workspaceId);
+
+    long countByDomainId(UUID domainId);
 }

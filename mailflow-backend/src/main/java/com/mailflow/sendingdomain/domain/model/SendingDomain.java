@@ -1,4 +1,4 @@
-package com.mailflow.emailsender.domain.model;
+package com.mailflow.sendingdomain.domain.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -23,8 +23,8 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
-@Table(name = "email_senders")
-public class EmailSenderIdentity {
+@Table(name = "sending_domains")
+public class SendingDomain {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -33,21 +33,15 @@ public class EmailSenderIdentity {
     @Column(name = "workspace_id", nullable = false)
     private UUID workspaceId;
 
-    @Column(nullable = false, length = 160)
-    private String name;
-
-    @Column(nullable = false, length = 320)
-    private String email;
-
-    @Column(name = "is_default", nullable = false)
-    private boolean isDefault;
-
-    @Column(name = "domain_id")
-    private UUID domainId;
+    @Column(nullable = false, length = 255)
+    private String domain;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private EmailSenderStatus status = EmailSenderStatus.ACTIVE;
+    private SendingDomainStatus status = SendingDomainStatus.PENDING;
+
+    @Column(name = "verified_at")
+    private Instant verifiedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -55,25 +49,26 @@ public class EmailSenderIdentity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    public EmailSenderIdentity(UUID workspaceId, String name, String email, boolean isDefault) {
+    public SendingDomain(UUID workspaceId, String domain) {
         this.workspaceId = workspaceId;
-        this.name = name;
-        this.email = normalizeEmail(email);
-        this.isDefault = isDefault;
-        this.status = EmailSenderStatus.ACTIVE;
+        this.domain = normalizeDomain(domain);
+        this.status = SendingDomainStatus.PENDING;
     }
 
-    public void apply(String name, EmailSenderStatus status) {
-        if (name != null && !name.isBlank()) {
-            this.name = name.trim();
+    public static String normalizeDomain(String raw) {
+        if (raw == null) {
+            return "";
         }
-        if (status != null) {
-            this.status = status;
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        value = value.replaceFirst("^https?://", "");
+        int slash = value.indexOf('/');
+        if (slash >= 0) {
+            value = value.substring(0, slash);
         }
-    }
-
-    public static String normalizeEmail(String raw) {
-        return raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        if (value.endsWith(".")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value;
     }
 
     @PrePersist
@@ -81,15 +76,15 @@ public class EmailSenderIdentity {
         Instant now = Instant.now();
         createdAt = now;
         updatedAt = now;
-        email = normalizeEmail(email);
+        domain = normalizeDomain(domain);
         if (status == null) {
-            status = EmailSenderStatus.ACTIVE;
+            status = SendingDomainStatus.PENDING;
         }
     }
 
     @PreUpdate
     void onUpdate() {
-        email = normalizeEmail(email);
         updatedAt = Instant.now();
+        domain = normalizeDomain(domain);
     }
 }

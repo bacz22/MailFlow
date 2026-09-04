@@ -196,6 +196,16 @@ public class WorkspaceAccessService {
                 "Bạn không có quyền chỉnh sửa địa chỉ người gửi workspace này.");
     }
 
+    public WorkspaceMember requireDomainRead(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, SENDER_READ_ROLES,
+                "Bạn không có quyền xem tên miền gửi thư workspace này.");
+    }
+
+    public WorkspaceMember requireDomainWrite(UUID userId, UUID workspaceId) {
+        return requireRoles(userId, workspaceId, SENDER_MUTATE_ROLES,
+                "Bạn không có quyền quản lý tên miền gửi thư workspace này.");
+    }
+
     public WorkspaceMember requireCampaignRead(UUID userId, UUID workspaceId) {
         return requireRoles(userId, workspaceId, CAMPAIGN_READ_ROLES,
                 "Bạn không có quyền xem chiến dịch workspace này.");

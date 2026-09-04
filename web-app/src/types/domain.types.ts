@@ -9,7 +9,7 @@ export interface DnsRecord {
   host: string
   value: string
   status: 'VERIFIED' | 'PENDING' | 'FAILED'
-  purpose: 'SPF' | 'DKIM' | 'DMARC' | 'MX'
+  purpose: 'SPF' | 'DKIM' | 'DMARC' | 'MX' | 'VERIFY'
   description: string
 }
 

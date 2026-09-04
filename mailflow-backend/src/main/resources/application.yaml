@@ -73,6 +73,8 @@ mailflow:
   campaign:
     send-interval-ms: ${CAMPAIGN_SEND_INTERVAL_MS:5000}
     send-batch-size: ${CAMPAIGN_SEND_BATCH_SIZE:15}
+  domain:
+    verify-mode: ${DOMAIN_VERIFY_MODE:lenient}
   auth:
     issuer: ${JWT_ISSUER:mailflow-api}
     audience: ${JWT_AUDIENCE:mailflow-api}

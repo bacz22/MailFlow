@@ -6,6 +6,7 @@ import com.mailflow.emailsender.api.request.CreateEmailSenderRequest;
 import com.mailflow.emailsender.application.EmailSenderIdentityService;
 import com.mailflow.emailsender.domain.model.EmailSenderIdentity;
 import com.mailflow.emailsender.domain.repository.EmailSenderIdentityRepository;
+import com.mailflow.sendingdomain.domain.repository.SendingDomainRepository;
 import com.mailflow.workspace.application.WorkspaceAccessService;
 import com.mailflow.workspace.domain.model.WorkspaceMember;
 import com.mailflow.workspace.domain.model.WorkspaceRole;
@@ -18,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,6 +32,7 @@ import static org.mockito.Mockito.when;
 class EmailSenderIdentityServiceTest {
 
     @Mock EmailSenderIdentityRepository senderRepository;
+    @Mock SendingDomainRepository domainRepository;
     @Mock CampaignRepository campaignRepository;
     @Mock WorkspaceAccessService accessService;
     @InjectMocks EmailSenderIdentityService senderService;
@@ -38,11 +41,13 @@ class EmailSenderIdentityServiceTest {
     private final UUID workspaceId = UUID.randomUUID();
 
     @Test
-    void create_savesActiveSender() {
+    void create_savesActiveSenderPendingDomain() {
         when(accessService.requireSenderWrite(userId, workspaceId))
                 .thenReturn(new WorkspaceMember(workspaceId, userId, WorkspaceRole.OWNER));
         when(senderRepository.existsByWorkspaceIdAndEmailIgnoreCase(workspaceId, "news@acme.vn")).thenReturn(false);
         when(senderRepository.findByWorkspaceIdOrderByUpdatedAtDesc(workspaceId)).thenReturn(List.of());
+        when(domainRepository.findByWorkspaceIdAndDomainIgnoreCase(workspaceId, "acme.vn"))
+                .thenReturn(Optional.empty());
         when(senderRepository.save(any(EmailSenderIdentity.class))).thenAnswer(invocation -> {
             EmailSenderIdentity sender = invocation.getArgument(0);
             sender.setId(UUID.randomUUID());
@@ -55,8 +60,8 @@ class EmailSenderIdentityServiceTest {
                 .build());
 
         assertThat(response.getEmail()).isEqualTo("news@acme.vn");
-        assertThat(response.getStatus()).isEqualTo("VERIFIED");
-        assertThat(response.isVerified()).isTrue();
+        assertThat(response.getStatus()).isEqualTo("PENDING");
+        assertThat(response.isVerified()).isFalse();
         assertThat(response.isDefault()).isTrue();
         ArgumentCaptor<EmailSenderIdentity> captor = ArgumentCaptor.forClass(EmailSenderIdentity.class);
         verify(senderRepository).save(captor.capture());
@@ -85,7 +90,7 @@ class EmailSenderIdentityServiceTest {
         sender.setId(senderId);
         when(accessService.requireSenderWrite(userId, workspaceId))
                 .thenReturn(new WorkspaceMember(workspaceId, userId, WorkspaceRole.OWNER));
-        when(senderRepository.findByIdAndWorkspaceId(senderId, workspaceId)).thenReturn(java.util.Optional.of(sender));
+        when(senderRepository.findByIdAndWorkspaceId(senderId, workspaceId)).thenReturn(Optional.of(sender));
         when(campaignRepository.existsByWorkspaceIdAndSenderId(workspaceId, senderId)).thenReturn(true);
 
         assertThatThrownBy(() -> senderService.delete(userId, workspaceId, senderId))
