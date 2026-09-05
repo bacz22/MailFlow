@@ -43,6 +43,9 @@ public class SendingDomain {
     @Column(name = "verified_at")
     private Instant verifiedAt;
 
+    @Column(name = "brevo_domain_id", length = 64)
+    private String brevoDomainId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

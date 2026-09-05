@@ -140,7 +140,7 @@ export const SenderSelector: React.FC<SenderSelectorProps> = ({
           <span className="text-rose-500 ml-0.5">*</span>
         </label>
         <span className="text-[11px] text-slate-400">
-          Chỉ người gửi đã xác thực DKIM/SPF mới được phép phát hành
+          Chỉ người gửi gắn domain VERIFIED mới gửi được với From = email sender
         </span>
       </div>
 
@@ -162,10 +162,17 @@ export const SenderSelector: React.FC<SenderSelectorProps> = ({
                     Mặc định
                   </span>
                 )}
-                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Đã Xác Thực DKIM/SPF</span>
-                </span>
+                {selectedSender.isVerified ? (
+                  <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Domain VERIFIED — From riêng</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300 text-[10px] font-bold">
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                    <span>Domain chưa xác thực — không gửi được From riêng</span>
+                  </span>
+                )}
               </div>
 
               <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-2">
@@ -329,12 +336,15 @@ export const SenderSelector: React.FC<SenderSelectorProps> = ({
                       {sender.isVerified ? (
                         <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full">
                           <ShieldCheck className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Đã Xác Thực</span>
+                          <span className="hidden sm:inline">Domain VERIFIED</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-rose-500 font-semibold bg-rose-50 dark:bg-rose-950/50 px-2 py-0.5 rounded-full">
+                        <span
+                          className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300 font-semibold bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-full"
+                          title="Domain chưa xác thực — không gửi được From riêng"
+                        >
                           <ShieldAlert className="w-3.5 h-3.5" />
-                          <span>Chưa xác thực</span>
+                          <span>Chưa xác thực domain</span>
                         </span>
                       )}
                       <span className="font-mono text-slate-400 hidden md:inline">@{sender.domain}</span>

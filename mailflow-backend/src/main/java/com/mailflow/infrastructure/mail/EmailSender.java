@@ -41,4 +41,17 @@ public interface EmailSender {
             String fromEmail,
             String replyTo
     );
+
+    /**
+     * @param useSenderAsFrom when true, send via ESP SMTP with From = fromEmail (requires ESP configured)
+     */
+    void sendHtmlEmail(
+            String toEmail,
+            String subject,
+            String htmlBody,
+            String fromName,
+            String fromEmail,
+            String replyTo,
+            boolean useSenderAsFrom
+    );
 }

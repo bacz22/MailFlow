@@ -6,10 +6,10 @@ import {
   CheckCircle2,
   Copy,
   Check,
-  HelpCircle,
   Info,
   RefreshCw,
   AlertTriangle,
+  Clock,
 } from 'lucide-react'
 import {
   Dialog,
@@ -138,15 +138,15 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
             <DialogTitle>Thêm & Xác Thực Tên Miền Từng Bước (DNS Setup)</DialogTitle>
           </div>
           <DialogDescription className="text-xs">
-            Quy trình 3 bước đơn giản giúp cấu hình bản ghi xác thực SPF/DKIM để email luôn vào Inbox.
+            Quy trình 3 bước: thêm tên miền, publish bản ghi DNS do Brevo cấp, rồi xác thực để gửi From @domain.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex items-center justify-between gap-2 px-2 py-3 border-b border-slate-100 dark:border-slate-800 text-xs">
           {[
-            { num: 1, label: '1. Nhập Tên Miền' },
-            { num: 2, label: '2. Thêm Bản Ghi DNS' },
-            { num: 3, label: '3. Kiểm Tra & Hoàn Tất' },
+            { num: 1, label: 'Nhập Tên Miền' },
+            { num: 2, label: 'Thêm Bản Ghi DNS' },
+            { num: 3, label: 'Kiểm Tra & Hoàn Tất' },
           ].map((s) => (
             <div
               key={s.num}
@@ -206,16 +206,26 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
 
         {step === 2 && createdDomain && (
           <div className="space-y-4 py-2 text-xs">
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <div>
-                <span className="text-slate-400 text-[11px]">Tên miền đang cấu hình:</span>
-                <div className="font-bold text-slate-900 dark:text-slate-100 font-mono text-sm">
-                  {createdDomain.domain}
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[10px] block">Tên miền đang cấu hình:</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 font-mono text-sm">
+                      {createdDomain.domain}
+                    </span>
+                  </div>
                 </div>
+                <Badge variant="info" size="sm">
+                  {records.length} bản ghi cần thêm
+                </Badge>
               </div>
-              <span className="text-[11px] text-blue-600 font-semibold">
-                Sao chép các bản ghi dưới đây vào trang DNS:
-              </span>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed border-t border-slate-200/60 dark:border-slate-800/60 pt-2">
+                Sao chép các bản ghi DKIM & mã chứng thực độc quyền từ Brevo vào trang quản lý DNS của bạn (ví dụ: Spaceship, Cloudflare):
+              </p>
             </div>
 
             <div className="space-y-3 max-h-[340px] overflow-y-auto">
@@ -277,17 +287,19 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
               ))}
             </div>
 
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-              <HelpCircle className="w-3.5 h-3.5 text-blue-500" />
-              <span>Thời gian lan truyền DNS thông thường từ 5 phút đến tối đa 24 giờ.</span>
+            <div className="flex items-center gap-2 text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 p-2.5 rounded-xl">
+              <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                <strong>Lưu ý:</strong> Sau khi thêm bản ghi trên nhà cung cấp tên miền, vui lòng chờ <strong>1–2 phút</strong> để hệ thống DNS xác thực xong rồi mới bấm xác minh.
+              </span>
             </div>
           </div>
         )}
 
         {step === 3 && createdDomain && (
-          <div className="space-y-4 py-4 text-xs text-center">
+          <div className="space-y-4 py-4 text-xs">
             {!verificationDone ? (
-              <div className="py-6 space-y-3">
+              <div className="py-6 space-y-3 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 mx-auto flex items-center justify-center">
                   <RefreshCw className={`w-6 h-6 ${isVerifying ? 'animate-spin' : ''}`} />
                 </div>
@@ -295,8 +307,8 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
                   Kiểm Tra Tình Trạng Bản Ghi DNS
                 </div>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Hệ thống sẽ đối soát bản ghi SPF, DKIM và DMARC cho{' '}
-                  <strong>{createdDomain.domain}</strong>.
+                  Brevo đang kiểm tra đối soát trực tiếp với hệ thống DNS toàn cầu cho{' '}
+                  <strong>{createdDomain.domain}</strong>. Vui lòng chờ <strong>1–2 phút</strong> sau khi lưu DNS để hệ thống xác thực xong.
                 </p>
                 <Button
                   type="button"
@@ -308,41 +320,74 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
                   Bắt Đầu Kiểm Tra Ngay
                 </Button>
               </div>
-            ) : createdDomain.status === 'VERIFIED' ? (
-              <div className="py-6 space-y-3 animate-in fade-in-0">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 mx-auto flex items-center justify-center">
-                  <CheckCircle2 className="w-6 h-6" />
-                </div>
-                <div className="font-bold text-emerald-900 dark:text-emerald-200 text-base">
-                  Xác Thực Tên Miền Thành Công!
-                </div>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Tên miền <strong>{createdDomain.domain}</strong> đã sẵn sàng gắn với địa chỉ người gửi.
-                </p>
-              </div>
             ) : (
-              <div className="py-6 space-y-3 animate-in fade-in-0">
-                <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 mx-auto flex items-center justify-center">
-                  <AlertTriangle className="w-6 h-6" />
+              <div className="space-y-4 animate-in fade-in-0">
+                {createdDomain.status === 'VERIFIED' ? (
+                  <div className="py-2 space-y-2 text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 mx-auto flex items-center justify-center">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <div className="font-bold text-emerald-900 dark:text-emerald-200 text-base">
+                      Xác Thực Tên Miền Thành Công!
+                    </div>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                      Tên miền <strong>{createdDomain.domain}</strong> đã sẵn sàng gắn với địa chỉ người gửi.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="py-2 space-y-2 text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 mx-auto flex items-center justify-center">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div className="font-bold text-amber-900 dark:text-amber-200 text-base">
+                      Chưa khớp đủ bản ghi ({createdDomain.status})
+                    </div>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                      Không thể gửi From @{createdDomain.domain} cho đến khi tất cả bản ghi VERIFIED.
+                      Thử lại sau khi DNS lan truyền.
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2 text-left max-h-[220px] overflow-y-auto">
+                  {records.map((rec) => {
+                    const status = (rec.status || 'PENDING').toUpperCase()
+                    const variant =
+                      status === 'VERIFIED' ? 'success' : status === 'FAILED' ? 'danger' : 'warning'
+                    return (
+                      <div
+                        key={rec.id}
+                        className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800"
+                      >
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-800 dark:text-slate-200 truncate">
+                            {rec.name}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono truncate">
+                            {rec.purpose} · {rec.host}
+                          </div>
+                        </div>
+                        <Badge variant={variant} size="sm" className="shrink-0 font-bold">
+                          {status}
+                        </Badge>
+                      </div>
+                    )
+                  })}
                 </div>
-                <div className="font-bold text-amber-900 dark:text-amber-200 text-base">
-                  Chưa khớp đủ bản ghi ({createdDomain.status})
-                </div>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Bạn vẫn có thể đóng và thử xác minh lại sau khi DNS cập nhật.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  isLoading={isVerifying}
-                  onClick={() => {
-                    setVerificationDone(false)
-                    void handleVerifyStep3()
-                  }}
-                >
-                  Kiểm tra lại
-                </Button>
+
+                {createdDomain.status !== 'VERIFIED' && (
+                  <div className="text-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      isLoading={isVerifying}
+                      onClick={() => void handleVerifyStep3()}
+                    >
+                      Kiểm tra lại
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -390,10 +435,14 @@ export const AddDomainWizardDialog: React.FC<AddDomainWizardDialogProps> = ({
               type="button"
               variant="primary"
               size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 font-bold"
+              className={
+                createdDomain?.status === 'VERIFIED'
+                  ? 'bg-emerald-600 hover:bg-emerald-700 font-bold'
+                  : 'font-bold'
+              }
               onClick={handleFinish}
             >
-              Hoàn Tất & Đóng
+              {createdDomain?.status === 'VERIFIED' ? 'Hoàn Tất & Đóng' : 'Đóng (chưa VERIFIED)'}
             </Button>
           )}
         </DialogFooter>

@@ -5,6 +5,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.MailException;
@@ -23,6 +24,13 @@ public class SmtpEmailSender implements EmailSender {
 
     @Autowired(required = false)
     private JavaMailSender mailSender;
+
+    @Autowired(required = false)
+    @Qualifier(EspMailConfiguration.ESP_MAIL_SENDER)
+    private JavaMailSender espMailSender;
+
+    @Autowired
+    private EspMailProperties espMailProperties;
 
     @Value("${mailflow.app.client-url:http://localhost:5173}")
     private String clientUrl;
@@ -149,7 +157,7 @@ public class SmtpEmailSender implements EmailSender {
 
     @Override
     public void sendHtmlEmail(String toEmail, String subject, String htmlBody) {
-        sendHtmlEmail(toEmail, subject, htmlBody, null, null, null);
+        sendHtmlEmail(toEmail, subject, htmlBody, null, null, null, false);
     }
 
     @Override
@@ -161,7 +169,30 @@ public class SmtpEmailSender implements EmailSender {
             String fromEmailOverride,
             String replyTo
     ) {
-        log.info("Chuẩn bị gửi HTML tới [{}]", toEmail);
+        sendHtmlEmail(toEmail, subject, htmlBody, fromNameOverride, fromEmailOverride, replyTo, false);
+    }
+
+    @Override
+    public void sendHtmlEmail(
+            String toEmail,
+            String subject,
+            String htmlBody,
+            String fromNameOverride,
+            String fromEmailOverride,
+            String replyTo,
+            boolean useSenderAsFrom
+    ) {
+        log.info("Chuẩn bị gửi HTML tới [{}] useSenderAsFrom={}", toEmail, useSenderAsFrom);
+        String displayName = (fromNameOverride != null && !fromNameOverride.isBlank())
+                ? fromNameOverride.trim()
+                : fromName;
+        String effectiveReplyTo = firstNonBlank(replyTo, fromEmailOverride);
+
+        if (useSenderAsFrom) {
+            sendViaEsp(toEmail, subject, htmlBody, displayName, fromEmailOverride, effectiveReplyTo);
+            return;
+        }
+
         if (mailSender == null || smtpUsername == null || smtpUsername.isBlank()) {
             throw new AppException(HttpStatus.SERVICE_UNAVAILABLE, "SMTP_NOT_CONFIGURED",
                     "Chưa cấu hình SMTP. Không thể gửi email thử nghiệm.");
@@ -170,24 +201,58 @@ public class SmtpEmailSender implements EmailSender {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(
                     message, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
-            String displayName = (fromNameOverride != null && !fromNameOverride.isBlank())
-                    ? fromNameOverride.trim()
-                    : fromName;
-            // Gmail SMTP chỉ cho phép From = tài khoản đăng nhập; giữ fromEmail hệ thống, đổi display name.
+            // System SMTP (e.g. Gmail): From address stays system; display name + Reply-To mirror sender.
             helper.setFrom(fromEmail, displayName);
             helper.setTo(toEmail);
-            String effectiveReplyTo = firstNonBlank(replyTo, fromEmailOverride);
             if (effectiveReplyTo != null) {
                 helper.setReplyTo(effectiveReplyTo);
             }
             helper.setSubject(subject == null ? "" : subject);
             helper.setText(htmlBody == null ? "" : htmlBody, true);
             mailSender.send(message);
-            log.info("Đã gửi HTML tới [{}] as [{}] reply-to [{}]", toEmail, displayName, effectiveReplyTo);
+            log.info("Đã gửi HTML (system SMTP) tới [{}] as [{}] reply-to [{}]",
+                    toEmail, displayName, effectiveReplyTo);
         } catch (MessagingException | UnsupportedEncodingException | MailException e) {
             log.error("Không thể gửi HTML tới [{}]: {}", toEmail, e.getMessage(), e);
             throw new AppException(HttpStatus.BAD_GATEWAY, "SMTP_SEND_FAILED",
                     "Không gửi được email: " + e.getMessage());
+        }
+    }
+
+    private void sendViaEsp(
+            String toEmail,
+            String subject,
+            String htmlBody,
+            String displayName,
+            String senderFromEmail,
+            String replyTo
+    ) {
+        if (espMailSender == null || espMailProperties == null || !espMailProperties.isConfigured()) {
+            throw new AppException(HttpStatus.SERVICE_UNAVAILABLE, "ESP_SMTP_NOT_CONFIGURED",
+                    "Chưa cấu hình ESP SMTP (ESP_SMTP_HOST/USERNAME/PASSWORD). Không gửi được From = sender.");
+        }
+        if (senderFromEmail == null || senderFromEmail.isBlank()) {
+            throw new AppException(HttpStatus.BAD_REQUEST, "SENDER_FROM_REQUIRED",
+                    "Thiếu địa chỉ From của người gửi.");
+        }
+        try {
+            MimeMessage message = espMailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(
+                    message, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
+            helper.setFrom(senderFromEmail.trim(), displayName);
+            helper.setTo(toEmail);
+            if (replyTo != null && !replyTo.isBlank()) {
+                helper.setReplyTo(replyTo.trim());
+            }
+            helper.setSubject(subject == null ? "" : subject);
+            helper.setText(htmlBody == null ? "" : htmlBody, true);
+            espMailSender.send(message);
+            log.info("Đã gửi HTML (ESP) tới [{}] From [{} <{}>] reply-to [{}]",
+                    toEmail, displayName, senderFromEmail, replyTo);
+        } catch (MessagingException | UnsupportedEncodingException | MailException e) {
+            log.error("ESP gửi HTML tới [{}] thất bại: {}", toEmail, e.getMessage(), e);
+            throw new AppException(HttpStatus.BAD_GATEWAY, "ESP_SMTP_SEND_FAILED",
+                    "Không gửi được email qua ESP: " + e.getMessage());
         }
     }
 

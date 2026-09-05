@@ -4,6 +4,7 @@ import {
   Search,
   AlertTriangle,
   BookOpen,
+  Clock,
 } from 'lucide-react'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/Button'
@@ -175,7 +176,7 @@ export const DomainsPage: React.FC<DomainsPageProps> = ({ onNavigate: _onNavigat
           <div className="text-2xl font-extrabold font-mono text-amber-600">
             {domains.filter((d) => d.status === 'PENDING').length}
           </div>
-          <div className="text-[10px] text-slate-400">Đang chờ cập nhật nameserver</div>
+          <div className="text-[10px] text-amber-600 font-medium">Chờ 1–2 phút để hoàn tất</div>
         </div>
 
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 shadow-xs space-y-1">
@@ -198,6 +199,10 @@ export const DomainsPage: React.FC<DomainsPageProps> = ({ onNavigate: _onNavigat
               <strong>SPF</strong> xác định máy chủ được phép gửi thư. <strong>DKIM</strong> gắn chữ ký số chống sửa đổi nội dung. <strong>DMARC</strong> chỉ dẫn Gmail/Outlook xử lý email nếu bị kẻ xấu giả mạo.
             </p>
           </div>
+        </div>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-blue-200/60 dark:border-blue-800/60 text-[11px] text-blue-700 dark:text-blue-300 shrink-0">
+          <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+          <span>Sau khi lưu DNS, vui lòng chờ <strong>1–2 phút</strong> để hệ thống xác thực xong.</span>
         </div>
       </div>
 

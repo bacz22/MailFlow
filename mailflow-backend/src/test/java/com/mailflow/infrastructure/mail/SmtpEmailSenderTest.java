@@ -1,5 +1,6 @@
 package com.mailflow.infrastructure.mail;
 
+import com.mailflow.infrastructure.mail.EspMailProperties;
 import com.mailflow.infrastructure.mail.SmtpEmailSender;
 import jakarta.mail.BodyPart;
 import jakarta.mail.Multipart;
@@ -36,6 +37,8 @@ class SmtpEmailSenderTest {
         ReflectionTestUtils.setField(emailService, "clientUrl", "http://localhost:5173");
         ReflectionTestUtils.setField(emailService, "fromEmail", "no-reply@mailflow.dev");
         ReflectionTestUtils.setField(emailService, "fromName", "MailFlow Platform");
+        EspMailProperties espProps = new EspMailProperties();
+        ReflectionTestUtils.setField(emailService, "espMailProperties", espProps);
     }
 
     @Test

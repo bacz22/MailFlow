@@ -381,17 +381,6 @@ export const CampaignWizardPage: React.FC<CampaignWizardPageProps> = ({ campaign
                   step3: { ...prev.step3, ...updated },
                 }))
               }}
-              onApplyTemplateMeta={({ subject, previewText }) => {
-                setIsDirty(true)
-                setWizardData((prev) => ({
-                  ...prev,
-                  step1: {
-                    ...prev.step1,
-                    subject,
-                    previewText: previewText ?? prev.step1.previewText,
-                  },
-                }))
-              }}
             />
           )}
 

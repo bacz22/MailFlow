@@ -41,6 +41,7 @@ export interface CampaignDetail extends Campaign {
   senderId?: string
   senderName?: string
   senderEmail?: string
+  senderDomainVerified?: boolean
   replyTo?: string
   templateId?: string
   htmlContent?: string
@@ -109,6 +110,7 @@ function mapCampaign(raw: Record<string, unknown>): CampaignDetail {
     senderId: raw.senderId ? String(raw.senderId) : undefined,
     senderName: raw.senderName ? String(raw.senderName) : undefined,
     senderEmail: raw.senderEmail ? String(raw.senderEmail) : undefined,
+    senderDomainVerified: Boolean(raw.senderDomainVerified),
     replyTo: raw.replyTo ? String(raw.replyTo) : undefined,
     templateId: raw.templateId ? String(raw.templateId) : undefined,
     htmlContent: raw.htmlContent != null ? String(raw.htmlContent) : '',

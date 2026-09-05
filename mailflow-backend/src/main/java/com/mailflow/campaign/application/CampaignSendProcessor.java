@@ -16,7 +16,7 @@ import com.mailflow.emailtemplate.application.EmailTemplateLayout;
 import com.mailflow.emailtemplate.application.EmailTemplateMerge;
 import com.mailflow.emailtemplate.domain.model.EmailTemplate;
 import com.mailflow.emailtemplate.domain.repository.EmailTemplateRepository;
-import com.mailflow.infrastructure.mail.EmailSender;
+import com.mailflow.infrastructure.mail.CampaignMailRouter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -43,7 +43,7 @@ public class CampaignSendProcessor {
     private final ContactRepository contactRepository;
     private final EmailTemplateRepository templateRepository;
     private final EmailSenderIdentityRepository senderRepository;
-    private final EmailSender emailSender;
+    private final CampaignMailRouter campaignMailRouter;
 
     @Transactional(readOnly = true)
     public List<UUID> findPendingRecipientIds(int batchSize) {
@@ -171,11 +171,6 @@ public class CampaignSendProcessor {
                 ? null
                 : senderRepository.findByIdAndWorkspaceId(campaign.getSenderId(), campaign.getWorkspaceId())
                         .orElse(null);
-        String fromName = sender != null ? sender.getName() : null;
-        String fromEmail = sender != null ? sender.getEmail() : null;
-        String replyTo = campaign.getReplyTo() != null && !campaign.getReplyTo().isBlank()
-                ? campaign.getReplyTo()
-                : fromEmail;
-        emailSender.sendHtmlEmail(contact.getEmail(), subject, wrapped, fromName, fromEmail, replyTo);
+        campaignMailRouter.sendHtml(contact.getEmail(), subject, wrapped, sender, campaign.getReplyTo());
     }
 }

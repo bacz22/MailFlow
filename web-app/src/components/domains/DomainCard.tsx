@@ -129,14 +129,15 @@ export const DomainCard: React.FC<DomainCardProps> = ({
       {/* Collapsible DNS Records Table */}
       {isExpanded && (
         <CardContent className="p-0 animate-in fade-in-0">
-          <div className="p-4 bg-blue-50/30 dark:bg-blue-950/10 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+          <div className="p-4 bg-blue-50/30 dark:bg-blue-950/10 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-300">
-              <ShieldCheck className="w-4 h-4 text-blue-600" />
+              <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
               <span>Bản Ghi Xác Thực Máy Chủ (SPF, DKIM, DMARC):</span>
             </div>
-            <span className="text-[11px] text-slate-500">
-              Cần cấu hình chính xác tại trang quản lý DNS nhà cung cấp tên miền của bạn.
-            </span>
+            <div className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-800/60 px-2.5 py-1 rounded-lg">
+              <Clock className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+              <span>Sau khi thêm bản ghi, vui lòng chờ <strong>1–2 phút</strong> để DNS xác thực xong.</span>
+            </div>
           </div>
 
           <div className="overflow-x-auto">

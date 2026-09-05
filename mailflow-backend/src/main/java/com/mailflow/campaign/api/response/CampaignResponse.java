@@ -38,6 +38,8 @@ public class CampaignResponse {
     private UUID senderId;
     private String senderName;
     private String senderEmail;
+    /** True when sender is linked to a VERIFIED sending domain (can use From = sender via ESP). */
+    private boolean senderDomainVerified;
     private String replyTo;
     private UUID templateId;
     private String htmlContent;

@@ -67,6 +67,7 @@ type CampaignDetailView = Campaign & {
   previewText?: string
   senderName: string
   senderEmail: string
+  senderDomainVerified?: boolean
   replyTo: string
   sendType?: 'immediate' | 'scheduled'
   scheduledTimezone?: string
@@ -829,9 +830,19 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
                 )}
                 <div>
                   <span className="text-slate-400 text-[11px]">Địa chỉ gửi (From):</span>
-                  <div className="font-mono text-slate-800 dark:text-slate-200 mt-0.5 flex items-center gap-1.5">
+                  <div className="font-mono text-slate-800 dark:text-slate-200 mt-0.5 flex flex-wrap items-center gap-1.5">
                     <span>{campaign.senderName} &lt;{campaign.senderEmail}&gt;</span>
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    {campaign.senderDomainVerified ? (
+                      <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        Domain VERIFIED — From riêng
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300 text-[10px] font-bold">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        Domain chưa xác thực — không gửi được From riêng
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div>

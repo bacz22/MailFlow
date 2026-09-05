@@ -3,6 +3,11 @@ package com.mailflow.sendingdomain.application;
 import com.mailflow.common.exception.AppException;
 import com.mailflow.common.exception.ResourceNotFoundException;
 import com.mailflow.emailsender.domain.repository.EmailSenderIdentityRepository;
+import com.mailflow.infrastructure.brevo.BrevoDomainClient;
+import com.mailflow.infrastructure.brevo.BrevoDomainDtos.AuthenticateOutcome;
+import com.mailflow.infrastructure.brevo.BrevoDomainDtos.DnsRecordItem;
+import com.mailflow.infrastructure.brevo.BrevoDomainDtos.DnsRecords;
+import com.mailflow.infrastructure.brevo.BrevoDomainDtos.DomainSnapshot;
 import com.mailflow.sendingdomain.api.request.CreateSendingDomainRequest;
 import com.mailflow.sendingdomain.api.response.SendingDomainResponse;
 import com.mailflow.sendingdomain.domain.model.DnsRecordPurpose;
@@ -15,10 +20,10 @@ import com.mailflow.sendingdomain.domain.repository.SendingDomainRepository;
 import com.mailflow.workspace.application.WorkspaceAccessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -31,14 +36,18 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SendingDomainService {
 
+    /**
+     * Brevo GET /senders/domains/{name} does not return numeric id.
+     * Use "0" to mark "already synced with Brevo" and avoid re-backfill every verify.
+     */
+    private static final String BREVO_ID_SYNCED_UNKNOWN = "0";
+
     private final SendingDomainRepository domainRepository;
     private final DomainDnsRecordRepository recordRepository;
     private final EmailSenderIdentityRepository senderRepository;
     private final WorkspaceAccessService accessService;
-    private final DnsTxtLookup dnsTxtLookup;
-
-    @Value("${mailflow.domain.verify-mode:lenient}")
-    private String verifyMode;
+    private final BrevoDomainClient brevoDomainClient;
+    private final TransactionTemplate transactionTemplate;
 
     @Transactional(readOnly = true)
     public List<SendingDomainResponse> list(UUID userId, UUID workspaceId, String q, String status) {
@@ -59,7 +68,6 @@ public class SendingDomainService {
         return toResponse(requireDomain(workspaceId, domainId));
     }
 
-    @Transactional
     public SendingDomainResponse create(UUID userId, UUID workspaceId, CreateSendingDomainRequest request) {
         accessService.requireDomainWrite(userId, workspaceId);
         String domainName = SendingDomain.normalizeDomain(request.getDomain());
@@ -67,78 +75,108 @@ public class SendingDomainService {
             throw new AppException(HttpStatus.BAD_REQUEST, "DOMAIN_INVALID",
                     "Vui lòng nhập tên miền hợp lệ (ví dụ: congty.vn).");
         }
-        if (domainRepository.existsByWorkspaceIdAndDomainIgnoreCase(workspaceId, domainName)) {
+        if (domainRepository.existsByDomainIgnoreCase(domainName)) {
             throw new AppException(HttpStatus.CONFLICT, "DOMAIN_EXISTS",
-                    "Tên miền đã tồn tại trong workspace.");
+                    "Tên miền đã được đăng ký trên hệ thống MailFlow.");
         }
-        SendingDomain domain = domainRepository.save(new SendingDomain(workspaceId, domainName));
-        seedDnsRecords(domain);
-        return toResponse(domain);
+        brevoDomainClient.requireConfigured();
+        DomainSnapshot snapshot = brevoDomainClient.createOrFetchExisting(domainName);
+        SendingDomainResponse response = transactionTemplate.execute(status -> {
+            SendingDomain domain = new SendingDomain(workspaceId, domainName);
+            domain.setBrevoDomainId(resolveBrevoDomainId(snapshot.brevoDomainId()));
+            domain = domainRepository.save(domain);
+            replaceDnsRecordsFromBrevo(domain, snapshot.dnsRecords(), false);
+            return toResponse(domain);
+        });
+        if (response == null) {
+            throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR, "DOMAIN_CREATE_FAILED",
+                    "Không lưu được tên miền.");
+        }
+        return response;
     }
 
-    @Transactional
     public void delete(UUID userId, UUID workspaceId, UUID domainId) {
         accessService.requireDomainWrite(userId, workspaceId);
         SendingDomain domain = requireDomain(workspaceId, domainId);
-        recordRepository.deleteByDomainId(domain.getId());
-        domainRepository.delete(domain);
+        String domainName = domain.getDomain();
+        brevoDomainClient.deleteDomain(domainName);
+        transactionTemplate.executeWithoutResult(status -> {
+            SendingDomain managed = requireDomain(workspaceId, domainId);
+            recordRepository.deleteByDomainId(managed.getId());
+            domainRepository.delete(managed);
+        });
     }
 
-    @Transactional
     public SendingDomainResponse verify(UUID userId, UUID workspaceId, UUID domainId) {
         accessService.requireDomainWrite(userId, workspaceId);
         SendingDomain domain = requireDomain(workspaceId, domainId);
-        List<DomainDnsRecord> records = recordRepository.findByDomainIdOrderByCreatedAtAsc(domain.getId());
-        boolean lenient = "lenient".equalsIgnoreCase(verifyMode == null ? "" : verifyMode.trim());
+        brevoDomainClient.requireConfigured();
 
-        int verifiedAuthRecords = 0;
-        int authRecords = 0;
-        for (DomainDnsRecord record : records) {
-            if (record.getPurpose() == DnsRecordPurpose.VERIFY) {
-                continue;
-            }
-            if (record.getPurpose() == DnsRecordPurpose.MX) {
-                continue;
-            }
-            authRecords++;
-            boolean ok = checkRecord(domain.getDomain(), record);
-            if (!ok && lenient) {
-                log.warn("Domain [{}] record [{}] DNS miss — lenient mode marks VERIFIED",
-                        domain.getDomain(), record.getPurpose());
-                ok = true;
-            }
-            record.setStatus(ok ? DnsRecordStatus.VERIFIED : DnsRecordStatus.FAILED);
-            recordRepository.save(record);
-            if (ok) {
-                verifiedAuthRecords++;
-            }
+        if (domain.getBrevoDomainId() == null) {
+            backfillBrevo(domain);
+            domain = requireDomain(workspaceId, domainId);
         }
 
-        // Ownership / VERIFY record optional but preferred
-        for (DomainDnsRecord record : records) {
-            if (record.getPurpose() != DnsRecordPurpose.VERIFY) {
-                continue;
+        String domainName = domain.getDomain();
+        AuthenticateOutcome outcome = brevoDomainClient.authenticateDomain(domainName);
+
+        if (outcome == AuthenticateOutcome.SUCCESS) {
+            SendingDomainResponse verified = transactionTemplate.execute(status -> {
+                SendingDomain managed = requireDomain(workspaceId, domainId);
+                List<DomainDnsRecord> records =
+                        recordRepository.findByDomainIdOrderByCreatedAtAsc(managed.getId());
+                for (DomainDnsRecord record : records) {
+                    record.setStatus(DnsRecordStatus.VERIFIED);
+                    recordRepository.save(record);
+                }
+                managed.setStatus(SendingDomainStatus.VERIFIED);
+                managed.setVerifiedAt(Instant.now());
+                managed = domainRepository.save(managed);
+                return toResponse(managed);
+            });
+            if (verified == null) {
+                throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR, "DOMAIN_VERIFY_FAILED",
+                        "Không lưu được kết quả xác thực.");
             }
-            boolean ok = checkRecord(domain.getDomain(), record);
-            if (!ok && lenient) {
-                ok = true;
-            }
-            record.setStatus(ok ? DnsRecordStatus.VERIFIED : DnsRecordStatus.FAILED);
-            recordRepository.save(record);
+            return verified;
         }
 
-        if (authRecords > 0 && verifiedAuthRecords == authRecords) {
-            domain.setStatus(SendingDomainStatus.VERIFIED);
-            domain.setVerifiedAt(Instant.now());
-        } else if (verifiedAuthRecords == 0) {
-            domain.setStatus(SendingDomainStatus.FAILED);
-            domain.setVerifiedAt(null);
-        } else {
-            domain.setStatus(SendingDomainStatus.PENDING);
-            domain.setVerifiedAt(null);
+        DomainSnapshot snapshot = brevoDomainClient.getDomain(domainName);
+        SendingDomainResponse pending = transactionTemplate.execute(status -> {
+            SendingDomain managed = requireDomain(workspaceId, domainId);
+            if (snapshot.brevoDomainId() != null && managed.getBrevoDomainId() == null) {
+                managed.setBrevoDomainId(resolveBrevoDomainId(snapshot.brevoDomainId()));
+            }
+            applyDnsStatusesFromBrevo(managed, snapshot.dnsRecords());
+            int ok = 0;
+            int total = 0;
+            for (DomainDnsRecord record : recordRepository.findByDomainIdOrderByCreatedAtAsc(managed.getId())) {
+                if (record.getPurpose() == DnsRecordPurpose.MX) {
+                    continue;
+                }
+                total++;
+                if (record.getStatus() == DnsRecordStatus.VERIFIED) {
+                    ok++;
+                }
+            }
+            if (total > 0 && ok == total) {
+                managed.setStatus(SendingDomainStatus.VERIFIED);
+                managed.setVerifiedAt(Instant.now());
+            } else if (ok == 0) {
+                managed.setStatus(SendingDomainStatus.FAILED);
+                managed.setVerifiedAt(null);
+            } else {
+                managed.setStatus(SendingDomainStatus.PENDING);
+                managed.setVerifiedAt(null);
+            }
+            managed = domainRepository.save(managed);
+            return toResponse(managed);
+        });
+        if (pending == null) {
+            throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR, "DOMAIN_VERIFY_FAILED",
+                    "Không lưu được kết quả xác thực.");
         }
-        domain = domainRepository.save(domain);
-        return toResponse(domain);
+        return pending;
     }
 
     public SendingDomain requireDomain(UUID workspaceId, UUID domainId) {
@@ -146,73 +184,167 @@ public class SendingDomainService {
                 .orElseThrow(() -> new ResourceNotFoundException("Tên miền", domainId.toString()));
     }
 
-    private void seedDnsRecords(SendingDomain domain) {
-        String d = domain.getDomain();
-        String token = UUID.randomUUID().toString().replace("-", "").substring(0, 24);
-        List<DomainDnsRecord> rows = List.of(
-                new DomainDnsRecord(
-                        domain.getId(),
-                        "TXT",
-                        "MailFlow Ownership",
-                        "@",
-                        "mailflow-site-verification=" + token,
-                        DnsRecordPurpose.VERIFY,
-                        "Xác minh quyền sở hữu tên miền với MailFlow."
-                ),
-                new DomainDnsRecord(
-                        domain.getId(),
-                        "TXT",
-                        "SPF Authentication",
-                        "@",
-                        "v=spf1 include:mailflow.vn ~all",
-                        DnsRecordPurpose.SPF,
-                        "Chỉ định máy chủ MailFlow được phép gửi email từ tên miền này."
-                ),
-                new DomainDnsRecord(
-                        domain.getId(),
-                        "TXT",
-                        "DKIM Signature",
-                        "mailflow._domainkey",
-                        "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3K"
-                                + token.substring(0, Math.min(8, token.length()))
-                                + "DAQAB",
-                        DnsRecordPurpose.DKIM,
-                        "Chữ ký điện tử mã hóa nội dung chống giả mạo email."
-                ),
-                new DomainDnsRecord(
-                        domain.getId(),
-                        "TXT",
-                        "DMARC Policy",
-                        "_dmarc",
-                        "v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@" + d,
-                        DnsRecordPurpose.DMARC,
-                        "Quy chuẩn bảo vệ chống phishing và nhận báo cáo vi phạm."
-                )
-        );
-        recordRepository.saveAll(rows);
+    private void backfillBrevo(SendingDomain domain) {
+        log.info("Backfill Brevo for legacy domain [{}]", domain.getDomain());
+        DomainSnapshot snapshot = brevoDomainClient.createOrFetchExisting(domain.getDomain());
+        transactionTemplate.executeWithoutResult(status -> {
+            SendingDomain managed = domainRepository.findById(domain.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Tên miền", domain.getId().toString()));
+            managed.setBrevoDomainId(resolveBrevoDomainId(snapshot.brevoDomainId()));
+            replaceDnsRecordsFromBrevo(managed, snapshot.dnsRecords(), true);
+            domainRepository.save(managed);
+        });
     }
 
-    private boolean checkRecord(String domain, DomainDnsRecord record) {
-        String host = record.getHost() == null ? "@" : record.getHost().trim();
-        String fqdn;
-        if ("@".equals(host) || host.isEmpty()) {
-            fqdn = domain;
-        } else if (host.endsWith("." + domain) || host.equals(domain)) {
-            fqdn = host;
-        } else {
-            fqdn = host + "." + domain;
+    /** Prefer real Brevo id from create; otherwise sentinel so we do not re-backfill forever. */
+    private static String resolveBrevoDomainId(String brevoDomainId) {
+        return brevoDomainId != null && !brevoDomainId.isBlank() ? brevoDomainId : BREVO_ID_SYNCED_UNKNOWN;
+    }
+
+    private void replaceDnsRecordsFromBrevo(SendingDomain domain, DnsRecords dns, boolean clearExisting) {
+        if (clearExisting) {
+            recordRepository.deleteByDomainId(domain.getId());
         }
-        String expected = record.getValue() == null ? "" : record.getValue().trim();
-        String needle = switch (record.getPurpose()) {
-            case VERIFY -> expected.contains("=")
-                    ? expected.substring(expected.indexOf('=') + 1).trim()
-                    : expected;
-            case SPF -> "v=spf1";
-            case DKIM -> "v=DKIM1";
-            case DMARC -> "v=DMARC1";
-            default -> expected.length() > 12 ? expected.substring(0, 12) : expected;
-        };
-        return dnsTxtLookup.anyContains(fqdn, needle);
+        List<DomainDnsRecord> rows = mapBrevoDnsRecords(domain.getId(), dns);
+        if (!rows.isEmpty()) {
+            recordRepository.saveAll(rows);
+        }
+    }
+
+    private void applyDnsStatusesFromBrevo(SendingDomain domain, DnsRecords dns) {
+        if (dns == null) {
+            return;
+        }
+        List<DomainDnsRecord> existing = recordRepository.findByDomainIdOrderByCreatedAtAsc(domain.getId());
+        if (existing.isEmpty()) {
+            replaceDnsRecordsFromBrevo(domain, dns, false);
+            existing = recordRepository.findByDomainIdOrderByCreatedAtAsc(domain.getId());
+        }
+        syncItemStatus(existing, DnsRecordPurpose.VERIFY, dns.getBrevoCode());
+        syncItemStatus(existing, DnsRecordPurpose.DKIM, dns.getDkim1Record());
+        syncItemStatus(existing, DnsRecordPurpose.DKIM, dns.getDkim2Record());
+        syncItemStatus(existing, DnsRecordPurpose.DKIM, dns.getDkimRecord());
+        syncItemStatus(existing, DnsRecordPurpose.DMARC, dns.getDmarcRecord());
+        for (DomainDnsRecord record : existing) {
+            recordRepository.save(record);
+        }
+    }
+
+    private static void syncItemStatus(List<DomainDnsRecord> existing, DnsRecordPurpose purpose, DnsRecordItem item) {
+        if (item == null) {
+            return;
+        }
+        boolean ok = Boolean.TRUE.equals(item.getStatus());
+        String normalizedHost = normalizeHost(item.getHostName());
+        for (DomainDnsRecord record : existing) {
+            if (record.getPurpose() == purpose) {
+                if (!record.getHost().equalsIgnoreCase(normalizedHost) && !normalizedHost.equals("@")) {
+                    continue;
+                }
+                record.setStatus(ok ? DnsRecordStatus.VERIFIED : DnsRecordStatus.FAILED);
+                if (item.getValue() != null && !item.getValue().isBlank()) {
+                    record.setValue(item.getValue());
+                }
+                if (item.getHostName() != null && !item.getHostName().isBlank()) {
+                    record.setHost(normalizeHost(item.getHostName()));
+                }
+                if (item.getType() != null && !item.getType().isBlank()) {
+                    record.setType(normalizeType(item.getType()));
+                }
+            }
+        }
+    }
+
+    private static List<DomainDnsRecord> mapBrevoDnsRecords(UUID domainId, DnsRecords dns) {
+        List<DomainDnsRecord> rows = new ArrayList<>();
+        if (dns == null) {
+            return rows;
+        }
+        if (dns.getBrevoCode() != null) {
+            rows.add(toEntity(
+                    domainId,
+                    dns.getBrevoCode(),
+                    DnsRecordPurpose.VERIFY,
+                    "Mã xác thực Brevo",
+                    "Mã chứng thực độc quyền từ hạ tầng gửi thư Brevo."
+            ));
+        }
+        if (dns.getDkim1Record() != null) {
+            rows.add(toEntity(
+                    domainId,
+                    dns.getDkim1Record(),
+                    DnsRecordPurpose.DKIM,
+                    "Chữ ký số DKIM 1",
+                    "Bản ghi DKIM (CNAME) do Brevo cấp để ký email gửi đi."
+            ));
+        }
+        if (dns.getDkim2Record() != null) {
+            rows.add(toEntity(
+                    domainId,
+                    dns.getDkim2Record(),
+                    DnsRecordPurpose.DKIM,
+                    "Chữ ký số DKIM 2",
+                    "Bản ghi DKIM (CNAME) thứ hai do Brevo cấp để xoay vòng khóa."
+            ));
+        }
+        if (dns.getDkimRecord() != null) {
+            rows.add(toEntity(
+                    domainId,
+                    dns.getDkimRecord(),
+                    DnsRecordPurpose.DKIM,
+                    "Chữ ký số DKIM",
+                    "Bản ghi DKIM do Brevo cấp để ký email gửi đi."
+            ));
+        }
+        if (dns.getDmarcRecord() != null) {
+            rows.add(toEntity(
+                    domainId,
+                    dns.getDmarcRecord(),
+                    DnsRecordPurpose.DMARC,
+                    "Chính sách DMARC",
+                    "Chính sách DMARC khuyến nghị từ Brevo."
+            ));
+        }
+        return rows;
+    }
+
+    private static DomainDnsRecord toEntity(
+            UUID domainId,
+            DnsRecordItem item,
+            DnsRecordPurpose purpose,
+            String name,
+            String description
+    ) {
+        return new DomainDnsRecord(
+                domainId,
+                normalizeType(item.getType()),
+                name,
+                normalizeHost(item.getHostName()),
+                item.getValue() == null ? "" : item.getValue(),
+                purpose,
+                description
+        );
+    }
+
+    private static String normalizeHost(String hostName) {
+        if (hostName == null || hostName.isBlank()) {
+            return "@";
+        }
+        String trimmed = hostName.trim();
+        return trimmed.endsWith(".") && trimmed.length() > 1
+                ? trimmed.substring(0, trimmed.length() - 1)
+                : trimmed;
+    }
+
+    private static String normalizeType(String type) {
+        if (type == null || type.isBlank()) {
+            return "TXT";
+        }
+        String t = type.trim().toUpperCase(Locale.ROOT);
+        if ("TXT".equals(t) || "CNAME".equals(t) || "MX".equals(t)) {
+            return t;
+        }
+        return "TXT";
     }
 
     private SendingDomainResponse toResponse(SendingDomain domain) {
@@ -220,9 +352,6 @@ public class SendingDomainService {
         long sendersCount = senderRepository.countByDomainId(domain.getId());
         List<SendingDomainResponse.DnsRecordResponse> recordResponses = new ArrayList<>();
         for (DomainDnsRecord record : records) {
-            if (record.getPurpose() == DnsRecordPurpose.VERIFY) {
-                // Still include VERIFY so wizard can show ownership TXT
-            }
             recordResponses.add(SendingDomainResponse.DnsRecordResponse.builder()
                     .id(record.getId())
                     .type(record.getType())

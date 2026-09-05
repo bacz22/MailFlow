@@ -41,8 +41,6 @@ export interface CampaignStep3ContentFormProps {
   campaignSubject: string
   campaignPreviewText?: string
   onChange: (data: Partial<CampaignStep3Content>) => void
-  /** When user picks a library template, also apply its subject/preview to step 1. */
-  onApplyTemplateMeta?: (meta: { subject: string; previewText?: string }) => void
 }
 
 export const CampaignStep3ContentForm: React.FC<CampaignStep3ContentFormProps> = ({
@@ -50,7 +48,6 @@ export const CampaignStep3ContentForm: React.FC<CampaignStep3ContentFormProps> =
   campaignSubject,
   campaignPreviewText,
   onChange,
-  onApplyTemplateMeta,
 }) => {
   const { showToast } = useToast()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -130,17 +127,12 @@ export const CampaignStep3ContentForm: React.FC<CampaignStep3ContentFormProps> =
       bannerLabel: template.bannerLabel,
       bannerTitle: template.bannerTitle,
     })
-    if (template.subject?.trim()) {
-      onApplyTemplateMeta?.({
-        subject: template.subject.trim(),
-        previewText: template.previewText?.trim() || undefined,
-      })
-    }
+    // Do not overwrite step1 subject/previewText — user owns those fields on step 1.
     setContentMode('custom')
     showToast({
       type: 'success',
       title: 'Đã nạp mẫu email',
-      description: `Đã áp dụng mẫu "${template.name}". Tiêu đề và nội dung đã đồng bộ với mẫu.`,
+      description: `Đã áp dụng nội dung mẫu "${template.name}". Tiêu đề / preheader giữ nguyên ở bước 1.`,
     })
   }
 

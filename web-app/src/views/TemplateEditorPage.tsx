@@ -66,7 +66,7 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
     initialData?.name || (isEdit ? '' : 'Mẫu Email Chiến Dịch Mới')
   )
   const [subject, setSubject] = useState(
-    initialData?.subject || (isEdit ? '' : 'Khám phá giải pháp tối ưu email từ MailFlow')
+    initialData?.subject || ''
   )
   const [category, setCategory] = useState<EmailTemplate['category']>(
     initialData?.category || 'Newsletter'
@@ -81,7 +81,7 @@ export const TemplateEditorPage: React.FC<TemplateEditorPageProps> = ({
     initialData?.bannerLabel || DEFAULT_BANNER_LABEL
   )
   const [bannerTitle, setBannerTitle] = useState(
-    initialData?.bannerTitle || initialData?.subject || (isEdit ? '' : 'Khám phá giải pháp tối ưu email từ MailFlow')
+    initialData?.bannerTitle || initialData?.subject || (isEdit ? '' : '')
   )
 
   // UI states

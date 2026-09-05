@@ -26,7 +26,10 @@ import com.mailflow.emailtemplate.application.EmailTemplateLayout;
 import com.mailflow.emailtemplate.application.EmailTemplateMerge;
 import com.mailflow.emailtemplate.domain.model.EmailTemplate;
 import com.mailflow.emailtemplate.domain.repository.EmailTemplateRepository;
-import com.mailflow.infrastructure.mail.EmailSender;
+import com.mailflow.infrastructure.mail.CampaignMailRouter;
+import com.mailflow.sendingdomain.domain.model.SendingDomain;
+import com.mailflow.sendingdomain.domain.model.SendingDomainStatus;
+import com.mailflow.sendingdomain.domain.repository.SendingDomainRepository;
 import com.mailflow.user.domain.model.User;
 import com.mailflow.user.domain.repository.UserRepository;
 import com.mailflow.workspace.application.WorkspaceAccessService;
@@ -82,7 +85,8 @@ public class CampaignService {
     private final SegmentMatchQueryService matchQueryService;
     private final UserRepository userRepository;
     private final WorkspaceAccessService accessService;
-    private final EmailSender emailSender;
+    private final CampaignMailRouter campaignMailRouter;
+    private final SendingDomainRepository sendingDomainRepository;
 
     @Transactional(readOnly = true)
     public List<CampaignResponse> list(UUID userId, UUID workspaceId, String q, String status) {
@@ -231,6 +235,7 @@ public class CampaignService {
             throw new AppException(HttpStatus.CONFLICT, "CAMPAIGN_SEND_INVALID",
                     "Chỉ gửi chiến dịch đã được phê duyệt.");
         }
+        assertReadyToSubmit(workspaceId, campaign);
         campaign = startSending(campaign);
         return toResponses(workspaceId, List.of(campaign)).getFirst();
     }
@@ -268,6 +273,10 @@ public class CampaignService {
                 CampaignStatus.SCHEDULED, now);
         for (Campaign campaign : due) {
             try {
+                if (campaign.getSenderId() != null) {
+                    EmailSenderIdentity sender = requireSender(campaign.getWorkspaceId(), campaign.getSenderId());
+                    campaignMailRouter.requireVerifiedSendingDomain(campaign.getWorkspaceId(), sender);
+                }
                 startSending(campaign);
             } catch (Exception ex) {
                 log.error("Không khởi chạy chiến dịch lịch [{}]: {}", campaign.getId(), ex.getMessage(), ex);
@@ -375,12 +384,10 @@ public class CampaignService {
         EmailSenderIdentity sender = campaign.getSenderId() == null
                 ? null
                 : senderRepository.findByIdAndWorkspaceId(campaign.getSenderId(), workspaceId).orElse(null);
-        String fromName = sender != null ? sender.getName() : null;
-        String fromEmail = sender != null ? sender.getEmail() : null;
-        String replyTo = campaign.getReplyTo() != null && !campaign.getReplyTo().isBlank()
-                ? campaign.getReplyTo()
-                : fromEmail;
-        emailSender.sendHtmlEmail(to, subject, wrapped, fromName, fromEmail, replyTo);
+        if (sender != null) {
+            campaignMailRouter.requireVerifiedSendingDomain(workspaceId, sender);
+        }
+        campaignMailRouter.sendHtml(to, subject, wrapped, sender, campaign.getReplyTo());
     }
 
     private void applyContent(UUID workspaceId, Campaign campaign, UpsertCampaignRequest request) {
@@ -435,6 +442,7 @@ public class CampaignService {
             throw new AppException(HttpStatus.BAD_REQUEST, "CAMPAIGN_SENDER_INACTIVE",
                     "Người gửi chưa được kích hoạt.");
         }
+        campaignMailRouter.requireVerifiedSendingDomain(workspaceId, sender);
         if (campaign.getHtmlContent() == null || campaign.getHtmlContent().isBlank()) {
             throw new AppException(HttpStatus.BAD_REQUEST, "CAMPAIGN_HTML_REQUIRED",
                     "Vui lòng nhập nội dung email.");
@@ -513,11 +521,12 @@ public class CampaignService {
     private List<CampaignResponse> toResponses(UUID workspaceId, List<Campaign> campaigns) {
         Map<UUID, String> creators = loadCreatorNames(campaigns);
         Map<UUID, EmailSenderIdentity> senders = loadSenders(campaigns);
+        Map<UUID, SendingDomain> domains = loadSenderDomains(senders);
         Map<UUID, String> listNames = loadListNames(workspaceId, campaigns);
         Map<UUID, String> segmentNames = loadSegmentNames(workspaceId, campaigns);
         List<CampaignResponse> out = new ArrayList<>();
         for (Campaign campaign : campaigns) {
-            out.add(toResponse(campaign, creators, senders, listNames, segmentNames));
+            out.add(toResponse(campaign, creators, senders, domains, listNames, segmentNames));
         }
         return out;
     }
@@ -526,6 +535,7 @@ public class CampaignService {
             Campaign campaign,
             Map<UUID, String> creators,
             Map<UUID, EmailSenderIdentity> senders,
+            Map<UUID, SendingDomain> domains,
             Map<UUID, String> listNames,
             Map<UUID, String> segmentNames
     ) {
@@ -541,6 +551,11 @@ public class CampaignService {
             audienceType = "segment";
         }
         EmailSenderIdentity sender = campaign.getSenderId() == null ? null : senders.get(campaign.getSenderId());
+        boolean senderDomainVerified = false;
+        if (sender != null && sender.getDomainId() != null) {
+            SendingDomain domain = domains.get(sender.getDomainId());
+            senderDomainVerified = domain != null && domain.getStatus() == SendingDomainStatus.VERIFIED;
+        }
         String createdBy = campaign.getCreatedBy() == null
                 ? "—"
                 : creators.getOrDefault(campaign.getCreatedBy(), "—");
@@ -567,6 +582,7 @@ public class CampaignService {
                 .senderId(campaign.getSenderId())
                 .senderName(sender == null ? null : sender.getName())
                 .senderEmail(sender == null ? null : sender.getEmail())
+                .senderDomainVerified(senderDomainVerified)
                 .replyTo(campaign.getReplyTo())
                 .templateId(campaign.getTemplateId())
                 .htmlContent(campaign.getHtmlContent())
@@ -629,6 +645,23 @@ public class CampaignService {
             senders.put(sender.getId(), sender);
         }
         return senders;
+    }
+
+    private Map<UUID, SendingDomain> loadSenderDomains(Map<UUID, EmailSenderIdentity> senders) {
+        Set<UUID> ids = new HashSet<>();
+        for (EmailSenderIdentity sender : senders.values()) {
+            if (sender.getDomainId() != null) {
+                ids.add(sender.getDomainId());
+            }
+        }
+        Map<UUID, SendingDomain> domains = new HashMap<>();
+        if (ids.isEmpty()) {
+            return domains;
+        }
+        for (SendingDomain domain : sendingDomainRepository.findAllById(ids)) {
+            domains.put(domain.getId(), domain);
+        }
+        return domains;
     }
 
     private Map<UUID, String> loadListNames(UUID workspaceId, List<Campaign> campaigns) {

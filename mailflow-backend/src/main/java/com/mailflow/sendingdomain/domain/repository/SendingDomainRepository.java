@@ -18,6 +18,8 @@ public interface SendingDomainRepository extends JpaRepository<SendingDomain, UU
 
     boolean existsByWorkspaceIdAndDomainIgnoreCase(UUID workspaceId, String domain);
 
+    boolean existsByDomainIgnoreCase(String domain);
+
     Optional<SendingDomain> findByWorkspaceIdAndDomainIgnoreCase(UUID workspaceId, String domain);
 
     List<SendingDomain> findByWorkspaceIdOrderByUpdatedAtDesc(UUID workspaceId);
