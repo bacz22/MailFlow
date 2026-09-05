@@ -12,7 +12,7 @@ export const WIZARD_STEPS: { step: CampaignWizardStep; title: string; subtitle: 
   { step: 2, title: 'Đối Tượng', subtitle: 'Danh sách & Phân đoạn' },
   { step: 3, title: 'Nội Dung', subtitle: 'Mẫu thư & Biến động' },
   { step: 4, title: 'Xem & Thử', subtitle: 'Mô phỏng & Gửi test' },
-  { step: 5, title: 'Lịch Gửi', subtitle: 'Thời gian & Tốc độ' },
+  { step: 5, title: 'Lịch Gửi', subtitle: 'Thời gian phát hành' },
   { step: 6, title: 'Tổng Quan', subtitle: 'Kiểm tra & Phát hành' },
 ]
 

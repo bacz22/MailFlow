@@ -141,20 +141,9 @@ export const CampaignStep1InfoForm: React.FC<CampaignStep1InfoFormProps> = ({
           </div>
         </div>
 
-        {/* 3. Preview Text / Preheader */}
-        <FormField>
-          <div className="flex items-center justify-between">
-            <FormLabel>Đoạn Văn Xem Trước (Preview Text / Preheader)</FormLabel>
-            <span className="text-[11px] text-slate-400">Tùy chọn</span>
-          </div>
-          <Input
-            placeholder="Đoạn văn tóm tắt xuất hiện ngay cạnh tiêu đề trong Gmail / Apple Mail..."
-            value={data.previewText}
-            onChange={(e) => onChange({ previewText: e.target.value })}
-          />
-        </FormField>
+        {/* PreviewText / Preheader — đã bỏ khỏi Template Editor; ẩn đồng bộ ở Campaign Wizard */}
 
-        {/* 4. Sender Selector Component */}
+        {/* Sender Selector */}
         <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
           <SenderSelector
             selectedSenderId={data.senderId}
@@ -163,7 +152,7 @@ export const CampaignStep1InfoForm: React.FC<CampaignStep1InfoFormProps> = ({
           />
         </div>
 
-        {/* 5. Reply-To Email */}
+        {/* Reply-To Email */}
         <FormField>
           <div className="flex items-center justify-between">
             <FormLabel>Địa Chỉ Nhận Phản Hồi (Reply-To)</FormLabel>

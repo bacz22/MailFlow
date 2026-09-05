@@ -35,7 +35,8 @@ export interface CampaignStep5Schedule {
   sendType: 'immediate' | 'scheduled'
   scheduledDate?: string
   scheduledTime?: string
-  batchSpeed: 'normal' | 'fast' | 'warmup' // records/minute throttle
+  /** UI only — lịch gửi hiện parse theo giờ máy local; chưa persist timezone riêng */
+  timezone?: string
 }
 
 export interface CampaignWizardState {

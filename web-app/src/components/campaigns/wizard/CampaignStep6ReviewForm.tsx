@@ -144,14 +144,7 @@ export const CampaignStep6ReviewForm: React.FC<CampaignStep6ReviewFormProps> = (
               <span className="text-slate-400 text-[11px]">Tiêu đề gửi:</span>
               <div className="font-semibold text-slate-900 dark:text-slate-100">{step1.subject}</div>
             </div>
-            {step1.previewText && (
-              <div>
-                <span className="text-slate-400 text-[11px]">Đoạn xem trước (Preheader):</span>
-                <div className="text-slate-600 dark:text-slate-300 italic truncate">
-                  {step1.previewText}
-                </div>
-              </div>
-            )}
+            {/* PreviewText / Preheader — ẩn đồng bộ với Template Editor */}
           </CardContent>
         </Card>
 
@@ -247,7 +240,7 @@ export const CampaignStep6ReviewForm: React.FC<CampaignStep6ReviewFormProps> = (
           <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-amber-600" />
-              <CardTitle className="text-sm">4. Lập Lịch & Tốc Độ Gửi</CardTitle>
+              <CardTitle className="text-sm">4. Lập Lịch Gửi</CardTitle>
             </div>
             <Button
               type="button"
@@ -278,16 +271,6 @@ export const CampaignStep6ReviewForm: React.FC<CampaignStep6ReviewFormProps> = (
                     </span>
                   </>
                 )}
-              </div>
-            </div>
-            <div>
-              <span className="text-slate-400 text-[11px]">Điều tiết tốc độ (Throttle):</span>
-              <div className="font-mono text-slate-700 dark:text-slate-300">
-                {step5.batchSpeed === 'fast'
-                  ? 'Tối đa (~10,000 email/phút)'
-                  : step5.batchSpeed === 'warmup'
-                  ? 'Làm ấm IP (~500 email/phút)'
-                  : 'Tiêu chuẩn (~2,500 email/phút)'}
               </div>
             </div>
           </CardContent>

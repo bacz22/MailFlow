@@ -17,6 +17,7 @@ import com.mailflow.emailtemplate.application.EmailTemplateMerge;
 import com.mailflow.emailtemplate.domain.model.EmailTemplate;
 import com.mailflow.emailtemplate.domain.repository.EmailTemplateRepository;
 import com.mailflow.infrastructure.mail.CampaignMailRouter;
+import com.mailflow.quota.application.QuotaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -44,6 +45,7 @@ public class CampaignSendProcessor {
     private final EmailTemplateRepository templateRepository;
     private final EmailSenderIdentityRepository senderRepository;
     private final CampaignMailRouter campaignMailRouter;
+    private final QuotaService quotaService;
 
     @Transactional(readOnly = true)
     public List<UUID> findPendingRecipientIds(int batchSize) {
@@ -75,6 +77,7 @@ public class CampaignSendProcessor {
                     .stream()
                     .findFirst()
                     .orElseThrow(() -> new ResourceNotFoundException("Contact", recipient.getContactId().toString()));
+            quotaService.assertCanSend(campaign.getWorkspaceId(), 1);
             sendCampaignEmail(campaign, contact);
             recipient.setStatus(CampaignRecipientStatus.SENT);
             recipient.setSentAt(Instant.now());
@@ -82,8 +85,12 @@ public class CampaignSendProcessor {
             recipientRepository.saveAndFlush(recipient);
             campaign.setSentCount(campaign.getSentCount() + 1);
             campaignRepository.saveAndFlush(campaign);
+            quotaService.recordSuccessfulSend(campaign.getWorkspaceId(), 1);
         } catch (Exception ex) {
             String message = ex.getMessage() == null ? "SMTP_SEND_FAILED" : ex.getMessage();
+            if (ex instanceof AppException appEx && "QUOTA_EXCEEDED".equals(appEx.getCode())) {
+                message = appEx.getMessage();
+            }
             if (message.length() > 1000) {
                 message = message.substring(0, 1000);
             }

@@ -55,7 +55,7 @@ const EMPTY_WIZARD_STATE: CampaignWizardState = {
   },
   step5: {
     sendType: 'immediate',
-    batchSpeed: 'normal',
+    timezone: 'Asia/Bangkok',
   },
 }
 
@@ -103,7 +103,7 @@ function toWizardState(campaign: CampaignDetail): CampaignWizardState {
       sendType: campaign.sendType || 'immediate',
       scheduledDate: schedule.scheduledDate,
       scheduledTime: schedule.scheduledTime,
-      batchSpeed: 'normal',
+      timezone: 'Asia/Bangkok',
     },
   }
 }
@@ -162,12 +162,18 @@ export const CampaignWizardPage: React.FC<CampaignWizardPageProps> = ({ campaign
 
   const isStep3Valid = !!(wizardData.step3.htmlContent || '').trim()
 
-  const isStep5Valid =
-    wizardData.step5.sendType === 'immediate' ||
-    (wizardData.step5.sendType === 'scheduled' &&
-      new Date(
-        `${wizardData.step5.scheduledDate || ''}T${wizardData.step5.scheduledTime || '20:00'}`
-      ).getTime() >= Date.now() - 60000)
+  const isStep5Valid = (() => {
+    if (wizardData.step5.sendType === 'immediate') return true
+    if (wizardData.step5.sendType !== 'scheduled') return false
+    const date =
+      wizardData.step5.scheduledDate ||
+      new Date().toISOString().slice(0, 10)
+    const time = wizardData.step5.scheduledTime || '20:00'
+    const target = new Date(`${date}T${time}:00`)
+    if (Number.isNaN(target.getTime())) return false
+    // Cho phép lệch tối đa 1 phút so với đồng hồ máy
+    return target.getTime() >= Date.now() - 60_000
+  })()
 
   // Step navigation
   const handleContinue = () => {
@@ -373,7 +379,6 @@ export const CampaignWizardPage: React.FC<CampaignWizardPageProps> = ({ campaign
             <CampaignStep3ContentForm
               data={wizardData.step3}
               campaignSubject={wizardData.step1.subject}
-              campaignPreviewText={wizardData.step1.previewText}
               onChange={(updated) => {
                 setIsDirty(true)
                 setWizardData((prev) => ({

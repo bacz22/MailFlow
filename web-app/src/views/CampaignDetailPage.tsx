@@ -71,7 +71,6 @@ type CampaignDetailView = Campaign & {
   replyTo: string
   sendType?: 'immediate' | 'scheduled'
   scheduledTimezone?: string
-  batchSpeed: string
   htmlContent: string
   templateId?: string
   thumbnailGradient?: string
@@ -93,7 +92,6 @@ function toDetailView(c: CampaignDetail): CampaignDetailView {
     senderEmail: c.senderEmail || '—',
     replyTo: c.replyTo || '—',
     sendType: c.sendType,
-    batchSpeed: 'normal',
     htmlContent: c.htmlContent || '',
     templateId: c.templateId,
     submittedAt: c.submittedAt,
@@ -820,14 +818,7 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
                     {campaign.subject}
                   </div>
                 </div>
-                {campaign.previewText && (
-                  <div>
-                    <span className="text-slate-400 text-[11px]">Đoạn xem trước (Preheader):</span>
-                    <div className="text-slate-600 dark:text-slate-300 italic mt-0.5">
-                      {campaign.previewText}
-                    </div>
-                  </div>
-                )}
+                {/* PreviewText / Preheader — ẩn đồng bộ với Template Editor */}
                 <div>
                   <span className="text-slate-400 text-[11px]">Địa chỉ gửi (From):</span>
                   <div className="font-mono text-slate-800 dark:text-slate-200 mt-0.5 flex flex-wrap items-center gap-1.5">

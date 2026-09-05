@@ -1,33 +1,49 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { HardDrive, ArrowUpRight } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { PermissionGate, PERMISSIONS } from '../../permissions'
+import { quotaService } from '../../services/quota.service'
+import { formatResetLabel } from '../../types/quota.types'
 
 export interface UsageCardProps {
-  planName?: string
-  emailsUsed?: number
-  emailsTotal?: number
-  contactsUsed?: number
-  contactsTotal?: number
-  resetDate?: string
   onUpgrade?: () => void
   className?: string
 }
 
-export const UsageCard: React.FC<UsageCardProps> = ({
-  planName = 'Enterprise Plan',
-  emailsUsed = 142850,
-  emailsTotal = 500000,
-  contactsUsed = 14250,
-  contactsTotal = 50000,
-  resetDate = '01/09/2026',
-  onUpgrade,
-  className,
-}) => {
-  const emailPct = Math.min(100, Math.round((emailsUsed / emailsTotal) * 100))
-  const contactPct = Math.min(100, Math.round((contactsUsed / contactsTotal) * 100))
+export const UsageCard: React.FC<UsageCardProps> = ({ onUpgrade, className }) => {
+  const [emailsUsed, setEmailsUsed] = useState(0)
+  const [emailsTotal, setEmailsTotal] = useState(50)
+  const [resetDate, setResetDate] = useState('—')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const q = await quotaService.getDailySend()
+        if (!cancelled) {
+          setEmailsUsed(q.used)
+          setEmailsTotal(q.limit)
+          setResetDate(formatResetLabel(q.resetAt))
+        }
+      } catch {
+        if (!cancelled) {
+          setEmailsUsed(0)
+          setEmailsTotal(50)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const emailPct =
+    emailsTotal > 0 ? Math.min(100, Math.round((emailsUsed / emailsTotal) * 100)) : 0
 
   return (
     <Card className={className}>
@@ -37,22 +53,27 @@ export const UsageCard: React.FC<UsageCardProps> = ({
           <CardTitle className="text-base">Hạn Ngạch Workspace (Usage Quota)</CardTitle>
         </div>
         <Badge variant="default" className="text-xs font-bold font-mono">
-          {planName}
+          Demo Free
         </Badge>
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Metric 1: Emails Sent */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs">
             <span className="font-semibold text-slate-700 dark:text-slate-300">
-              Email Đã Gửi Tháng Này:
+              Email đã gửi hôm nay:
             </span>
             <span className="font-mono text-slate-500">
-              <strong className="text-slate-900 dark:text-slate-100 font-bold">
-                {emailsUsed.toLocaleString()}
-              </strong>{' '}
-              / {emailsTotal.toLocaleString()} ({emailPct}%)
+              {loading ? (
+                '…'
+              ) : (
+                <>
+                  <strong className="text-slate-900 dark:text-slate-100 font-bold">
+                    {emailsUsed.toLocaleString()}
+                  </strong>{' '}
+                  / {emailsTotal.toLocaleString()} ({emailPct}%)
+                </>
+              )}
             </span>
           </div>
           <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
@@ -62,52 +83,30 @@ export const UsageCard: React.FC<UsageCardProps> = ({
                 emailPct > 90
                   ? 'bg-rose-500'
                   : emailPct > 75
-                  ? 'bg-amber-500'
-                  : 'bg-blue-600'
+                    ? 'bg-amber-500'
+                    : 'bg-blue-600'
               }`}
             />
           </div>
+          <p className="text-[11px] text-slate-400">
+            Reset 00:00 (GMT+7) — ngày {resetDate}
+          </p>
         </div>
 
-        {/* Metric 2: Contacts Stored */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-slate-700 dark:text-slate-300">
-              Danh Bạ Khách Hàng (Audience):
-            </span>
-            <span className="font-mono text-slate-500">
-              <strong className="text-slate-900 dark:text-slate-100 font-bold">
-                {contactsUsed.toLocaleString()}
-              </strong>{' '}
-              / {contactsTotal.toLocaleString()} ({contactPct}%)
-            </span>
-          </div>
-          <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-            <div
-              style={{ width: `${contactPct}%` }}
-              className="h-full rounded-full bg-emerald-500 transition-all"
-            />
-          </div>
-        </div>
-
-        {/* Reset date & Upgrade button */}
-        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 text-xs">
-          <span className="text-slate-400 text-[11px]">
-            Làm mới hạn ngạch vào: <strong>{resetDate}</strong>
-          </span>
-
-          <PermissionGate permission={PERMISSIONS.BILLING_MANAGE}>
+        <PermissionGate permission={PERMISSIONS.BILLING_MANAGE}>
+          {onUpgrade && (
             <Button
+              type="button"
               variant="outline"
               size="sm"
-              onClick={onUpgrade}
-              className="text-xs font-bold"
+              className="w-full text-xs"
               rightIcon={<ArrowUpRight className="w-3.5 h-3.5" />}
+              onClick={onUpgrade}
             >
-              Nâng Cấp Hạn Ngạch
+              Xem gói cước & hạn ngạch
             </Button>
-          </PermissionGate>
-        </div>
+          )}
+        </PermissionGate>
       </CardContent>
     </Card>
   )

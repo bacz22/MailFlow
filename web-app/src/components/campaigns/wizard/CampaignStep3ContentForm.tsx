@@ -39,14 +39,12 @@ const TEMPLATE_FILTER_OPTIONS: SelectOption[] = [
 export interface CampaignStep3ContentFormProps {
   data: CampaignStep3Content
   campaignSubject: string
-  campaignPreviewText?: string
   onChange: (data: Partial<CampaignStep3Content>) => void
 }
 
 export const CampaignStep3ContentForm: React.FC<CampaignStep3ContentFormProps> = ({
   data,
   campaignSubject,
-  campaignPreviewText,
   onChange,
 }) => {
   const { showToast } = useToast()
@@ -127,12 +125,12 @@ export const CampaignStep3ContentForm: React.FC<CampaignStep3ContentFormProps> =
       bannerLabel: template.bannerLabel,
       bannerTitle: template.bannerTitle,
     })
-    // Do not overwrite step1 subject/previewText — user owns those fields on step 1.
+    // Do not overwrite step1 subject — user owns that field on step 1.
     setContentMode('custom')
     showToast({
       type: 'success',
       title: 'Đã nạp mẫu email',
-      description: `Đã áp dụng nội dung mẫu "${template.name}". Tiêu đề / preheader giữ nguyên ở bước 1.`,
+      description: `Đã áp dụng nội dung mẫu "${template.name}". Tiêu đề giữ nguyên ở bước 1.`,
     })
   }
 
@@ -545,7 +543,6 @@ export const CampaignStep3ContentForm: React.FC<CampaignStep3ContentFormProps> =
               </div>
               <p className="text-blue-700/80 dark:text-blue-300 text-[11px]">
                 Tiêu đề: <strong>"{campaignSubject}"</strong>
-                {campaignPreviewText && <span> • Preheader: <em>"{campaignPreviewText}"</em></span>}
                 {' '}• Mọi thay đổi tại đây không ảnh hưởng đến Mẫu gốc trong thư viện.
               </p>
             </div>

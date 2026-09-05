@@ -17,7 +17,6 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../co
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { FormField, FormLabel } from '../components/ui/FormGroup'
-import { Badge } from '../components/ui/Badge'
 import { SimpleSelect } from '../components/ui/Select'
 import {
   Dialog,
@@ -311,16 +310,6 @@ export const WorkspaceSettingsPage: React.FC<WorkspaceSettingsPageProps> = ({ on
             </FormField>
           </div>
 
-          {/* Slug URL Live Preview */}
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 font-mono flex items-center justify-between">
-            <span>
-              URL Truy cập nội bộ: <strong>https://mailflow.vn/org/{settings.slug}</strong>
-            </span>
-            <Badge variant="default" className="text-[10px]">
-              Tên miền phụ
-            </Badge>
-          </div>
-
           <FormField>
             <FormLabel>Lĩnh Vực Hoạt Động (Industry Category)</FormLabel>
             <Input
@@ -449,38 +438,24 @@ export const WorkspaceSettingsPage: React.FC<WorkspaceSettingsPageProps> = ({ on
         </CardHeader>
 
         <CardContent className="p-5 space-y-4 text-xs">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField>
-              <FormLabel>Múi Giờ Mặc Định (Default Timezone)</FormLabel>
-              <SimpleSelect
-                value={settings.timezone}
-                onValueChange={(val) => setSettings({ ...settings, timezone: val })}
-                disabled={!canUpdate}
-                options={[
-                  { value: 'Asia/Bangkok', label: 'Asia/Bangkok (UTC+07:00 - Việt Nam / Thái Lan)' },
-                  { value: 'Asia/Singapore', label: 'Asia/Singapore (UTC+08:00)' },
-                  { value: 'Asia/Tokyo', label: 'Asia/Tokyo (UTC+09:00 - Nhật Bản)' },
-                  { value: 'UTC', label: 'UTC (UTC+00:00 - Tiêu chuẩn quốc tế)' },
-                ]}
-              />
-            </FormField>
-
-            <FormField>
-              <FormLabel>Người Gửi Mặc Định Cho Chiến Dịch Mới</FormLabel>
-              <select
-                value={settings.defaultSenderId || ''}
-                onChange={(e) => setSettings({ ...settings, defaultSenderId: e.target.value })}
-                disabled
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold focus-ring"
-              >
-                <option value="">Sẽ cấu hình sau khi có người gửi</option>
-              </select>
-            </FormField>
-          </div>
+          <FormField>
+            <FormLabel>Múi Giờ Mặc Định (Default Timezone)</FormLabel>
+            <SimpleSelect
+              value={settings.timezone}
+              onValueChange={(val) => setSettings({ ...settings, timezone: val })}
+              disabled={!canUpdate}
+              options={[
+                { value: 'Asia/Bangkok', label: 'Asia/Bangkok (UTC+07:00 - Việt Nam / Thái Lan)' },
+                { value: 'Asia/Singapore', label: 'Asia/Singapore (UTC+08:00)' },
+                { value: 'Asia/Tokyo', label: 'Asia/Tokyo (UTC+09:00 - Nhật Bản)' },
+                { value: 'UTC', label: 'UTC (UTC+00:00 - Tiêu chuẩn quốc tế)' },
+              ]}
+            />
+          </FormField>
 
           {/* Tracking Checkboxes */}
           <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+            <label className="flex items-center gap-2.5 cursor-pointer">
               <input
                 type="checkbox"
                 checked={settings.enableOpenTracking}
@@ -495,7 +470,7 @@ export const WorkspaceSettingsPage: React.FC<WorkspaceSettingsPageProps> = ({ on
               </span>
             </label>
 
-            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+            <label className="flex items-center gap-2.5 cursor-pointer">
               <input
                 type="checkbox"
                 checked={settings.enableClickTracking}
@@ -510,7 +485,7 @@ export const WorkspaceSettingsPage: React.FC<WorkspaceSettingsPageProps> = ({ on
               </span>
             </label>
 
-            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+            <label className="flex items-center gap-2.5 cursor-pointer">
               <input
                 type="checkbox"
                 checked={settings.enforceRfc8058}

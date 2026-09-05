@@ -298,11 +298,9 @@ export const TemplatesPage: React.FC<TemplatesPageProps> = ({ onNavigate }) => {
 
               {/* Card Meta Body */}
               <CardContent className="p-4 space-y-3">
-                <div className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                  {template.previewText || 'Mẫu thiết kế email marketing responsive chuẩn MailFlow.'}
-                </div>
+                {/* previewText / fallback mô tả — đã bỏ, không dùng nữa */}
 
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
                   <div className="flex items-center gap-1.5">
                     <User className="w-3 h-3 text-slate-400" />
                     <span>{template.createdBy}</span>

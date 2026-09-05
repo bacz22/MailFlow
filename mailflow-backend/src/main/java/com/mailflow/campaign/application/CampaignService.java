@@ -27,6 +27,7 @@ import com.mailflow.emailtemplate.application.EmailTemplateMerge;
 import com.mailflow.emailtemplate.domain.model.EmailTemplate;
 import com.mailflow.emailtemplate.domain.repository.EmailTemplateRepository;
 import com.mailflow.infrastructure.mail.CampaignMailRouter;
+import com.mailflow.quota.application.QuotaService;
 import com.mailflow.sendingdomain.domain.model.SendingDomain;
 import com.mailflow.sendingdomain.domain.model.SendingDomainStatus;
 import com.mailflow.sendingdomain.domain.repository.SendingDomainRepository;
@@ -87,6 +88,7 @@ public class CampaignService {
     private final WorkspaceAccessService accessService;
     private final CampaignMailRouter campaignMailRouter;
     private final SendingDomainRepository sendingDomainRepository;
+    private final QuotaService quotaService;
 
     @Transactional(readOnly = true)
     public List<CampaignResponse> list(UUID userId, UUID workspaceId, String q, String status) {
@@ -306,6 +308,11 @@ public class CampaignService {
 
     private Campaign startSending(Campaign campaign) {
         enqueueRecipients(campaign);
+        long pending = recipientRepository.countByCampaignIdAndStatus(
+                campaign.getId(), CampaignRecipientStatus.PENDING);
+        if (pending > 0) {
+            quotaService.assertCanSend(campaign.getWorkspaceId(), pending);
+        }
         campaign.setStatus(CampaignStatus.SENDING);
         if (campaign.getStartedAt() == null) {
             campaign.setStartedAt(Instant.now());
@@ -387,7 +394,9 @@ public class CampaignService {
         if (sender != null) {
             campaignMailRouter.requireVerifiedSendingDomain(workspaceId, sender);
         }
+        quotaService.assertCanSend(workspaceId, 1);
         campaignMailRouter.sendHtml(to, subject, wrapped, sender, campaign.getReplyTo());
+        quotaService.recordSuccessfulSend(workspaceId, 1);
     }
 
     private void applyContent(UUID workspaceId, Campaign campaign, UpsertCampaignRequest request) {

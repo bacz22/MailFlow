@@ -6,7 +6,7 @@ import {
   Layers,
   Send,
   FileText,
-  BarChart3,
+  // BarChart3, // Analytics mock — ẩn tạm
   UserCheck,
   AtSign,
   Globe,
@@ -77,7 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const canSegments = canAccessRoute('/segments')
   const canCampaigns = canAccessRoute('/campaigns')
   const canTemplates = canAccessRoute('/templates')
-  const canReports = canAccessRoute('/reports')
+  // const canReports = canAccessRoute('/reports') // Analytics mock — ẩn tạm
   const canMembers = canAccessRoute('/members')
   const canSenders = canAccessRoute('/settings/senders')
   const canDomains = canAccessRoute('/settings/domains')
@@ -222,7 +222,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </SidebarGroup>
         )}
 
-        {/* ANALYTICS */}
+        {/* ANALYTICS — mock data, ẩn tạm khỏi menu đến khi có API thật
         {canReports && (
           <SidebarGroup label="Phân Tích" collapsed={collapsed}>
             <SidebarItem
@@ -234,6 +234,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             />
           </SidebarGroup>
         )}
+        */}
 
         {/* MANAGEMENT */}
         {canMembers && (
@@ -272,7 +273,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {canBilling && (
               <SidebarItem
                 icon={<CreditCard className="w-4 h-4" />}
-                label="Billing"
+                label="Billing & Usage"
                 active={currentPath === '/settings/billing'}
                 collapsed={collapsed}
                 onClick={() => handleNav('/settings/billing')}

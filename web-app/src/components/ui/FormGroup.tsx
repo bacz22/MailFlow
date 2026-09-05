@@ -30,7 +30,7 @@ export const FormLabel: React.FC<FormLabelProps> = ({
   return (
     <div className="flex items-center gap-1 mb-1">
       <label
-        className={cn('text-xs font-semibold text-slate-700 dark:text-slate-300 select-none', className)}
+        className={cn('text-xs font-semibold text-slate-700 dark:text-slate-300', className)}
         {...props}
       >
         {children}

@@ -1,9 +1,7 @@
 import React from 'react'
 import {
   User,
-  Settings,
   LogOut,
-  CreditCard,
 } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { Avatar } from '../ui/Avatar'
@@ -116,26 +114,6 @@ export const UserMenu: React.FC<UserMenuProps> = ({
         >
           <User className="w-4 h-4 mr-2 text-slate-400" />
           <span>Hồ sơ cá nhân</span>
-        </DropdownMenuItem>
-
-        <DropdownMenuItem
-          onClick={() => {
-            if (onNavigate) onNavigate('/settings/workspace')
-            else showToast({ type: 'info', title: 'Cài đặt workspace' })
-          }}
-        >
-          <Settings className="w-4 h-4 mr-2 text-slate-400" />
-          <span>Cài đặt Workspace</span>
-        </DropdownMenuItem>
-
-        <DropdownMenuItem
-          onClick={() => {
-            if (onNavigate) onNavigate('/settings/billing')
-            else showToast({ type: 'info', title: 'Gói cước & Thanh toán' })
-          }}
-        >
-          <CreditCard className="w-4 h-4 mr-2 text-slate-400" />
-          <span>Gói cước & Thanh toán</span>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
