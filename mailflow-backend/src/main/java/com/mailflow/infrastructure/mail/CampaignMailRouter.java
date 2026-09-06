@@ -63,6 +63,17 @@ public class CampaignMailRouter {
             EmailSenderIdentity sender,
             String campaignReplyTo
     ) {
+        sendHtml(toEmail, subject, htmlBody, sender, campaignReplyTo, null);
+    }
+
+    public void sendHtml(
+            String toEmail,
+            String subject,
+            String htmlBody,
+            EmailSenderIdentity sender,
+            String campaignReplyTo,
+            ListUnsubscribeHeaders listUnsubscribe
+    ) {
         ResolvedFrom from = resolve(sender, campaignReplyTo);
         emailSender.sendHtmlEmail(
                 toEmail,
@@ -71,7 +82,8 @@ public class CampaignMailRouter {
                 from.fromName(),
                 from.fromEmail(),
                 from.replyTo(),
-                from.useSenderAsFrom()
+                from.useSenderAsFrom(),
+                listUnsubscribe
         );
     }
 

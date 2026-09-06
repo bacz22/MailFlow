@@ -139,13 +139,14 @@ export const CampaignStep4PreviewTestForm: React.FC<CampaignStep4PreviewTestForm
   return (
     <div className="space-y-6 animate-in fade-in-0">
       {/* 1. TOP CONTROL BAR */}
-      <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 shadow-xs">
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-4 lg:gap-6 items-end">
-          <div className="min-w-0 space-y-1.5">
-            <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-              <User className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-              <span>Mô phỏng cá nhân hóa theo</span>
-            </label>
+      <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 shadow-xs space-y-2">
+        <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+          <User className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+          <span>Mô phỏng cá nhân hóa theo</span>
+        </label>
+
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="w-full lg:max-w-xl">
             <SimpleSelect
               size="sm"
               value={selectedContact.id}
@@ -158,23 +159,20 @@ export const CampaignStep4PreviewTestForm: React.FC<CampaignStep4PreviewTestForm
                 label: `${c.fullName} · ${c.company}`,
                 textValue: `${c.fullName} ${c.company} ${c.email}`,
               }))}
-              className="w-full max-w-xl rounded-xl font-semibold"
+              className="w-full rounded-xl font-semibold"
             />
-            <p className="text-[11px] text-slate-400 truncate">
-              Preview dùng dữ liệu: {selectedContact.email}
-            </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-end">
+          <div className="flex items-center gap-2.5 shrink-0 self-start lg:self-center">
             <div
-              className="inline-flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs self-start sm:self-auto"
+              className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs h-8"
               role="group"
               aria-label="Chế độ xem trước"
             >
               <button
                 type="button"
                 onClick={() => setDevice('desktop')}
-                className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 font-bold ${
+                className={`h-7 px-3 rounded-md transition cursor-pointer flex items-center gap-1.5 font-bold ${
                   device === 'desktop'
                     ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
                     : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
@@ -186,7 +184,7 @@ export const CampaignStep4PreviewTestForm: React.FC<CampaignStep4PreviewTestForm
               <button
                 type="button"
                 onClick={() => setDevice('mobile')}
-                className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 font-bold ${
+                className={`h-7 px-3 rounded-md transition cursor-pointer flex items-center gap-1.5 font-bold ${
                   device === 'mobile'
                     ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
                     : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
@@ -201,7 +199,7 @@ export const CampaignStep4PreviewTestForm: React.FC<CampaignStep4PreviewTestForm
               type="button"
               variant="primary"
               size="sm"
-              className="w-full sm:w-auto shrink-0"
+              className="h-8 shrink-0 rounded-lg"
               leftIcon={<Send className="w-3.5 h-3.5" />}
               onClick={() => setIsSendTestOpen(true)}
             >
@@ -209,6 +207,10 @@ export const CampaignStep4PreviewTestForm: React.FC<CampaignStep4PreviewTestForm
             </Button>
           </div>
         </div>
+
+        <p className="text-[11px] text-slate-400 truncate pt-0.5">
+          Preview dùng dữ liệu: {selectedContact.email}
+        </p>
       </div>
 
       {/* 2. PRE-FLIGHT AUDIT WARNINGS */}

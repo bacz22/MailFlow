@@ -9,6 +9,7 @@ import com.mailflow.emailtemplate.api.response.EmailTemplateResponse;
 import com.mailflow.emailtemplate.domain.model.EmailTemplate;
 import com.mailflow.emailtemplate.domain.model.EmailTemplateStatus;
 import com.mailflow.emailtemplate.domain.repository.EmailTemplateRepository;
+import com.mailflow.engagement.application.PublicTrackingUrls;
 import com.mailflow.infrastructure.mail.EmailSender;
 import com.mailflow.user.domain.model.User;
 import com.mailflow.user.domain.repository.UserRepository;
@@ -37,6 +38,7 @@ public class EmailTemplateService {
     private final UserRepository userRepository;
     private final WorkspaceAccessService accessService;
     private final EmailSender emailSender;
+    private final PublicTrackingUrls trackingUrls;
 
     @Transactional(readOnly = true)
     public List<EmailTemplateResponse> list(
@@ -162,7 +164,9 @@ public class EmailTemplateService {
         accessService.requireTemplateWrite(userId, workspaceId);
         EmailTemplate template = requireTemplate(workspaceId, templateId);
         String to = request.getTo() == null ? "" : request.getTo().trim().toLowerCase(Locale.ROOT);
-        String unsubscribeUrl = "https://mailflow.vn/unsubscribe?test=1";
+        UUID testContactId = UUID.fromString("00000000-0000-0000-0000-000000000000");
+        UUID testCampaignId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        String unsubscribeUrl = trackingUrls.unsubscribeUrl(workspaceId, testCampaignId, testContactId);
         String subject = "[TEST] " + EmailTemplateMerge.applySubject(
                 template.getSubject(),
                 request.getFirstName(),
@@ -179,7 +183,7 @@ public class EmailTemplateService {
                 request.getPhone(),
                 unsubscribeUrl
         );
-        emailSender.sendHtmlEmail(to, subject, EmailTemplateLayout.wrap(template, body));
+        emailSender.sendHtmlEmail(to, subject, EmailTemplateLayout.wrap(template, body, unsubscribeUrl));
     }
 
     private EmailTemplate requireTemplate(UUID workspaceId, UUID templateId) {

@@ -16,8 +16,13 @@ import com.mailflow.emailtemplate.application.EmailTemplateLayout;
 import com.mailflow.emailtemplate.application.EmailTemplateMerge;
 import com.mailflow.emailtemplate.domain.model.EmailTemplate;
 import com.mailflow.emailtemplate.domain.repository.EmailTemplateRepository;
+import com.mailflow.engagement.application.HtmlTrackingInjector;
+import com.mailflow.engagement.application.PublicTrackingUrls;
 import com.mailflow.infrastructure.mail.CampaignMailRouter;
+import com.mailflow.infrastructure.mail.ListUnsubscribeHeaders;
 import com.mailflow.quota.application.QuotaService;
+import com.mailflow.workspace.domain.model.Workspace;
+import com.mailflow.workspace.domain.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -46,6 +51,9 @@ public class CampaignSendProcessor {
     private final EmailSenderIdentityRepository senderRepository;
     private final CampaignMailRouter campaignMailRouter;
     private final QuotaService quotaService;
+    private final WorkspaceRepository workspaceRepository;
+    private final PublicTrackingUrls trackingUrls;
+    private final HtmlTrackingInjector trackingInjector;
 
     @Transactional(readOnly = true)
     public List<UUID> findPendingRecipientIds(int batchSize) {
@@ -150,8 +158,13 @@ public class CampaignSendProcessor {
             throw new AppException(HttpStatus.BAD_REQUEST, "CONTACT_MISSING",
                     "Không tìm thấy liên hệ người nhận.");
         }
-        String unsubscribeUrl = "https://mailflow.vn/unsubscribe?c=" + campaign.getId()
-                + "&e=" + contact.getEmail();
+        Workspace workspace = workspaceRepository.findById(campaign.getWorkspaceId()).orElse(null);
+        boolean openTracking = workspace == null || workspace.isEnableOpenTracking();
+        boolean clickTracking = workspace == null || workspace.isEnableClickTracking();
+        boolean enforceRfc = workspace == null || workspace.isEnforceRfc8058();
+
+        String unsubscribeUrl = trackingUrls.unsubscribeUrl(
+                campaign.getWorkspaceId(), campaign.getId(), contact.getId());
         String subject = EmailTemplateMerge.applySubject(
                 campaign.getSubject(),
                 contact.getFirstName(),
@@ -181,10 +194,43 @@ public class CampaignSendProcessor {
                         body,
                         unsubscribeUrl
                 );
+        wrapped = trackingInjector.inject(
+                wrapped,
+                campaign.getWorkspaceId(),
+                campaign.getId(),
+                contact.getId(),
+                openTracking,
+                clickTracking
+        );
+        String openUrl = trackingUrls.openPixelUrl(
+                campaign.getWorkspaceId(), campaign.getId(), contact.getId());
+        String clickUrl = trackingUrls.clickRedirectUrl(
+                campaign.getWorkspaceId(), campaign.getId(), contact.getId(), "https://example.com");
+        log.info(
+                "Campaign mail tracking campaign={} contact={} open={} click={} rfc={} unsub={} openPixel={} clickSample={} hasPixel={}",
+                campaign.getId(),
+                contact.getId(),
+                openTracking,
+                clickTracking,
+                enforceRfc,
+                unsubscribeUrl,
+                openUrl,
+                clickUrl,
+                wrapped.contains("/t/o/")
+        );
         EmailSenderIdentity sender = campaign.getSenderId() == null
                 ? null
                 : senderRepository.findByIdAndWorkspaceId(campaign.getSenderId(), campaign.getWorkspaceId())
                         .orElse(null);
-        campaignMailRouter.sendHtml(contact.getEmail(), subject, wrapped, sender, campaign.getReplyTo());
+        ListUnsubscribeHeaders headers = null;
+        if (enforceRfc) {
+            headers = new ListUnsubscribeHeaders(
+                    unsubscribeUrl,
+                    trackingUrls.unsubscribeOneClickUrl(
+                            campaign.getWorkspaceId(), campaign.getId(), contact.getId())
+            );
+        }
+        campaignMailRouter.sendHtml(
+                contact.getEmail(), subject, wrapped, sender, campaign.getReplyTo(), headers);
     }
 }

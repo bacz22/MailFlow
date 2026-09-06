@@ -799,14 +799,14 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
               <div className="text-[11px] text-slate-400">Tỷ Lệ Mở (Open Rate)</div>
               <div className="text-2xl font-extrabold font-mono text-emerald-600">
-                {campaign.openRate ? `${campaign.openRate}%` : '—'}
+                {`${campaign.openRate ?? 0}%`}
               </div>
             </div>
 
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
               <div className="text-[11px] text-slate-400">Tỷ Lệ Click (CTR)</div>
               <div className="text-2xl font-extrabold font-mono text-violet-600">
-                {campaign.clickRate ? `${campaign.clickRate}%` : '—'}
+                {`${campaign.clickRate ?? 0}%`}
               </div>
             </div>
           </div>

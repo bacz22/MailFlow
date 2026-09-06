@@ -182,6 +182,21 @@ public class SmtpEmailSender implements EmailSender {
             String replyTo,
             boolean useSenderAsFrom
     ) {
+        sendHtmlEmail(toEmail, subject, htmlBody, fromNameOverride, fromEmailOverride, replyTo,
+                useSenderAsFrom, null);
+    }
+
+    @Override
+    public void sendHtmlEmail(
+            String toEmail,
+            String subject,
+            String htmlBody,
+            String fromNameOverride,
+            String fromEmailOverride,
+            String replyTo,
+            boolean useSenderAsFrom,
+            ListUnsubscribeHeaders listUnsubscribe
+    ) {
         log.info("Chuẩn bị gửi HTML tới [{}] useSenderAsFrom={}", toEmail, useSenderAsFrom);
         String displayName = (fromNameOverride != null && !fromNameOverride.isBlank())
                 ? fromNameOverride.trim()
@@ -189,7 +204,8 @@ public class SmtpEmailSender implements EmailSender {
         String effectiveReplyTo = firstNonBlank(replyTo, fromEmailOverride);
 
         if (useSenderAsFrom) {
-            sendViaEsp(toEmail, subject, htmlBody, displayName, fromEmailOverride, effectiveReplyTo);
+            sendViaEsp(toEmail, subject, htmlBody, displayName, fromEmailOverride, effectiveReplyTo,
+                    listUnsubscribe);
             return;
         }
 
@@ -209,6 +225,7 @@ public class SmtpEmailSender implements EmailSender {
             }
             helper.setSubject(subject == null ? "" : subject);
             helper.setText(htmlBody == null ? "" : htmlBody, true);
+            applyListUnsubscribe(message, listUnsubscribe);
             mailSender.send(message);
             log.info("Đã gửi HTML (system SMTP) tới [{}] as [{}] reply-to [{}]",
                     toEmail, displayName, effectiveReplyTo);
@@ -225,7 +242,8 @@ public class SmtpEmailSender implements EmailSender {
             String htmlBody,
             String displayName,
             String senderFromEmail,
-            String replyTo
+            String replyTo,
+            ListUnsubscribeHeaders listUnsubscribe
     ) {
         if (espMailSender == null || espMailProperties == null || !espMailProperties.isConfigured()) {
             throw new AppException(HttpStatus.SERVICE_UNAVAILABLE, "ESP_SMTP_NOT_CONFIGURED",
@@ -246,6 +264,7 @@ public class SmtpEmailSender implements EmailSender {
             }
             helper.setSubject(subject == null ? "" : subject);
             helper.setText(htmlBody == null ? "" : htmlBody, true);
+            applyListUnsubscribe(message, listUnsubscribe);
             espMailSender.send(message);
             log.info("Đã gửi HTML (ESP) tới [{}] From [{} <{}>] reply-to [{}]",
                     toEmail, displayName, senderFromEmail, replyTo);
@@ -254,6 +273,19 @@ public class SmtpEmailSender implements EmailSender {
             throw new AppException(HttpStatus.BAD_GATEWAY, "ESP_SMTP_SEND_FAILED",
                     "Không gửi được email qua ESP: " + e.getMessage());
         }
+    }
+
+    private static void applyListUnsubscribe(MimeMessage message, ListUnsubscribeHeaders headers)
+            throws MessagingException {
+        if (headers == null || !headers.isPresent()) {
+            return;
+        }
+        // RFC 8058: POST One-Click to the same HTTPS URI listed in List-Unsubscribe
+        String primary = headers.oneClickUrl() != null && !headers.oneClickUrl().isBlank()
+                ? headers.oneClickUrl().trim()
+                : headers.httpsUrl().trim();
+        message.setHeader("List-Unsubscribe", "<" + primary + ">");
+        message.setHeader("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
     }
 
     private static String firstNonBlank(String a, String b) {

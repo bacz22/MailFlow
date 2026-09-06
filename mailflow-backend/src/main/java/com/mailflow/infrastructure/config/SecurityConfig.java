@@ -91,6 +91,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/t/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()
                 )
@@ -118,7 +119,7 @@ public class SecurityConfig {
             if (contextPath != null && !contextPath.isEmpty() && uri.startsWith(contextPath)) {
                 uri = uri.substring(contextPath.length());
             }
-            if (PUBLIC_AUTH_PATHS.contains(uri)) {
+            if (PUBLIC_AUTH_PATHS.contains(uri) || uri.startsWith("/t/")) {
                 return null;
             }
             return delegate.resolve(request);

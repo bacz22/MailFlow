@@ -451,9 +451,53 @@ export const WorkspaceSettingsPage: React.FC<WorkspaceSettingsPageProps> = ({ on
             />
           </FormField>
 
-          {/* Open/Click tracking + RFC 8058 — lưu BE sẵn, send path chưa đọc; ẩn tạm
-          <div className="space-y-2 pt-2 border-t">...</div>
-          */}
+          {/* Tracking Checkboxes */}
+          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.enableOpenTracking}
+                onChange={(e) =>
+                  canUpdate && setSettings({ ...settings, enableOpenTracking: e.target.checked })
+                }
+                disabled={!canUpdate}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                Bật tính năng theo dõi tỷ lệ mở thư (Open Tracking Pixel)
+              </span>
+            </label>
+
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.enableClickTracking}
+                onChange={(e) =>
+                  canUpdate && setSettings({ ...settings, enableClickTracking: e.target.checked })
+                }
+                disabled={!canUpdate}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                Bật tính năng theo dõi nhấp liên kết (Click CTR Tracking)
+              </span>
+            </label>
+
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.enforceRfc8058}
+                onChange={(e) =>
+                  canUpdate && setSettings({ ...settings, enforceRfc8058: e.target.checked })
+                }
+                disabled={!canUpdate}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                Bắt buộc tiêu đề chuẩn RFC 8058 (1-Click List-Unsubscribe Header)
+              </span>
+            </label>
+          </div>
         </CardContent>
       </Card>
 

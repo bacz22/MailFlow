@@ -42,6 +42,6 @@ class EmailTemplateMergeTest {
         assertThat(html).contains("test mail");
         assertThat(html).contains("<p>Hello</p>");
         assertThat(html).contains("#7c3aed");
-        assertThat(html).contains("Truy Cập Nền Tảng");
+        assertThat(html).contains("Hủy đăng ký");
     }
 }

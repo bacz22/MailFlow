@@ -54,4 +54,19 @@ public interface EmailSender {
             String replyTo,
             boolean useSenderAsFrom
     );
+
+    /**
+     * Same as {@link #sendHtmlEmail(String, String, String, String, String, String, boolean)}
+     * with optional RFC 8058 List-Unsubscribe headers.
+     */
+    void sendHtmlEmail(
+            String toEmail,
+            String subject,
+            String htmlBody,
+            String fromName,
+            String fromEmail,
+            String replyTo,
+            boolean useSenderAsFrom,
+            ListUnsubscribeHeaders listUnsubscribe
+    );
 }

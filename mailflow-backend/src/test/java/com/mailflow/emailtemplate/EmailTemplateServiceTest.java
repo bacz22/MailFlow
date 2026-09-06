@@ -7,6 +7,7 @@ import com.mailflow.emailtemplate.application.EmailTemplateService;
 import com.mailflow.emailtemplate.domain.model.EmailTemplate;
 import com.mailflow.emailtemplate.domain.model.EmailTemplateStatus;
 import com.mailflow.emailtemplate.domain.repository.EmailTemplateRepository;
+import com.mailflow.engagement.application.PublicTrackingUrls;
 import com.mailflow.infrastructure.mail.EmailSender;
 import com.mailflow.user.domain.repository.UserRepository;
 import com.mailflow.workspace.application.WorkspaceAccessService;
@@ -37,6 +38,7 @@ class EmailTemplateServiceTest {
     @Mock UserRepository userRepository;
     @Mock WorkspaceAccessService accessService;
     @Mock EmailSender emailSender;
+    @Mock PublicTrackingUrls trackingUrls;
     @InjectMocks EmailTemplateService emailTemplateService;
 
     private final UUID userId = UUID.randomUUID();
@@ -124,6 +126,8 @@ class EmailTemplateServiceTest {
         when(accessService.requireTemplateWrite(userId, workspaceId))
                 .thenReturn(new WorkspaceMember(workspaceId, userId, WorkspaceRole.ADMIN));
         when(templateRepository.findByIdAndWorkspaceId(templateId, workspaceId)).thenReturn(Optional.of(source));
+        when(trackingUrls.unsubscribeUrl(eq(workspaceId), any(UUID.class), any(UUID.class)))
+                .thenReturn("http://localhost:8080/t/unsubscribe?token=test");
 
         emailTemplateService.sendTest(userId, workspaceId, templateId, SendTestEmailTemplateRequest.builder()
                 .to("qa@example.com")
@@ -134,7 +138,7 @@ class EmailTemplateServiceTest {
         ArgumentCaptor<String> htmlCaptor = ArgumentCaptor.forClass(String.class);
         verify(emailSender).sendHtmlEmail(eq("qa@example.com"), eq("[TEST] Hi An"), htmlCaptor.capture());
         assertThat(htmlCaptor.getValue()).contains("<p>V-Corp qa@example.com</p>");
-        assertThat(htmlCaptor.getValue()).contains("Truy Cập Nền Tảng");
         assertThat(htmlCaptor.getValue()).contains("linear-gradient");
+        assertThat(htmlCaptor.getValue()).contains("/t/unsubscribe?token=test");
     }
 }

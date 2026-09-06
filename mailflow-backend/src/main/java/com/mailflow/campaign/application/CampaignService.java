@@ -26,7 +26,10 @@ import com.mailflow.emailtemplate.application.EmailTemplateLayout;
 import com.mailflow.emailtemplate.application.EmailTemplateMerge;
 import com.mailflow.emailtemplate.domain.model.EmailTemplate;
 import com.mailflow.emailtemplate.domain.repository.EmailTemplateRepository;
+import com.mailflow.engagement.application.EngagementService;
+import com.mailflow.engagement.application.PublicTrackingUrls;
 import com.mailflow.infrastructure.mail.CampaignMailRouter;
+import com.mailflow.infrastructure.mail.ListUnsubscribeHeaders;
 import com.mailflow.quota.application.QuotaService;
 import com.mailflow.sendingdomain.domain.model.SendingDomain;
 import com.mailflow.sendingdomain.domain.model.SendingDomainStatus;
@@ -34,6 +37,8 @@ import com.mailflow.sendingdomain.domain.repository.SendingDomainRepository;
 import com.mailflow.user.domain.model.User;
 import com.mailflow.user.domain.repository.UserRepository;
 import com.mailflow.workspace.application.WorkspaceAccessService;
+import com.mailflow.workspace.domain.model.Workspace;
+import com.mailflow.workspace.domain.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -89,6 +94,9 @@ public class CampaignService {
     private final CampaignMailRouter campaignMailRouter;
     private final SendingDomainRepository sendingDomainRepository;
     private final QuotaService quotaService;
+    private final PublicTrackingUrls trackingUrls;
+    private final EngagementService engagementService;
+    private final WorkspaceRepository workspaceRepository;
 
     @Transactional(readOnly = true)
     public List<CampaignResponse> list(UUID userId, UUID workspaceId, String q, String status) {
@@ -359,7 +367,10 @@ public class CampaignService {
         accessService.requireCampaignWrite(userId, workspaceId);
         Campaign campaign = requireCampaign(workspaceId, campaignId);
         String to = request.getTo() == null ? "" : request.getTo().trim().toLowerCase(Locale.ROOT);
-        String unsubscribeUrl = "https://mailflow.vn/unsubscribe?test=1";
+        UUID testContactId = UUID.fromString("00000000-0000-0000-0000-000000000000");
+        String unsubscribeUrl = trackingUrls.unsubscribeUrl(workspaceId, campaignId, testContactId);
+        Workspace workspace = workspaceRepository.findById(workspaceId).orElse(null);
+        boolean enforceRfc = workspace == null || workspace.isEnforceRfc8058();
         String subject = "[TEST] " + EmailTemplateMerge.applySubject(
                 campaign.getSubject(),
                 request.getFirstName(),
@@ -395,7 +406,10 @@ public class CampaignService {
             campaignMailRouter.requireVerifiedSendingDomain(workspaceId, sender);
         }
         quotaService.consumeSendSlot(workspaceId, 1);
-        campaignMailRouter.sendHtml(to, subject, wrapped, sender, campaign.getReplyTo());
+        ListUnsubscribeHeaders headers = enforceRfc
+                ? new ListUnsubscribeHeaders(unsubscribeUrl, unsubscribeUrl)
+                : null;
+        campaignMailRouter.sendHtml(to, subject, wrapped, sender, campaign.getReplyTo(), headers);
     }
 
     private void applyContent(UUID workspaceId, Campaign campaign, UpsertCampaignRequest request) {
@@ -532,9 +546,17 @@ public class CampaignService {
         Map<UUID, SendingDomain> domains = loadSenderDomains(senders);
         Map<UUID, String> listNames = loadListNames(workspaceId, campaigns);
         Map<UUID, String> segmentNames = loadSegmentNames(workspaceId, campaigns);
+        Map<UUID, Long> sentByCampaign = new HashMap<>();
+        List<UUID> campaignIds = new ArrayList<>();
+        for (Campaign campaign : campaigns) {
+            campaignIds.add(campaign.getId());
+            sentByCampaign.put(campaign.getId(), campaign.getSentCount());
+        }
+        Map<UUID, EngagementService.Rates> rates = engagementService.ratesForCampaigns(campaignIds, sentByCampaign);
         List<CampaignResponse> out = new ArrayList<>();
         for (Campaign campaign : campaigns) {
-            out.add(toResponse(campaign, creators, senders, domains, listNames, segmentNames));
+            EngagementService.Rates r = rates.getOrDefault(campaign.getId(), new EngagementService.Rates(0, 0));
+            out.add(toResponse(campaign, creators, senders, domains, listNames, segmentNames, r));
         }
         return out;
     }
@@ -545,7 +567,8 @@ public class CampaignService {
             Map<UUID, EmailSenderIdentity> senders,
             Map<UUID, SendingDomain> domains,
             Map<UUID, String> listNames,
-            Map<UUID, String> segmentNames
+            Map<UUID, String> segmentNames,
+            EngagementService.Rates rates
     ) {
         List<UUID> lists = toList(campaign.getListIds());
         List<UUID> segments = toList(campaign.getSegmentIds());
@@ -580,8 +603,8 @@ public class CampaignService {
                 .audienceType(audienceType)
                 .recipientCount(campaign.getEstimatedRecipients())
                 .sentCount(campaign.getSentCount())
-                .openRate(0)
-                .clickRate(0)
+                .openRate(rates.openRate())
+                .clickRate(rates.clickRate())
                 .scheduledAt(campaign.getScheduledAt())
                 .sentAt(campaign.getStartedAt())
                 .createdBy(createdBy)

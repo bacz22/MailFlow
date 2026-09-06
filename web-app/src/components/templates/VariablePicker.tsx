@@ -13,7 +13,7 @@ export const TEMPLATE_VARIABLES: VariableItem[] = [
   { key: '{{email}}', label: 'Địa Chỉ Email', example: 'a.b@gmail.com' },
   { key: '{{company}}', label: 'Tên Công Ty', example: 'Company' },
   { key: '{{phone}}', label: 'Số Điện Thoại', example: '+84 912 345 678' },
-  { key: '{{unsubscribeUrl}}', label: 'Link Hủy Đăng Ký (RFC 8058)', example: 'https://mailflow.vn/unsub/...' },
+  { key: '{{unsubscribeUrl}}', label: 'Link Hủy Đăng Ký (RFC 8058)', example: 'https://api.example.com/t/unsubscribe?token=...' },
 ]
 
 export interface VariablePickerProps {
