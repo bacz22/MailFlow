@@ -394,9 +394,8 @@ public class CampaignService {
         if (sender != null) {
             campaignMailRouter.requireVerifiedSendingDomain(workspaceId, sender);
         }
-        quotaService.assertCanSend(workspaceId, 1);
+        quotaService.consumeSendSlot(workspaceId, 1);
         campaignMailRouter.sendHtml(to, subject, wrapped, sender, campaign.getReplyTo());
-        quotaService.recordSuccessfulSend(workspaceId, 1);
     }
 
     private void applyContent(UUID workspaceId, Campaign campaign, UpsertCampaignRequest request) {

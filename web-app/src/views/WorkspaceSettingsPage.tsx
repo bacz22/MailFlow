@@ -310,14 +310,12 @@ export const WorkspaceSettingsPage: React.FC<WorkspaceSettingsPageProps> = ({ on
             </FormField>
           </div>
 
+          {/* Industry — lưu BE sẵn nhưng chưa dùng trong product; ẩn tạm
           <FormField>
             <FormLabel>Lĩnh Vực Hoạt Động (Industry Category)</FormLabel>
-            <Input
-              value={settings.industry}
-              onChange={(e) => setSettings({ ...settings, industry: e.target.value })}
-              disabled={!canUpdate}
-            />
+            <Input value={settings.industry} ... />
           </FormField>
+          */}
         </CardContent>
       </Card>
 
@@ -433,7 +431,7 @@ export const WorkspaceSettingsPage: React.FC<WorkspaceSettingsPageProps> = ({ on
             <CardTitle className="text-sm">Tùy Chọn Mặc Định & Tuân Thủ (Preferences)</CardTitle>
           </div>
           <CardDescription className="text-xs">
-            Cấu hình múi giờ phát hành, địa chỉ người gửi mặc định và các tiêu chuẩn bảo mật.
+            Cấu hình múi giờ mặc định cho không gian làm việc.
           </CardDescription>
         </CardHeader>
 
@@ -453,53 +451,9 @@ export const WorkspaceSettingsPage: React.FC<WorkspaceSettingsPageProps> = ({ on
             />
           </FormField>
 
-          {/* Tracking Checkboxes */}
-          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-            <label className="flex items-center gap-2.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.enableOpenTracking}
-                onChange={(e) =>
-                  canUpdate && setSettings({ ...settings, enableOpenTracking: e.target.checked })
-                }
-                disabled={!canUpdate}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="font-semibold text-slate-800 dark:text-slate-200">
-                Bật tính năng theo dõi tỷ lệ mở thư (Open Tracking Pixel)
-              </span>
-            </label>
-
-            <label className="flex items-center gap-2.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.enableClickTracking}
-                onChange={(e) =>
-                  canUpdate && setSettings({ ...settings, enableClickTracking: e.target.checked })
-                }
-                disabled={!canUpdate}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="font-semibold text-slate-800 dark:text-slate-200">
-                Bật tính năng theo dõi nhấp liên kết (Click CTR Tracking)
-              </span>
-            </label>
-
-            <label className="flex items-center gap-2.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.enforceRfc8058}
-                onChange={(e) =>
-                  canUpdate && setSettings({ ...settings, enforceRfc8058: e.target.checked })
-                }
-                disabled={!canUpdate}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="font-semibold text-slate-800 dark:text-slate-200">
-                Bắt buộc tiêu đề chuẩn RFC 8058 (1-Click List-Unsubscribe Header)
-              </span>
-            </label>
-          </div>
+          {/* Open/Click tracking + RFC 8058 — lưu BE sẵn, send path chưa đọc; ẩn tạm
+          <div className="space-y-2 pt-2 border-t">...</div>
+          */}
         </CardContent>
       </Card>
 

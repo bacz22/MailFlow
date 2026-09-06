@@ -29,4 +29,34 @@ public interface WorkspaceDailyEmailUsageRepository
             @Param("usageDate") LocalDate usageDate,
             @Param("count") long count
     );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            INSERT INTO workspace_daily_email_usage (workspace_id, usage_date, sent_count)
+            VALUES (:workspaceId, :usageDate, 0)
+            ON CONFLICT (workspace_id, usage_date) DO NOTHING
+            """, nativeQuery = true)
+    int ensureUsageRow(
+            @Param("workspaceId") UUID workspaceId,
+            @Param("usageDate") LocalDate usageDate
+    );
+
+    /**
+     * Atomically consume {@code count} if {@code sent_count + count <= limit}.
+     * Returns 0 when the quota would be exceeded.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE workspace_daily_email_usage
+            SET sent_count = sent_count + :count
+            WHERE workspace_id = :workspaceId
+              AND usage_date = :usageDate
+              AND sent_count + :count <= :limit
+            """, nativeQuery = true)
+    int tryIncrementUnderLimit(
+            @Param("workspaceId") UUID workspaceId,
+            @Param("usageDate") LocalDate usageDate,
+            @Param("count") long count,
+            @Param("limit") long limit
+    );
 }

@@ -9,7 +9,6 @@ import {
   Lock,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../ui/Card'
-import { SimpleSelect } from '../../ui/Select'
 import { DatePicker, TimePicker } from '../../ui/DatePicker'
 import { usePermission, PERMISSIONS } from '../../../permissions'
 import type { CampaignStep5Schedule } from '../../../types/campaignWizard.types'
@@ -19,13 +18,15 @@ export interface CampaignStep5ScheduleFormProps {
   onChange: (data: Partial<CampaignStep5Schedule>) => void
 }
 
-const TIMEZONES = [
-  { value: 'Asia/Bangkok', label: 'Hà Nội, Bangkok, Jakarta (UTC+07:00)', short: 'UTC+07:00' },
-  { value: 'Asia/Singapore', label: 'Singapore, Kuala Lumpur (UTC+08:00)', short: 'UTC+08:00' },
-  { value: 'Asia/Tokyo', label: 'Tokyo, Seoul (UTC+09:00)', short: 'UTC+09:00' },
-  { value: 'Europe/London', label: 'London, Dublin (UTC+00:00)', short: 'UTC+00:00' },
-  { value: 'America/New_York', label: 'New York (UTC−05:00)', short: 'UTC−05:00' },
-]
+/** Ngày hôm nay theo GMT+7 (Asia/Bangkok), khớp hạn mức gửi demo. */
+function todayGmt7(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
 
 function formatDateVn(iso?: string): string {
   if (!iso) return '—'
@@ -41,15 +42,13 @@ export const CampaignStep5ScheduleForm: React.FC<CampaignStep5ScheduleFormProps>
   const { hasPermission } = usePermission()
   const canDirectSend = hasPermission(PERMISSIONS.CAMPAIGN_SEND)
 
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = todayGmt7()
   const scheduledDate = data.scheduledDate || todayStr
   const scheduledTime = data.scheduledTime || '20:00'
-  const timezone = data.timezone || 'Asia/Bangkok'
-  const timezoneMeta = TIMEZONES.find((tz) => tz.value === timezone) || TIMEZONES[0]
 
   const isPastTime = () => {
     if (data.sendType !== 'scheduled') return false
-    const target = new Date(`${scheduledDate}T${scheduledTime}`)
+    const target = new Date(`${scheduledDate}T${scheduledTime}:00+07:00`)
     return target.getTime() < Date.now()
   }
 
@@ -130,7 +129,7 @@ export const CampaignStep5ScheduleForm: React.FC<CampaignStep5ScheduleFormProps>
                   sendType: 'scheduled',
                   scheduledDate: data.scheduledDate || todayStr,
                   scheduledTime: data.scheduledTime || '20:00',
-                  timezone: data.timezone || 'Asia/Bangkok',
+                  timezone: 'Asia/Bangkok',
                 })
               }
               className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 text-xs cursor-pointer select-none ${
@@ -146,7 +145,7 @@ export const CampaignStep5ScheduleForm: React.FC<CampaignStep5ScheduleFormProps>
                     <span>Lên Lịch Tự Động (Schedule for Later)</span>
                   </div>
                   <p className="text-[11px] text-slate-500 leading-relaxed">
-                    Hệ thống sẽ tự động kích hoạt tiến trình gửi vào đúng ngày, giờ và múi giờ đã chọn.
+                    Hệ thống sẽ tự động kích hoạt tiến trình gửi vào đúng ngày và giờ (GMT+7).
                   </p>
                 </div>
 
@@ -163,14 +162,14 @@ export const CampaignStep5ScheduleForm: React.FC<CampaignStep5ScheduleFormProps>
 
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[10px] text-blue-600 font-bold flex items-center gap-1">
                 <Globe className="w-3 h-3" />
-                <span>Chính xác theo múi giờ chỉ định</span>
+                <span>Múi giờ cố định GMT+7 (Việt Nam)</span>
               </div>
             </div>
           </div>
 
           {data.sendType === 'scheduled' && (
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-4 animate-in fade-in-0">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:items-end">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:items-end">
                 <div className="flex flex-col gap-1.5 w-full min-w-0">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 h-5 leading-5">
                     Ngày Phát Hành<span className="text-rose-500 ml-0.5">*</span>
@@ -184,7 +183,7 @@ export const CampaignStep5ScheduleForm: React.FC<CampaignStep5ScheduleFormProps>
                       onChange({
                         scheduledDate: date,
                         scheduledTime: data.scheduledTime || scheduledTime,
-                        timezone: data.timezone || timezone,
+                        timezone: 'Asia/Bangkok',
                       })
                     }
                     placeholder="Chọn ngày gửi..."
@@ -194,7 +193,7 @@ export const CampaignStep5ScheduleForm: React.FC<CampaignStep5ScheduleFormProps>
 
                 <div className="flex flex-col gap-1.5 w-full min-w-0">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 h-5 leading-5">
-                    Giờ Phát Hành (24h)<span className="text-rose-500 ml-0.5">*</span>
+                    Giờ Phát Hành (24h · GMT+7)<span className="text-rose-500 ml-0.5">*</span>
                   </label>
                   <TimePicker
                     size="md"
@@ -204,39 +203,23 @@ export const CampaignStep5ScheduleForm: React.FC<CampaignStep5ScheduleFormProps>
                       onChange({
                         scheduledTime: time,
                         scheduledDate: data.scheduledDate || scheduledDate,
-                        timezone: data.timezone || timezone,
+                        timezone: 'Asia/Bangkok',
                       })
                     }
                     placeholder="Chọn giờ gửi..."
                     className="w-full !h-[38px] box-border"
                   />
                 </div>
-
-                <div className="flex flex-col gap-1.5 w-full min-w-0">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 h-5 leading-5">
-                    Múi Giờ
-                  </label>
-                  <SimpleSelect
-                    size="md"
-                    value={timezone}
-                    onValueChange={(value) => onChange({ timezone: value })}
-                    placeholder="Chọn múi giờ..."
-                    options={TIMEZONES.map((tz) => ({
-                      value: tz.value,
-                      label: `${tz.label.split(' (')[0]} ${tz.short}`,
-                      textValue: tz.label,
-                    }))}
-                    className="w-full !h-[38px] box-border"
-                  />
-                </div>
               </div>
+
+              {/* Timezone dropdown — ẩn; demo cố định GMT+7 */}
 
               <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 flex flex-wrap items-center gap-2 text-xs">
                 <div className="flex items-center gap-2 text-blue-900 dark:text-blue-200 font-semibold min-w-0">
                   <Clock className="w-4 h-4 text-blue-600 shrink-0" />
                   <span className="shrink-0">Thời điểm gửi dự kiến:</span>
                   <strong className="font-mono text-blue-600 dark:text-blue-400">
-                    {scheduledTime} · {formatDateVn(scheduledDate)} ({timezoneMeta.short})
+                    {scheduledTime} · {formatDateVn(scheduledDate)} (GMT+7)
                   </strong>
                 </div>
               </div>
@@ -244,7 +227,7 @@ export const CampaignStep5ScheduleForm: React.FC<CampaignStep5ScheduleFormProps>
               {hasPastError && (
                 <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 flex items-center gap-2 text-xs text-rose-700 dark:text-rose-300 font-medium">
                   <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>Thời điểm hẹn giờ không thể ở trong quá khứ. Vui lòng chọn ngày/giờ tương lai.</span>
+                  <span>Thời điểm hẹn giờ không thể ở trong quá khứ. Vui lòng chọn ngày/giờ tương lai (GMT+7).</span>
                 </div>
               )}
             </div>

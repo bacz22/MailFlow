@@ -267,7 +267,7 @@ export const CampaignStep6ReviewForm: React.FC<CampaignStep6ReviewFormProps> = (
                   <>
                     <Clock className="w-3.5 h-3.5 text-blue-600" />
                     <span>
-                      Hẹn giờ: {step5.scheduledTime}, {step5.scheduledDate} (Asia/Bangkok)
+                      Hẹn giờ: {step5.scheduledTime}, {step5.scheduledDate} (GMT+7)
                     </span>
                   </>
                 )}

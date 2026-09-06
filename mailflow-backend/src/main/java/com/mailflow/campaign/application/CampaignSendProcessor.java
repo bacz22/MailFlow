@@ -77,7 +77,8 @@ public class CampaignSendProcessor {
                     .stream()
                     .findFirst()
                     .orElseThrow(() -> new ResourceNotFoundException("Contact", recipient.getContactId().toString()));
-            quotaService.assertCanSend(campaign.getWorkspaceId(), 1);
+            // Atomic reserve before SMTP — tránh overshoot concurrent; nếu hết hạn mức thì pause
+            quotaService.consumeSendSlot(campaign.getWorkspaceId(), 1);
             sendCampaignEmail(campaign, contact);
             recipient.setStatus(CampaignRecipientStatus.SENT);
             recipient.setSentAt(Instant.now());
@@ -85,12 +86,18 @@ public class CampaignSendProcessor {
             recipientRepository.saveAndFlush(recipient);
             campaign.setSentCount(campaign.getSentCount() + 1);
             campaignRepository.saveAndFlush(campaign);
-            quotaService.recordSuccessfulSend(campaign.getWorkspaceId(), 1);
         } catch (Exception ex) {
-            String message = ex.getMessage() == null ? "SMTP_SEND_FAILED" : ex.getMessage();
             if (ex instanceof AppException appEx && "QUOTA_EXCEEDED".equals(appEx.getCode())) {
-                message = appEx.getMessage();
+                recipient.setStatus(CampaignRecipientStatus.PENDING);
+                recipient.setError(null);
+                recipientRepository.saveAndFlush(recipient);
+                campaign.setStatus(CampaignStatus.PAUSED);
+                campaignRepository.saveAndFlush(campaign);
+                log.warn("Campaign [{}] tạm dừng do hết hạn mức gửi demo: {}",
+                        campaign.getId(), appEx.getMessage());
+                return;
             }
+            String message = ex.getMessage() == null ? "SMTP_SEND_FAILED" : ex.getMessage();
             if (message.length() > 1000) {
                 message = message.substring(0, 1000);
             }

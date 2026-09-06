@@ -35,7 +35,7 @@ export interface CampaignStep5Schedule {
   sendType: 'immediate' | 'scheduled'
   scheduledDate?: string
   scheduledTime?: string
-  /** UI only — lịch gửi hiện parse theo giờ máy local; chưa persist timezone riêng */
+  /** Demo cố định Asia/Bangkok (GMT+7); UI timezone đã ẩn */
   timezone?: string
 }
 

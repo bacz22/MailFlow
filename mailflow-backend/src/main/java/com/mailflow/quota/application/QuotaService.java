@@ -64,6 +64,28 @@ public class QuotaService {
         usageRepository.incrementSentCount(workspaceId, today(), count);
     }
 
+    /**
+     * Atomically consume {@code count} sends against the daily limit.
+     * Ensures the usage row exists, then increments only if still under limit.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void consumeSendSlot(UUID workspaceId, long count) {
+        if (count <= 0) {
+            return;
+        }
+        long limit = Math.max(0, dailySendLimit);
+        LocalDate day = today();
+        usageRepository.ensureUsageRow(workspaceId, day);
+        int updated = usageRepository.tryIncrementUnderLimit(workspaceId, day, count, limit);
+        if (updated == 0) {
+            DailySendQuotaResponse usage = getDailyUsage(workspaceId);
+            throw new AppException(HttpStatus.BAD_REQUEST, "QUOTA_EXCEEDED",
+                    "Đã hết hạn mức gửi demo hôm nay ("
+                            + usage.getUsed() + "/" + usage.getLimit()
+                            + " email). Hạn mức reset lúc 00:00 (GMT+7).");
+        }
+    }
+
     public LocalDate today() {
         return LocalDate.now(QUOTA_ZONE);
     }

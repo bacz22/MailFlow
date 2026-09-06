@@ -111,9 +111,12 @@ function toWizardState(campaign: CampaignDetail): CampaignWizardState {
 function toWritePayload(state: CampaignWizardState): CampaignWritePayload {
   let scheduledAt: string | undefined
   if (state.step5.sendType === 'scheduled' && state.step5.scheduledDate && state.step5.scheduledTime) {
-    const local = new Date(`${state.step5.scheduledDate}T${state.step5.scheduledTime}:00`)
-    if (!Number.isNaN(local.getTime())) {
-      scheduledAt = local.toISOString()
+    // Demo: luôn interpret ngày/giờ theo GMT+7 (Asia/Bangkok), khớp QuotaService
+    const instant = new Date(
+      `${state.step5.scheduledDate}T${state.step5.scheduledTime}:00+07:00`
+    )
+    if (!Number.isNaN(instant.getTime())) {
+      scheduledAt = instant.toISOString()
     }
   }
   return {
@@ -167,11 +170,15 @@ export const CampaignWizardPage: React.FC<CampaignWizardPageProps> = ({ campaign
     if (wizardData.step5.sendType !== 'scheduled') return false
     const date =
       wizardData.step5.scheduledDate ||
-      new Date().toISOString().slice(0, 10)
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Bangkok',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date())
     const time = wizardData.step5.scheduledTime || '20:00'
-    const target = new Date(`${date}T${time}:00`)
+    const target = new Date(`${date}T${time}:00+07:00`)
     if (Number.isNaN(target.getTime())) return false
-    // Cho phép lệch tối đa 1 phút so với đồng hồ máy
     return target.getTime() >= Date.now() - 60_000
   })()
 

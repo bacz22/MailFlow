@@ -11,8 +11,6 @@ import {
   Building2,
   Activity,
   Send,
-  MousePointerClick,
-  Eye,
   Layers,
 } from 'lucide-react'
 import { ContactStatusBadge } from '../components/contacts/ContactStatusBadge'
@@ -203,36 +201,6 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
       throw error
     }
   }
-
-  const emailActivities = [
-    {
-      id: 'act-1',
-      campaign: 'Product Launch 2.0 - Early Access',
-      subject: '🚀 Ra mắt MailFlow 2.0: Trải nghiệm email marketing đỉnh cao',
-      status: 'clicked',
-      sentAt: '25/08/2026 10:15',
-      openedAt: '25/08/2026 10:22 (3 lượt mở)',
-      clickedAt: '25/08/2026 10:25 (Click link: mailflow.vn/pricing)',
-    },
-    {
-      id: 'act-2',
-      campaign: 'Weekly Newsletter #48 - AI Automation',
-      subject: 'Bản tin hàng tuần: 5 mẹo tối ưu Inbox Rate với RFC 8058',
-      status: 'opened',
-      sentAt: '24/08/2026 14:00',
-      openedAt: '24/08/2026 15:30 (2 lượt mở)',
-      clickedAt: '-',
-    },
-    {
-      id: 'act-3',
-      campaign: 'Webinar Invitation: Enterprise Email Delivery',
-      subject: 'Thư mời: Tối ưu hạ tầng gửi hàng triệu email mỗi ngày',
-      status: 'delivered',
-      sentAt: '18/08/2026 09:00',
-      openedAt: 'Chưa mở',
-      clickedAt: '-',
-    },
-  ]
 
   return (
     <div className="space-y-6">
@@ -524,7 +492,7 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
         </div>
       )}
 
-      {/* TAB 3: EMAIL ACTIVITY */}
+      {/* TAB 3: EMAIL ACTIVITY — mock ẩn đến khi có tracking API */}
       {activeTab === 'activity' && (
         <Card>
           <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -533,55 +501,14 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
               <CardTitle className="text-base">Lịch Sử Gửi & Tương Tác Email</CardTitle>
             </div>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-semibold">
-                  <tr>
-                    <th className="py-3 px-4">Chiến Dịch & Tiêu Đề</th>
-                    <th className="py-3 px-3">Trạng Thái</th>
-                    <th className="py-3 px-3">Thời Gian Gửi</th>
-                    <th className="py-3 px-3">Lượt Mở</th>
-                    <th className="py-3 px-3">Lượt Nhấp Link</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {emailActivities.map((act) => (
-                    <tr key={act.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
-                      <td className="py-3 px-4 max-w-sm">
-                        <div className="font-bold text-slate-900 dark:text-slate-100">{act.campaign}</div>
-                        <div className="text-[11px] text-slate-400 truncate mt-0.5">{act.subject}</div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                            act.status === 'clicked'
-                              ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20'
-                              : act.status === 'opened'
-                              ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
-                              : 'bg-blue-500/10 text-blue-600 border border-blue-500/20'
-                          }`}
-                        >
-                          {act.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 font-mono text-slate-500">{act.sentAt}</td>
-                      <td className="py-3 px-3 text-slate-700 dark:text-slate-300 font-medium">
-                        <div className="flex items-center gap-1">
-                          <Eye className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{act.openedAt}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-slate-700 dark:text-slate-300 font-medium">
-                        <div className="flex items-center gap-1">
-                          <MousePointerClick className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{act.clickedAt}</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <CardContent className="py-10 px-6">
+            <div className="text-center space-y-2">
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                Tính năng đang trong giai đoạn phát triển
+              </p>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                Nhật ký mở thư / nhấp link sẽ hiển thị tại đây khi hệ thống tracking được bổ sung.
+              </p>
             </div>
           </CardContent>
         </Card>
