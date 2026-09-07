@@ -150,3 +150,73 @@ export async function apiClient<T>(
 
   return data as T
 }
+
+/** Download binary (xlsx) with same auth + refresh behavior as apiClient. */
+export async function apiDownloadBlob(
+  endpoint: string,
+  fallbackFilename: string,
+  options: ApiClientOptions = {},
+  isRetry = false
+): Promise<void> {
+  const { skipRefresh, ...fetchOptions } = options
+  const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
+
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/octet-stream',
+  }
+  if (inMemoryAccessToken) {
+    headers.Authorization = `Bearer ${inMemoryAccessToken}`
+  }
+
+  const response = await fetch(url, {
+    ...fetchOptions,
+    method: fetchOptions.method || 'GET',
+    credentials: 'include',
+    headers: {
+      ...headers,
+      ...(fetchOptions.headers as Record<string, string> | undefined),
+    },
+  })
+
+  if (response.status === 401 && !isRetry && !skipRefresh) {
+    const newAccessToken = await performTokenRefresh()
+    if (newAccessToken) {
+      return apiDownloadBlob(endpoint, fallbackFilename, options, true)
+    }
+  }
+
+  if (!response.ok) {
+    let detail = `Yêu cầu thất bại với mã lỗi HTTP ${response.status}`
+    try {
+      const problem = (await response.json()) as ApiProblemDetails
+      if (problem?.detail) detail = problem.detail
+      throw new ApiError(problem)
+    } catch (err) {
+      if (err instanceof ApiError) throw err
+      throw new ApiError({
+        type: 'https://mailflow.dev/problems/http-error',
+        title: response.statusText || 'Lỗi HTTP',
+        status: response.status,
+        code: `HTTP_${response.status}`,
+        detail,
+      })
+    }
+  }
+
+  const blob = await response.blob()
+  let filename = fallbackFilename
+  const disposition = response.headers.get('Content-Disposition')
+  if (disposition) {
+    const match = /filename="?([^";]+)"?/i.exec(disposition)
+    if (match?.[1]) filename = match[1]
+  }
+
+  const objectUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(objectUrl)
+}

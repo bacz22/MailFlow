@@ -1,6 +1,6 @@
 import * as React from 'react'
 import * as SelectPrimitive from '@radix-ui/react-select'
-import { Check, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
+import { Check, ChevronDown, Loader2 } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
 export interface SelectOption {
@@ -92,21 +92,15 @@ export const SelectContent = React.forwardRef<
       position={position}
       {...props}
     >
-      <SelectPrimitive.ScrollUpButton className="flex items-center justify-center h-6 bg-slate-50 dark:bg-slate-800 text-slate-500 cursor-default">
-        <ChevronUp className="h-4 w-4" />
-      </SelectPrimitive.ScrollUpButton>
       <SelectPrimitive.Viewport
         className={cn(
-          'p-1',
+          'p-1 max-h-80 overflow-y-auto',
           position === 'popper' &&
             'w-full min-w-[var(--radix-select-trigger-width)]'
         )}
       >
         {children}
       </SelectPrimitive.Viewport>
-      <SelectPrimitive.ScrollDownButton className="flex items-center justify-center h-6 bg-slate-50 dark:bg-slate-800 text-slate-500 cursor-default">
-        <ChevronDown className="h-4 w-4" />
-      </SelectPrimitive.ScrollDownButton>
     </SelectPrimitive.Content>
   </SelectPrimitive.Portal>
 ))
@@ -161,9 +155,33 @@ export const SimpleSelect: React.FC<SimpleSelectProps> = ({
   hasSuccess,
   className,
 }) => {
+  const [open, setOpen] = React.useState(false)
+  const isDisabled = disabled || isLoading
+
   return (
-    <Select value={value} defaultValue={defaultValue} onValueChange={onValueChange} disabled={disabled || isLoading}>
-      <SelectTrigger size={size} hasError={hasError} hasSuccess={hasSuccess} isLoading={isLoading} className={className}>
+    <Select
+      value={value}
+      defaultValue={defaultValue}
+      onValueChange={onValueChange}
+      disabled={isDisabled}
+      open={open}
+      onOpenChange={setOpen}
+    >
+      <SelectTrigger
+        size={size}
+        hasError={hasError}
+        hasSuccess={hasSuccess}
+        isLoading={isLoading}
+        className={className}
+        // Radix opens on pointerdown; defer to click so hover/press không bung menu.
+        onPointerDown={(e) => {
+          e.preventDefault()
+          e.currentTarget.focus()
+        }}
+        onClick={() => {
+          if (!isDisabled) setOpen((prev) => !prev)
+        }}
+      >
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>

@@ -86,6 +86,17 @@ public class QuotaService {
         }
     }
 
+    /**
+     * Refund slots reserved by {@link #consumeSendSlot} when SMTP fails after reserve.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void releaseSendSlot(UUID workspaceId, long count) {
+        if (count <= 0 || workspaceId == null) {
+            return;
+        }
+        usageRepository.releaseSentCount(workspaceId, today(), count);
+    }
+
     public LocalDate today() {
         return LocalDate.now(QUOTA_ZONE);
     }

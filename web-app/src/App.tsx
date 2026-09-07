@@ -486,7 +486,7 @@ export function AppContent() {
                         onClick={() =>
                           showToast({
                             type: 'success',
-                            title: 'Xuất CSV',
+                            title: 'Xuất file',
                             description: 'Đang tải file danh bạ về máy.',
                           })
                         }

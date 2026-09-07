@@ -25,6 +25,7 @@ import { useToast } from '../components/ui/Toast'
 import { ApiError } from '../services/apiClient'
 import { contactService } from '../services/contact.service'
 import { listService } from '../services/list.service'
+import { analyticsService, type EngagementEventItem } from '../services/analytics.service'
 import type { Contact } from '../types/contact.types'
 import type { AudienceList } from '../types/list.types'
 
@@ -48,6 +49,9 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
   const [isDeleting, setIsDeleting] = useState(false)
   const [availableLists, setAvailableLists] = useState<AudienceList[]>([])
   const [isLoadingLists, setIsLoadingLists] = useState(false)
+  const [engagements, setEngagements] = useState<EngagementEventItem[]>([])
+  const [engagementsLoading, setEngagementsLoading] = useState(false)
+  const [engagementsError, setEngagementsError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -73,6 +77,31 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
       cancelled = true
     }
   }, [contactId, onNavigate, showToast])
+
+  useEffect(() => {
+    if (activeTab !== 'activity') return
+    let cancelled = false
+    setEngagementsLoading(true)
+    setEngagementsError(null)
+    analyticsService
+      .getContactEngagements(contactId, { page: 0, size: 50 })
+      .then((page) => {
+        if (!cancelled) setEngagements(page.content)
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setEngagementsError(
+            error instanceof ApiError ? error.detail : 'Không tải được lịch sử tương tác.'
+          )
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setEngagementsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, contactId])
 
   if (isLoading || !contact) {
     return (
@@ -492,7 +521,7 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
         </div>
       )}
 
-      {/* TAB 3: EMAIL ACTIVITY — mock ẩn đến khi có tracking API */}
+      {/* TAB 3: EMAIL ACTIVITY */}
       {activeTab === 'activity' && (
         <Card>
           <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -501,15 +530,54 @@ export const ContactDetailPage: React.FC<ContactDetailPageProps> = ({
               <CardTitle className="text-base">Lịch Sử Gửi & Tương Tác Email</CardTitle>
             </div>
           </CardHeader>
-          <CardContent className="py-10 px-6">
-            <div className="text-center space-y-2">
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                Tính năng đang trong giai đoạn phát triển
-              </p>
-              <p className="text-xs text-slate-500 max-w-md mx-auto">
-                Nhật ký mở thư / nhấp link sẽ hiển thị tại đây khi hệ thống tracking được bổ sung.
-              </p>
-            </div>
+          <CardContent className="p-0">
+            {engagementsLoading && (
+              <p className="p-6 text-xs text-slate-500 text-center">Đang tải nhật ký…</p>
+            )}
+            {engagementsError && (
+              <p className="p-6 text-xs text-rose-600 text-center">{engagementsError}</p>
+            )}
+            {!engagementsLoading && !engagementsError && engagements.length === 0 && (
+              <div className="py-10 px-6 text-center space-y-2">
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  Chưa có tương tác
+                </p>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Open / click sẽ xuất hiện khi liên hệ mở thư hoặc bấm link trong chiến dịch đã gửi.
+                </p>
+              </div>
+            )}
+            {!engagementsLoading && engagements.length > 0 && (
+              <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                {engagements.map((ev) => (
+                  <li key={ev.id} className="px-4 py-3 text-xs space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge
+                        variant={ev.eventType === 'OPEN' ? 'success' : 'default'}
+                        className="text-[10px]"
+                      >
+                        {ev.eventType}
+                      </Badge>
+                      <span className="text-slate-400 font-mono">
+                        {new Date(ev.createdAt).toLocaleString('vi-VN')}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-blue-600 dark:text-blue-400 hover:underline text-left"
+                      onClick={() => onNavigate(`/campaigns/${ev.campaignId}`)}
+                    >
+                      Chiến dịch {ev.campaignId.slice(0, 8)}…
+                    </button>
+                    {ev.targetUrl && (
+                      <div className="text-slate-500 truncate" title={ev.targetUrl}>
+                        {ev.targetUrl}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       )}

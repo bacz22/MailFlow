@@ -97,6 +97,9 @@ export const ChartCard: React.FC<ChartCardProps> = ({
   }
 
   const maxVal = Math.max(...activeData.map((d) => d.sent)) * 1.15 || 1
+  const totalSent = activeData.reduce((acc, d) => acc + d.sent, 0)
+  const totalOpened = activeData.reduce((acc, d) => acc + d.opened, 0)
+  const avgOpenRate = totalSent > 0 ? `${((totalOpened / totalSent) * 100).toFixed(1)}%` : '0%'
 
   return (
     <Card className={className}>
@@ -109,7 +112,8 @@ export const ChartCard: React.FC<ChartCardProps> = ({
           <CardDescription className="text-xs leading-relaxed">{description}</CardDescription>
         </div>
 
-        {/* Time Range Switcher */}
+        {/* Time Range Switcher — only when using built-in sample data */}
+        {!data && (
         <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-xs font-semibold shrink-0">
           {(['7d', '30d', '90d'] as const).map((range) => (
             <button
@@ -129,6 +133,7 @@ export const ChartCard: React.FC<ChartCardProps> = ({
             </button>
           ))}
         </div>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-4 pt-2">
@@ -168,7 +173,7 @@ export const ChartCard: React.FC<ChartCardProps> = ({
                       </div>
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-emerald-400">Đã mở:</span>
-                        <strong className="font-bold">{d.opened.toLocaleString()} ({((d.opened / d.sent) * 100).toFixed(1)}%)</strong>
+                        <strong className="font-bold">{d.opened.toLocaleString()}</strong>
                       </div>
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-amber-400">Nhấp (CTR):</span>
@@ -224,7 +229,7 @@ export const ChartCard: React.FC<ChartCardProps> = ({
 
           <div className="text-slate-400 text-[11px] flex items-center gap-1">
             <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Tỷ lệ mở trung bình: <strong className="text-slate-700 dark:text-slate-200 font-bold font-mono">68.2%</strong></span>
+            <span>Tỷ lệ mở trung bình: <strong className="text-slate-700 dark:text-slate-200 font-bold font-mono">{avgOpenRate}</strong></span>
           </div>
         </div>
       </CardContent>

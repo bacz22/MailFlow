@@ -53,7 +53,7 @@ export const QuickActionCard: React.FC<QuickActionCardProps> = ({
             type="button"
             onClick={() => {
               if (onNavigate) onNavigate('/contacts')
-              else showToast({ type: 'info', title: 'Import Danh Bạ', description: 'Mở hộp thoại tải lên CSV' })
+              else showToast({ type: 'info', title: 'Import Danh Bạ', description: 'Mở hộp thoại tải lên danh bạ' })
             }}
             className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:border-emerald-300 dark:hover:border-emerald-800 transition text-left cursor-pointer group"
           >
@@ -62,7 +62,7 @@ export const QuickActionCard: React.FC<QuickActionCardProps> = ({
             </div>
             <div>
               <div className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
-                Import Danh Bạ CSV
+                Import Danh Bạ
               </div>
               <div className="text-[11px] text-slate-500">Nạp danh sách hàng loạt</div>
             </div>

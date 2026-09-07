@@ -87,13 +87,22 @@ public class CampaignSendProcessor {
                     .orElseThrow(() -> new ResourceNotFoundException("Contact", recipient.getContactId().toString()));
             // Atomic reserve before SMTP — tránh overshoot concurrent; nếu hết hạn mức thì pause
             quotaService.consumeSendSlot(campaign.getWorkspaceId(), 1);
-            sendCampaignEmail(campaign, contact);
-            recipient.setStatus(CampaignRecipientStatus.SENT);
-            recipient.setSentAt(Instant.now());
-            recipient.setError(null);
-            recipientRepository.saveAndFlush(recipient);
-            campaign.setSentCount(campaign.getSentCount() + 1);
-            campaignRepository.saveAndFlush(campaign);
+            boolean reserved = true;
+            try {
+                sendCampaignEmail(campaign, contact);
+                reserved = false;
+                recipient.setStatus(CampaignRecipientStatus.SENT);
+                recipient.setSentAt(Instant.now());
+                recipient.setError(null);
+                recipientRepository.saveAndFlush(recipient);
+                campaign.setSentCount(campaign.getSentCount() + 1);
+                campaignRepository.saveAndFlush(campaign);
+            } catch (Exception sendEx) {
+                if (reserved) {
+                    quotaService.releaseSendSlot(campaign.getWorkspaceId(), 1);
+                }
+                throw sendEx;
+            }
         } catch (Exception ex) {
             if (ex instanceof AppException appEx && "QUOTA_EXCEEDED".equals(appEx.getCode())) {
                 recipient.setStatus(CampaignRecipientStatus.PENDING);
@@ -112,7 +121,7 @@ public class CampaignSendProcessor {
             recipient.setStatus(CampaignRecipientStatus.FAILED);
             recipient.setError(message);
             recipientRepository.saveAndFlush(recipient);
-            log.warn("Gửi recipient [{}] campaign [{}] thất bại: {}",
+            log.warn("Gửi recipient [{}] campaign [{}] thất bại (đã hoàn quota): {}",
                     recipient.getId(), campaign.getId(), message);
         }
     }

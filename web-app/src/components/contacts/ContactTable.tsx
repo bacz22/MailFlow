@@ -214,7 +214,7 @@ export const ContactTable: React.FC<ContactTableProps> = ({
             Chưa Có Liên Hệ Nào
           </h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-            Danh bạ của bạn hiện đang trống. Hãy thêm liên hệ đầu tiên hoặc import từ file CSV để bắt đầu chiến dịch marketing.
+            Danh bạ của bạn hiện đang trống. Hãy thêm liên hệ đầu tiên hoặc import từ file để bắt đầu chiến dịch marketing.
           </p>
         </div>
       </div>

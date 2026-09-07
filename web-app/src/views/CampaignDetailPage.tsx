@@ -669,13 +669,7 @@ export const CampaignDetailPage: React.FC<CampaignDetailPageProps> = ({
                 variant="outline"
                 size="sm"
                 leftIcon={<BarChart3 className="w-3.5 h-3.5" />}
-                onClick={() =>
-                  showToast({
-                    type: 'info',
-                    title: 'Báo cáo đang phát triển',
-                    description: 'Tính năng phân tích open/click sẽ được bổ sung ở giai đoạn sau.',
-                  })
-                }
+                onClick={() => onNavigate(`/campaigns/${campaignId}/report`)}
               >
                 Xem Báo Cáo Phân Tích
               </Button>

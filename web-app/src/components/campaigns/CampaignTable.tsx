@@ -77,7 +77,7 @@ export const CampaignTable: React.FC<CampaignTableProps> = ({
               <th className="py-3 px-3">Đối Tượng Nhận</th>
               <th className="py-3 px-3 text-right">Quy Mô</th>
               <th className="py-3 px-3 text-right">Đã Gửi</th>
-              <th className="py-3 px-3 min-w-[120px]">Tỷ Lệ Mở</th>
+              <th className="py-3 px-3 min-w-[100px]">Tỷ Lệ Mở</th>
               <th className="py-3 px-3 min-w-[100px]">Tỷ Lệ Click</th>
               <th className="py-3 px-3">Lịch Gửi</th>
               <th className="py-3 px-3">Người Tạo</th>
@@ -152,17 +152,9 @@ export const CampaignTable: React.FC<CampaignTableProps> = ({
                   {/* Open Rate */}
                   <td className="py-3.5 px-3">
                     {c.status === 'COMPLETED' || c.status === 'SENDING' ? (
-                      <div className="space-y-1">
-                        <div className="font-mono font-bold text-slate-900 dark:text-slate-100">
-                          {c.openRate}%
-                        </div>
-                        <div className="w-16 bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                          <div
-                            style={{ width: `${Math.min(c.openRate, 100)}%` }}
-                            className="h-full bg-emerald-500 rounded-full"
-                          />
-                        </div>
-                      </div>
+                      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                        {c.openRate}%
+                      </span>
                     ) : (
                       <span className="text-slate-400 font-mono">-</span>
                     )}

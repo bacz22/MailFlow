@@ -45,4 +45,19 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
             @Param("q") String q,
             @Param("status") CampaignStatus status
     );
+
+    @Query("""
+            SELECT c FROM Campaign c
+            WHERE c.workspaceId = :workspaceId
+              AND c.sentCount > 0
+              AND c.startedAt IS NOT NULL
+              AND c.startedAt >= :from
+              AND c.startedAt < :to
+            ORDER BY c.startedAt DESC
+            """)
+    List<Campaign> findSentInRange(
+            @Param("workspaceId") UUID workspaceId,
+            @Param("from") java.time.Instant from,
+            @Param("to") java.time.Instant to
+    );
 }

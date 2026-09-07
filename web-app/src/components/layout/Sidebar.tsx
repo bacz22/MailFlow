@@ -6,7 +6,7 @@ import {
   Layers,
   Send,
   FileText,
-  // BarChart3, // Analytics mock — ẩn tạm
+  BarChart3,
   UserCheck,
   AtSign,
   Globe,
@@ -77,7 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const canSegments = canAccessRoute('/segments')
   const canCampaigns = canAccessRoute('/campaigns')
   const canTemplates = canAccessRoute('/templates')
-  // const canReports = canAccessRoute('/reports') // Analytics mock — ẩn tạm
+  const canReports = canAccessRoute('/reports') || canAccessRoute('/analytics')
   const canMembers = canAccessRoute('/members')
   const canSenders = canAccessRoute('/settings/senders')
   const canDomains = canAccessRoute('/settings/domains')
@@ -222,7 +222,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </SidebarGroup>
         )}
 
-        {/* ANALYTICS — mock data, ẩn tạm khỏi menu đến khi có API thật
         {canReports && (
           <SidebarGroup label="Phân Tích" collapsed={collapsed}>
             <SidebarItem
@@ -234,7 +233,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             />
           </SidebarGroup>
         )}
-        */}
 
         {/* MANAGEMENT */}
         {canMembers && (

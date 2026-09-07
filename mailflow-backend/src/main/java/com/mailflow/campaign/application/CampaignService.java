@@ -409,7 +409,12 @@ public class CampaignService {
         ListUnsubscribeHeaders headers = enforceRfc
                 ? new ListUnsubscribeHeaders(unsubscribeUrl, unsubscribeUrl)
                 : null;
-        campaignMailRouter.sendHtml(to, subject, wrapped, sender, campaign.getReplyTo(), headers);
+        try {
+            campaignMailRouter.sendHtml(to, subject, wrapped, sender, campaign.getReplyTo(), headers);
+        } catch (RuntimeException ex) {
+            quotaService.releaseSendSlot(workspaceId, 1);
+            throw ex;
+        }
     }
 
     private void applyContent(UUID workspaceId, Campaign campaign, UpsertCampaignRequest request) {

@@ -59,4 +59,18 @@ public interface WorkspaceDailyEmailUsageRepository
             @Param("count") long count,
             @Param("limit") long limit
     );
+
+    /** Refund reserved slots after SMTP failure (never below 0). */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE workspace_daily_email_usage
+            SET sent_count = GREATEST(0, sent_count - :count)
+            WHERE workspace_id = :workspaceId
+              AND usage_date = :usageDate
+            """, nativeQuery = true)
+    int releaseSentCount(
+            @Param("workspaceId") UUID workspaceId,
+            @Param("usageDate") LocalDate usageDate,
+            @Param("count") long count
+    );
 }
