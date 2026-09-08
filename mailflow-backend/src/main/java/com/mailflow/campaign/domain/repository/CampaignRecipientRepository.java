@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -78,13 +79,13 @@ public interface CampaignRecipientRepository extends JpaRepository<CampaignRecip
     );
 
     @Query(value = """
-            SELECT CAST(r.sent_at AS DATE) AS day, COUNT(*)
+            SELECT CAST(r.sent_at AT TIME ZONE 'Asia/Ho_Chi_Minh' AS DATE) AS day, COUNT(*)
             FROM campaign_recipients r
             WHERE r.workspace_id = :workspaceId
               AND r.status = 'SENT'
               AND r.sent_at >= :from
               AND r.sent_at < :to
-            GROUP BY CAST(r.sent_at AS DATE)
+            GROUP BY CAST(r.sent_at AT TIME ZONE 'Asia/Ho_Chi_Minh' AS DATE)
             ORDER BY day
             """, nativeQuery = true)
     List<Object[]> countSentByDay(
@@ -124,5 +125,28 @@ public interface CampaignRecipientRepository extends JpaRepository<CampaignRecip
             @Param("workspaceId") UUID workspaceId,
             @Param("from") Instant from,
             @Param("to") Instant to
+    );
+
+    Optional<CampaignRecipient> findByProviderMessageId(String providerMessageId);
+
+    @Query("""
+            SELECT r FROM CampaignRecipient r
+            WHERE r.email = :email
+              AND r.status = com.mailflow.campaign.domain.model.CampaignRecipientStatus.SENT
+            ORDER BY r.sentAt DESC
+            """)
+    List<CampaignRecipient> findLatestSentByEmail(@Param("email") String email, Pageable pageable);
+
+    @Query("""
+            SELECT r FROM CampaignRecipient r
+            WHERE r.workspaceId = :workspaceId
+              AND r.email = :email
+              AND r.status = com.mailflow.campaign.domain.model.CampaignRecipientStatus.SENT
+            ORDER BY r.sentAt DESC
+            """)
+    List<CampaignRecipient> findLatestSentByWorkspaceAndEmail(
+            @Param("workspaceId") UUID workspaceId,
+            @Param("email") String email,
+            Pageable pageable
     );
 }

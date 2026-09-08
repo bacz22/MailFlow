@@ -18,6 +18,7 @@ import com.mailflow.emailtemplate.domain.model.EmailTemplate;
 import com.mailflow.emailtemplate.domain.repository.EmailTemplateRepository;
 import com.mailflow.engagement.application.HtmlTrackingInjector;
 import com.mailflow.engagement.application.PublicTrackingUrls;
+import com.mailflow.infrastructure.mail.CampaignMailHeaders;
 import com.mailflow.infrastructure.mail.CampaignMailRouter;
 import com.mailflow.infrastructure.mail.ListUnsubscribeHeaders;
 import com.mailflow.quota.application.QuotaService;
@@ -89,11 +90,14 @@ public class CampaignSendProcessor {
             quotaService.consumeSendSlot(campaign.getWorkspaceId(), 1);
             boolean reserved = true;
             try {
-                sendCampaignEmail(campaign, contact);
+                String messageId = sendCampaignEmail(campaign, contact, recipient);
                 reserved = false;
                 recipient.setStatus(CampaignRecipientStatus.SENT);
                 recipient.setSentAt(Instant.now());
                 recipient.setError(null);
+                if (messageId != null && !messageId.isBlank()) {
+                    recipient.setProviderMessageId(trimMessageId(messageId));
+                }
                 recipientRepository.saveAndFlush(recipient);
                 campaign.setSentCount(campaign.getSentCount() + 1);
                 campaignRepository.saveAndFlush(campaign);
@@ -162,7 +166,7 @@ public class CampaignSendProcessor {
         }
     }
 
-    private void sendCampaignEmail(Campaign campaign, Contact contact) {
+    private String sendCampaignEmail(Campaign campaign, Contact contact, CampaignRecipient recipient) {
         if (contact == null) {
             throw new AppException(HttpStatus.BAD_REQUEST, "CONTACT_MISSING",
                     "Không tìm thấy liên hệ người nhận.");
@@ -231,15 +235,25 @@ public class CampaignSendProcessor {
                 ? null
                 : senderRepository.findByIdAndWorkspaceId(campaign.getSenderId(), campaign.getWorkspaceId())
                         .orElse(null);
-        ListUnsubscribeHeaders headers = null;
+        ListUnsubscribeHeaders listUnsub = null;
         if (enforceRfc) {
-            headers = new ListUnsubscribeHeaders(
+            listUnsub = new ListUnsubscribeHeaders(
                     unsubscribeUrl,
                     trackingUrls.unsubscribeOneClickUrl(
                             campaign.getWorkspaceId(), campaign.getId(), contact.getId())
             );
         }
-        campaignMailRouter.sendHtml(
+        CampaignMailHeaders headers = CampaignMailHeaders.of(
+                listUnsub, recipient.getId(), campaign.getWorkspaceId());
+        return campaignMailRouter.sendHtml(
                 contact.getEmail(), subject, wrapped, sender, campaign.getReplyTo(), headers);
+    }
+
+    private static String trimMessageId(String messageId) {
+        String id = messageId.trim();
+        if (id.length() > 320) {
+            return id.substring(0, 320);
+        }
+        return id;
     }
 }

@@ -5,5 +5,6 @@ public enum CampaignRecipientStatus {
     SENDING,
     SENT,
     FAILED,
-    SKIPPED
+    SKIPPED,
+    BOUNCED
 }

@@ -63,7 +63,7 @@ public class CampaignMailRouter {
             EmailSenderIdentity sender,
             String campaignReplyTo
     ) {
-        sendHtml(toEmail, subject, htmlBody, sender, campaignReplyTo, null);
+        sendHtml(toEmail, subject, htmlBody, sender, campaignReplyTo, (CampaignMailHeaders) null);
     }
 
     public void sendHtml(
@@ -74,8 +74,29 @@ public class CampaignMailRouter {
             String campaignReplyTo,
             ListUnsubscribeHeaders listUnsubscribe
     ) {
+        sendHtml(
+                toEmail,
+                subject,
+                htmlBody,
+                sender,
+                campaignReplyTo,
+                listUnsubscribe == null ? null : CampaignMailHeaders.of(listUnsubscribe, null, null)
+        );
+    }
+
+    /**
+     * @return SMTP Message-ID when available
+     */
+    public String sendHtml(
+            String toEmail,
+            String subject,
+            String htmlBody,
+            EmailSenderIdentity sender,
+            String campaignReplyTo,
+            CampaignMailHeaders headers
+    ) {
         ResolvedFrom from = resolve(sender, campaignReplyTo);
-        emailSender.sendHtmlEmail(
+        return emailSender.sendHtmlEmail(
                 toEmail,
                 subject,
                 htmlBody,
@@ -83,7 +104,7 @@ public class CampaignMailRouter {
                 from.fromEmail(),
                 from.replyTo(),
                 from.useSenderAsFrom(),
-                listUnsubscribe
+                headers
         );
     }
 

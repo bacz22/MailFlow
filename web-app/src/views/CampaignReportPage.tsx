@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { ArrowLeft, MousePointerClick, MailOpen, Send, UserMinus, FileSpreadsheet } from 'lucide-react'
+import { ArrowLeft, MousePointerClick, MailOpen, Send, UserMinus, FileSpreadsheet, AlertTriangle } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
@@ -136,7 +136,7 @@ export const CampaignReportPage: React.FC<CampaignReportPageProps> = ({
 
       {report && !loading && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             <MetricWidget
               label="Đã gửi"
               value={report.sentCount.toLocaleString('vi-VN')}
@@ -169,11 +169,19 @@ export const CampaignReportPage: React.FC<CampaignReportPageProps> = ({
               icon={<UserMinus className="w-4 h-4" />}
               iconBgColor="bg-amber-500/10 text-amber-600"
             />
+            <MetricWidget
+              label="Bounce"
+              value={`${report.bounceRate}%`}
+              change="Brevo webhook"
+              trend="neutral"
+              trendLabel="hard + soft"
+              icon={<AlertTriangle className="w-4 h-4" />}
+              iconBgColor="bg-rose-500/10 text-rose-600"
+            />
           </div>
 
           <p className="text-[11px] text-slate-400">
-            Bounce rate tạm thời 0% (chưa có webhook ESP). Bắt đầu:{' '}
-            {formatWhen(report.startedAt)} · Hoàn tất: {formatWhen(report.completedAt)}
+            Bắt đầu: {formatWhen(report.startedAt)} · Hoàn tất: {formatWhen(report.completedAt)}
           </p>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -46,13 +46,13 @@ public interface EmailEngagementEventRepository extends JpaRepository<EmailEngag
     );
 
     @Query(value = """
-            SELECT CAST(e.created_at AS DATE) AS day, e.event_type, COUNT(DISTINCT e.contact_id)
+            SELECT CAST(e.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh' AS DATE) AS day, e.event_type, COUNT(DISTINCT e.contact_id)
             FROM email_engagement_events e
             WHERE e.workspace_id = :workspaceId
               AND e.created_at >= :from
               AND e.created_at < :to
               AND e.event_type IN ('OPEN', 'CLICK')
-            GROUP BY CAST(e.created_at AS DATE), e.event_type
+            GROUP BY CAST(e.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh' AS DATE), e.event_type
             ORDER BY day
             """, nativeQuery = true)
     List<Object[]> countDistinctByDayAndType(

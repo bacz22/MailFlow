@@ -69,7 +69,7 @@ public class ReportExportService {
             r = kvPct(summary, styles, r, "Tỷ lệ mở %", report.getOpenRate());
             r = kvPct(summary, styles, r, "Tỷ lệ click %", report.getClickRate());
             r = kvPct(summary, styles, r, "Tỷ lệ hủy ĐK %", report.getUnsubscribeRate());
-            r = kvText(summary, styles, r, "Tỷ lệ bounce %", report.getBounceRate() + " (chưa có webhook)");
+            r = kvPct(summary, styles, r, "Tỷ lệ bounce %", report.getBounceRate());
             r = kvText(summary, styles, r, "Bắt đầu", formatInstant(report.getStartedAt()));
             kvText(summary, styles, r, "Hoàn tất", formatInstant(report.getCompletedAt()));
             finishKvSheet(summary);

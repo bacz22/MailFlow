@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -42,6 +43,7 @@ import java.util.UUID;
 public class AnalyticsService {
 
     private static final DateTimeFormatter DAY_LABEL = DateTimeFormatter.ofPattern("dd/MM");
+    public static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final WorkspaceAccessService accessService;
     private final CampaignRepository campaignRepository;
@@ -108,8 +110,8 @@ public class AnalyticsService {
             }
         }
 
-        LocalDate start = LocalDate.ofInstant(range.from(), ZoneOffset.UTC);
-        LocalDate end = LocalDate.ofInstant(range.to().minusMillis(1), ZoneOffset.UTC);
+        LocalDate start = LocalDate.ofInstant(range.from(), VN_ZONE);
+        LocalDate end = LocalDate.ofInstant(range.to().minusMillis(1), VN_ZONE);
         List<AnalyticsTimeseriesResponse.Point> points = new ArrayList<>();
         for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
             long[] bucket = byDay.getOrDefault(d, new long[3]);
@@ -141,11 +143,16 @@ public class AnalyticsService {
         Campaign campaign = requireCampaign(workspaceId, campaignId);
         long sent = recipientRepository.countByCampaignIdAndStatus(campaignId, CampaignRecipientStatus.SENT);
         long failed = recipientRepository.countByCampaignIdAndStatus(campaignId, CampaignRecipientStatus.FAILED);
+        long bounced = recipientRepository.countByCampaignIdAndStatus(campaignId, CampaignRecipientStatus.BOUNCED);
         long opens = eventRepository.countDistinctContactsByCampaignAndEventType(
                 campaignId, EngagementEventType.OPEN);
         long clicks = eventRepository.countDistinctContactsByCampaignAndEventType(
                 campaignId, EngagementEventType.CLICK);
         long unsubs = recipientRepository.countUnsubscribedRecipients(campaignId);
+        long sentDenom = sent + bounced;
+        if (sentDenom <= 0 && campaign.getSentCount() > 0) {
+            sentDenom = campaign.getSentCount();
+        }
 
         List<CampaignReportResponse.TopLink> topLinks = new ArrayList<>();
         for (Object[] row : eventRepository.topClickedUrls(campaignId, PageRequest.of(0, 10))) {
@@ -159,15 +166,15 @@ public class AnalyticsService {
                 .campaignId(campaign.getId())
                 .name(campaign.getName())
                 .status(campaign.getStatus().name())
-                .sentCount(sent)
+                .sentCount(Math.max(sent + bounced, campaign.getSentCount()))
                 .failedCount(failed)
                 .uniqueOpens(opens)
                 .uniqueClicks(clicks)
                 .unsubscribedRecipients(unsubs)
-                .openRate(rate(opens, sent))
-                .clickRate(rate(clicks, sent))
-                .unsubscribeRate(rate(unsubs, sent))
-                .bounceRate(0)
+                .openRate(rate(opens, sentDenom))
+                .clickRate(rate(clicks, sentDenom))
+                .unsubscribeRate(rate(unsubs, sentDenom))
+                .bounceRate(rate(bounced, sentDenom))
                 .startedAt(campaign.getStartedAt())
                 .completedAt(campaign.getCompletedAt())
                 .topLinks(topLinks)
@@ -211,10 +218,13 @@ public class AnalyticsService {
     }
 
     private CampaignAnalyticsRowResponse toCampaignRow(Campaign campaign) {
-        long sent = campaign.getSentCount();
-        if (sent <= 0) {
-            sent = recipientRepository.countByCampaignIdAndStatus(
-                    campaign.getId(), CampaignRecipientStatus.SENT);
+        long sent = recipientRepository.countByCampaignIdAndStatus(
+                campaign.getId(), CampaignRecipientStatus.SENT);
+        long bounced = recipientRepository.countByCampaignIdAndStatus(
+                campaign.getId(), CampaignRecipientStatus.BOUNCED);
+        long sentDenom = sent + bounced;
+        if (sentDenom <= 0) {
+            sentDenom = campaign.getSentCount();
         }
         long failed = recipientRepository.countByCampaignIdAndStatus(
                 campaign.getId(), CampaignRecipientStatus.FAILED);
@@ -223,17 +233,17 @@ public class AnalyticsService {
         long clicks = eventRepository.countDistinctContactsByCampaignAndEventType(
                 campaign.getId(), EngagementEventType.CLICK);
         long unsubs = recipientRepository.countUnsubscribedRecipients(campaign.getId());
-        long denom = sent + failed;
+        long denom = sentDenom + failed;
         return CampaignAnalyticsRowResponse.builder()
                 .id(campaign.getId())
                 .name(campaign.getName())
                 .sentAt(campaign.getStartedAt())
-                .recipientsSent(sent)
-                .deliveryRate(rate(sent, denom <= 0 ? sent : denom))
-                .openRate(rate(opens, sent))
-                .clickRate(rate(clicks, sent))
-                .bounceRate(0)
-                .unsubscribeRate(rate(unsubs, sent))
+                .recipientsSent(sentDenom)
+                .deliveryRate(rate(sentDenom, denom <= 0 ? sentDenom : denom))
+                .openRate(rate(opens, sentDenom))
+                .clickRate(rate(clicks, sentDenom))
+                .bounceRate(rate(bounced, sentDenom))
+                .unsubscribeRate(rate(unsubs, sentDenom))
                 .build();
     }
 
@@ -296,7 +306,7 @@ public class AnalyticsService {
             return sqlDate.toLocalDate();
         }
         if (value instanceof Instant instant) {
-            return LocalDate.ofInstant(instant, ZoneOffset.UTC);
+            return LocalDate.ofInstant(instant, VN_ZONE);
         }
         return LocalDate.parse(String.valueOf(value));
     }

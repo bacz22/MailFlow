@@ -7,6 +7,11 @@ public class BrevoProperties {
 
     private String apiKey = "";
     private String apiBaseUrl = "https://api.brevo.com/v3";
+    /**
+     * Shared secret for {@code POST /webhooks/brevo/**}.
+     * Pass via header {@code X-Mailflow-Webhook-Secret} or query {@code ?secret=}.
+     */
+    private String webhookSecret = "";
 
     public String getApiKey() {
         return apiKey;
@@ -26,7 +31,19 @@ public class BrevoProperties {
                 : apiBaseUrl.trim().replaceAll("/$", "");
     }
 
+    public String getWebhookSecret() {
+        return webhookSecret;
+    }
+
+    public void setWebhookSecret(String webhookSecret) {
+        this.webhookSecret = webhookSecret == null ? "" : webhookSecret;
+    }
+
     public boolean isConfigured() {
         return apiKey != null && !apiKey.isBlank();
+    }
+
+    public boolean isWebhookConfigured() {
+        return webhookSecret != null && !webhookSecret.isBlank();
     }
 }

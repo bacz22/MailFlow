@@ -52,6 +52,10 @@ public class CampaignRecipient {
     @Column(name = "sent_at")
     private Instant sentAt;
 
+    /** ESP / Brevo Message-ID (or webhook message-id) for delivery event correlation. */
+    @Column(name = "provider_message_id", length = 320)
+    private String providerMessageId;
+
     @Column(nullable = false)
     private int attempts;
 

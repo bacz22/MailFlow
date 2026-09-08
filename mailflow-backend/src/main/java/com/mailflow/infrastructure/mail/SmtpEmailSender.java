@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 public class SmtpEmailSender implements EmailSender {
 
     @Autowired(required = false)
+    @Qualifier(EspMailConfiguration.SYSTEM_MAIL_SENDER)
     private JavaMailSender mailSender;
 
     @Autowired(required = false)
@@ -183,7 +184,7 @@ public class SmtpEmailSender implements EmailSender {
             boolean useSenderAsFrom
     ) {
         sendHtmlEmail(toEmail, subject, htmlBody, fromNameOverride, fromEmailOverride, replyTo,
-                useSenderAsFrom, null);
+                useSenderAsFrom, (CampaignMailHeaders) null);
     }
 
     @Override
@@ -197,6 +198,29 @@ public class SmtpEmailSender implements EmailSender {
             boolean useSenderAsFrom,
             ListUnsubscribeHeaders listUnsubscribe
     ) {
+        sendHtmlEmail(
+                toEmail,
+                subject,
+                htmlBody,
+                fromNameOverride,
+                fromEmailOverride,
+                replyTo,
+                useSenderAsFrom,
+                listUnsubscribe == null ? null : CampaignMailHeaders.of(listUnsubscribe, null, null)
+        );
+    }
+
+    @Override
+    public String sendHtmlEmail(
+            String toEmail,
+            String subject,
+            String htmlBody,
+            String fromNameOverride,
+            String fromEmailOverride,
+            String replyTo,
+            boolean useSenderAsFrom,
+            CampaignMailHeaders headers
+    ) {
         log.info("Chuẩn bị gửi HTML tới [{}] useSenderAsFrom={}", toEmail, useSenderAsFrom);
         String displayName = (fromNameOverride != null && !fromNameOverride.isBlank())
                 ? fromNameOverride.trim()
@@ -204,9 +228,7 @@ public class SmtpEmailSender implements EmailSender {
         String effectiveReplyTo = firstNonBlank(replyTo, fromEmailOverride);
 
         if (useSenderAsFrom) {
-            sendViaEsp(toEmail, subject, htmlBody, displayName, fromEmailOverride, effectiveReplyTo,
-                    listUnsubscribe);
-            return;
+            return sendViaEsp(toEmail, subject, htmlBody, displayName, fromEmailOverride, effectiveReplyTo, headers);
         }
 
         if (mailSender == null || smtpUsername == null || smtpUsername.isBlank()) {
@@ -217,7 +239,6 @@ public class SmtpEmailSender implements EmailSender {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(
                     message, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
-            // System SMTP (e.g. Gmail): From address stays system; display name + Reply-To mirror sender.
             helper.setFrom(fromEmail, displayName);
             helper.setTo(toEmail);
             if (effectiveReplyTo != null) {
@@ -225,10 +246,11 @@ public class SmtpEmailSender implements EmailSender {
             }
             helper.setSubject(subject == null ? "" : subject);
             helper.setText(htmlBody == null ? "" : htmlBody, true);
-            applyListUnsubscribe(message, listUnsubscribe);
+            applyCampaignHeaders(message, headers);
             mailSender.send(message);
             log.info("Đã gửi HTML (system SMTP) tới [{}] as [{}] reply-to [{}]",
                     toEmail, displayName, effectiveReplyTo);
+            return message.getMessageID();
         } catch (MessagingException | UnsupportedEncodingException | MailException e) {
             log.error("Không thể gửi HTML tới [{}]: {}", toEmail, e.getMessage(), e);
             throw new AppException(HttpStatus.BAD_GATEWAY, "SMTP_SEND_FAILED",
@@ -236,14 +258,14 @@ public class SmtpEmailSender implements EmailSender {
         }
     }
 
-    private void sendViaEsp(
+    private String sendViaEsp(
             String toEmail,
             String subject,
             String htmlBody,
             String displayName,
             String senderFromEmail,
             String replyTo,
-            ListUnsubscribeHeaders listUnsubscribe
+            CampaignMailHeaders headers
     ) {
         if (espMailSender == null || espMailProperties == null || !espMailProperties.isConfigured()) {
             throw new AppException(HttpStatus.SERVICE_UNAVAILABLE, "ESP_SMTP_NOT_CONFIGURED",
@@ -264,10 +286,11 @@ public class SmtpEmailSender implements EmailSender {
             }
             helper.setSubject(subject == null ? "" : subject);
             helper.setText(htmlBody == null ? "" : htmlBody, true);
-            applyListUnsubscribe(message, listUnsubscribe);
+            applyCampaignHeaders(message, headers);
             espMailSender.send(message);
             log.info("Đã gửi HTML (ESP) tới [{}] From [{} <{}>] reply-to [{}]",
                     toEmail, displayName, senderFromEmail, replyTo);
+            return message.getMessageID();
         } catch (MessagingException | UnsupportedEncodingException | MailException e) {
             log.error("ESP gửi HTML tới [{}] thất bại: {}", toEmail, e.getMessage(), e);
             throw new AppException(HttpStatus.BAD_GATEWAY, "ESP_SMTP_SEND_FAILED",
@@ -275,17 +298,27 @@ public class SmtpEmailSender implements EmailSender {
         }
     }
 
-    private static void applyListUnsubscribe(MimeMessage message, ListUnsubscribeHeaders headers)
+    private static void applyCampaignHeaders(MimeMessage message, CampaignMailHeaders headers)
             throws MessagingException {
-        if (headers == null || !headers.isPresent()) {
+        if (headers == null) {
             return;
         }
-        // RFC 8058: POST One-Click to the same HTTPS URI listed in List-Unsubscribe
-        String primary = headers.oneClickUrl() != null && !headers.oneClickUrl().isBlank()
-                ? headers.oneClickUrl().trim()
-                : headers.httpsUrl().trim();
-        message.setHeader("List-Unsubscribe", "<" + primary + ">");
-        message.setHeader("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
+        if (headers.hasListUnsubscribe()) {
+            ListUnsubscribeHeaders lu = headers.listUnsubscribe();
+            String primary = lu.oneClickUrl() != null && !lu.oneClickUrl().isBlank()
+                    ? lu.oneClickUrl().trim()
+                    : lu.httpsUrl().trim();
+            message.setHeader("List-Unsubscribe", "<" + primary + ">");
+            message.setHeader("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
+        }
+        if (headers.hasTracking()) {
+            String recipientId = headers.recipientId().toString();
+            message.setHeader("X-Mailflow-Recipient-Id", recipientId);
+            if (headers.workspaceId() != null) {
+                message.setHeader("X-Mailflow-Workspace-Id", headers.workspaceId().toString());
+            }
+            message.setHeader("X-Mailin-Tag", "mailflow-recipient:" + recipientId);
+        }
     }
 
     private static String firstNonBlank(String a, String b) {

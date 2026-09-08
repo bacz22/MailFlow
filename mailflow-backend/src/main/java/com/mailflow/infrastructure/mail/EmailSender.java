@@ -69,4 +69,20 @@ public interface EmailSender {
             boolean useSenderAsFrom,
             ListUnsubscribeHeaders listUnsubscribe
     );
+
+    /**
+     * Campaign ESP send with List-Unsubscribe + MailFlow recipient correlation headers.
+     *
+     * @return SMTP Message-ID if available after send; otherwise null
+     */
+    String sendHtmlEmail(
+            String toEmail,
+            String subject,
+            String htmlBody,
+            String fromName,
+            String fromEmail,
+            String replyTo,
+            boolean useSenderAsFrom,
+            CampaignMailHeaders headers
+    );
 }

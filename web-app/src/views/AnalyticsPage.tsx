@@ -266,7 +266,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
                       <th className="py-2.5 px-3 font-semibold text-right">Open</th>
                       <th className="py-2.5 px-3 font-semibold text-right">Click</th>
                       <th className="py-2.5 px-3 font-semibold text-right">Unsub</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Bounce*</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Bounce</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -317,10 +317,6 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
               />
             )}
           </Card>
-
-          <p className="text-[11px] text-slate-400">
-            * Bounce rate luôn 0% cho đến khi có Brevo delivery webhooks.
-          </p>
         </div>
       ) : (
         !error && (
