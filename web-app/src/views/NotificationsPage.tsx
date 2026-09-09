@@ -52,7 +52,7 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({ onNavigate
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto">
       {/* 1. Page Header with Mark All Read action */}
       <PageHeader
         title="Trung Tâm Thông Báo (Notification Center)"

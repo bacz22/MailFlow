@@ -12,10 +12,14 @@ import {
   Settings,
   AtSign,
   Layers,
+  User,
+  Bell,
+  UserCheck,
 } from 'lucide-react'
 import { AppShell } from './components/layout/AppShell'
 import { PageHeader } from './components/layout/PageHeader'
 import { PageContainer } from './components/layout/PageContainer'
+import type { BreadcrumbItem } from './components/ui/Breadcrumb'
 import { DashboardPage } from './views/DashboardPage'
 import { ContactsPage } from './views/ContactsPage'
 import { ContactCreatePage } from './views/ContactCreatePage'
@@ -85,8 +89,8 @@ const ROUTE_CONFIGS: Record<string, RouteConfig> = {
     icon: <LayoutGrid className="w-5 h-5 text-blue-600" />,
   },
   '/contacts': {
-    title: 'Danh Bạ Liên Hệ (Audience Contacts)',
-    section: 'Audience',
+    title: 'Danh Bạ Liên Hệ',
+    section: 'Đối tượng',
     badgeText: '14,250 Contacts',
     description: 'Quản lý danh bạ khách hàng, trạng thái đăng ký (RFC 8058) và điểm tương tác.',
     icon: <Users className="w-5 h-5 text-blue-600" />,
@@ -98,8 +102,8 @@ const ROUTE_CONFIGS: Record<string, RouteConfig> = {
     ],
   },
   '/lists': {
-    title: 'Danh Sách Gửi (Contact Lists)',
-    section: 'Audience',
+    title: 'Danh Sách Gửi',
+    section: 'Đối tượng',
     description: 'Tập hợp các danh sách người nhận theo chiến dịch và nguồn đăng ký opt-in.',
     icon: <Users className="w-5 h-5 text-indigo-600" />,
     stats: [
@@ -108,64 +112,369 @@ const ROUTE_CONFIGS: Record<string, RouteConfig> = {
     ],
   },
   '/segments': {
-    title: 'Phân Đoạn Động (Audience Segments)',
-    section: 'Audience',
+    title: 'Phân Đoạn Đối Tượng',
+    section: 'Đối tượng',
     badgeText: 'Dynamic Filter',
     description: 'Bộ lọc phân đoạn khách hàng tự động dựa trên nhân khẩu học và hành vi mở/click email.',
     icon: <Layers className="w-5 h-5 text-violet-600" />,
   },
   '/campaigns': {
-    title: 'Chiến Dịch Email (Campaigns)',
+    title: 'Chiến Dịch Email',
     section: 'Chiến dịch',
     description: 'Khởi tạo, lên lịch gửi và theo dõi realtime tiến trình phân phối email.',
     icon: <Send className="w-5 h-5 text-blue-600" />,
   },
   '/templates': {
-    title: 'Thư Viện Mẫu Email (Templates Library)',
+    title: 'Thư Viện Mẫu Email',
     section: 'Chiến dịch',
     description: 'Quản lý các mẫu email HTML và kéo thả responsive tương thích 100% ứng dụng email.',
     icon: <FileText className="w-5 h-5 text-emerald-600" />,
   },
+  '/analytics': {
+    title: 'Báo Cáo & Phân Tích',
+    section: 'Phân tích',
+    badgeText: 'Realtime',
+    description: 'Báo cáo chi tiết Open Rate, CTR, Heatmap lượt click và tỷ lệ trả về (Bounce).',
+    icon: <BarChart3 className="w-5 h-5 text-amber-600" />,
+  },
   '/reports': {
-    title: 'Báo Cáo & Phân Tích (Analytics Reports)',
+    title: 'Báo Cáo & Phân Tích',
     section: 'Phân tích',
     badgeText: 'Realtime',
     description: 'Báo cáo chi tiết Open Rate, CTR, Heatmap lượt click và tỷ lệ trả về (Bounce).',
     icon: <BarChart3 className="w-5 h-5 text-amber-600" />,
   },
   '/members': {
-    title: 'Quản Trị Thành Viên & Phân Quyền (Members)',
+    title: 'Thành Viên & Phân Quyền',
     section: 'Quản trị',
     badgeText: '8 Thành Viên',
     description: 'Phân quyền dựa trên 8 Workspace Roles, bảo vệ các hành động nhạy cảm.',
-    icon: <Users className="w-5 h-5 text-purple-600" />,
+    icon: <UserCheck className="w-5 h-5 text-purple-600" />,
+  },
+  '/settings/members': {
+    title: 'Thành Viên & Phân Quyền',
+    section: 'Quản trị',
+    badgeText: '8 Thành Viên',
+    description: 'Phân quyền dựa trên 8 Workspace Roles, bảo vệ các hành động nhạy cảm.',
+    icon: <UserCheck className="w-5 h-5 text-purple-600" />,
   },
   '/settings/senders': {
-    title: 'Cấu Hình Người Gửi (Senders & SMTP)',
-    section: 'Cài đặt',
+    title: 'Cấu Hình Người Gửi & SMTP',
+    section: 'Cấu hình',
+    description: 'Thiết lập địa chỉ email gửi, tên hiển thị thương hiệu và cổng SMTP dedicated.',
+    icon: <AtSign className="w-5 h-5 text-slate-600" />,
+  },
+  '/senders': {
+    title: 'Cấu Hình Người Gửi & SMTP',
+    section: 'Cấu hình',
     description: 'Thiết lập địa chỉ email gửi, tên hiển thị thương hiệu và cổng SMTP dedicated.',
     icon: <AtSign className="w-5 h-5 text-slate-600" />,
   },
   '/settings/domains': {
-    title: 'Xác Thực Tên Miền (Domain Authentication)',
-    section: 'Cài đặt',
+    title: 'Xác Thực Tên Miền (DNS)',
+    section: 'Cấu hình',
+    badgeText: 'DKIM • SPF • DMARC',
+    description: 'Cấu hình bản ghi DNS để đảm bảo email vào thẳng Inbox chính, tránh tab Spam.',
+    icon: <Globe className="w-5 h-5 text-sky-600" />,
+  },
+  '/domains': {
+    title: 'Xác Thực Tên Miền (DNS)',
+    section: 'Cấu hình',
     badgeText: 'DKIM • SPF • DMARC',
     description: 'Cấu hình bản ghi DNS để đảm bảo email vào thẳng Inbox chính, tránh tab Spam.',
     icon: <Globe className="w-5 h-5 text-sky-600" />,
   },
   '/settings/billing': {
-    title: 'Gói Cước & Thanh Toán (Billing & Quota)',
-    section: 'Cài đặt',
+    title: 'Gói Cước & Thanh Toán',
+    section: 'Cấu hình',
+    badgeText: 'Enterprise Plan',
+    description: 'Quản lý hạn ngạch gửi hàng tháng, thanh toán tự động và lịch sử hóa đơn.',
+    icon: <CreditCard className="w-5 h-5 text-emerald-600" />,
+  },
+  '/billing': {
+    title: 'Gói Cước & Thanh Toán',
+    section: 'Cấu hình',
     badgeText: 'Enterprise Plan',
     description: 'Quản lý hạn ngạch gửi hàng tháng, thanh toán tự động và lịch sử hóa đơn.',
     icon: <CreditCard className="w-5 h-5 text-emerald-600" />,
   },
   '/settings/workspace': {
-    title: 'Cài Đặt Không Gian Làm Việc (Workspace Settings)',
-    section: 'Cài đặt',
+    title: 'Cài Đặt Không Gian Làm Việc',
+    section: 'Cấu hình',
     description: 'Thông tin tổ chức, múi giờ mặc định (Asia/Ho_Chi_Minh), logo và chính sách bảo mật.',
     icon: <Settings className="w-5 h-5 text-slate-600" />,
   },
+  '/workspace': {
+    title: 'Cài Đặt Không Gian Làm Việc',
+    section: 'Cấu hình',
+    description: 'Thông tin tổ chức, múi giờ mặc định (Asia/Ho_Chi_Minh), logo và chính sách bảo mật.',
+    icon: <Settings className="w-5 h-5 text-slate-600" />,
+  },
+  '/notifications': {
+    title: 'Trung Tâm Thông Báo',
+    section: 'Cấu hình',
+    description: 'Xem tất cả thông báo hệ thống, lời mời và cảnh báo hạn mức.',
+    icon: <Bell className="w-5 h-5 text-slate-600" />,
+  },
+  '/settings/notifications': {
+    title: 'Trung Tâm Thông Báo',
+    section: 'Cấu hình',
+    description: 'Xem tất cả thông báo hệ thống, lời mời và cảnh báo hạn mức.',
+    icon: <Bell className="w-5 h-5 text-slate-600" />,
+  },
+  '/profile': {
+    title: 'Hồ Sơ Cá Nhân & Bảo Mật',
+    section: 'Cấu hình',
+    description: 'Quản lý thông tin tài khoản, mật khẩu và phiên đăng nhập.',
+    icon: <User className="w-5 h-5 text-slate-600" />,
+  },
+  '/settings/profile': {
+    title: 'Hồ Sơ Cá Nhân & Bảo Mật',
+    section: 'Cấu hình',
+    description: 'Quản lý thông tin tài khoản, mật khẩu và phiên đăng nhập.',
+    icon: <User className="w-5 h-5 text-slate-600" />,
+  },
+}
+
+function getBreadcrumbItems(path: string): BreadcrumbItem[] {
+  const root: BreadcrumbItem = { label: 'MailFlow', href: '/dashboard' }
+
+  // 1. Tổng quan / Dashboard
+  if (path === '/' || path === '/dashboard') {
+    return [root, { label: 'Tổng quan' }, { label: 'Dashboard' }]
+  }
+
+  // 2. Đối tượng (Audience)
+  // Contacts
+  if (path === '/contacts') {
+    return [root, { label: 'Đối tượng' }, { label: 'Danh bạ liên hệ' }]
+  }
+  if (path === '/contacts/create') {
+    return [
+      root,
+      { label: 'Đối tượng' },
+      { label: 'Danh bạ liên hệ', href: '/contacts' },
+      { label: 'Thêm mới liên hệ' },
+    ]
+  }
+  if (path === '/contacts/import') {
+    return [
+      root,
+      { label: 'Đối tượng' },
+      { label: 'Danh bạ liên hệ', href: '/contacts' },
+      { label: 'Nhập file liên hệ (CSV)' },
+    ]
+  }
+  if (path.startsWith('/contacts/') && path.endsWith('/edit')) {
+    return [
+      root,
+      { label: 'Đối tượng' },
+      { label: 'Danh bạ liên hệ', href: '/contacts' },
+      { label: 'Chỉnh sửa liên hệ' },
+    ]
+  }
+  if (path.startsWith('/contacts/')) {
+    return [
+      root,
+      { label: 'Đối tượng' },
+      { label: 'Danh bạ liên hệ', href: '/contacts' },
+      { label: 'Chi tiết liên hệ' },
+    ]
+  }
+
+  // Lists
+  if (path === '/lists') {
+    return [root, { label: 'Đối tượng' }, { label: 'Danh sách gửi' }]
+  }
+  if (path === '/lists/create') {
+    return [
+      root,
+      { label: 'Đối tượng' },
+      { label: 'Danh sách gửi', href: '/lists' },
+      { label: 'Tạo danh sách mới' },
+    ]
+  }
+  if (path.startsWith('/lists/') && path.endsWith('/edit')) {
+    return [
+      root,
+      { label: 'Đối tượng' },
+      { label: 'Danh sách gửi', href: '/lists' },
+      { label: 'Chỉnh sửa danh sách' },
+    ]
+  }
+  if (path.startsWith('/lists/')) {
+    return [
+      root,
+      { label: 'Đối tượng' },
+      { label: 'Danh sách gửi', href: '/lists' },
+      { label: 'Chi tiết danh sách' },
+    ]
+  }
+
+  // Segments
+  if (path === '/segments') {
+    return [root, { label: 'Đối tượng' }, { label: 'Phân đoạn đối tượng' }]
+  }
+  if (path === '/segments/create') {
+    return [
+      root,
+      { label: 'Đối tượng' },
+      { label: 'Phân đoạn đối tượng', href: '/segments' },
+      { label: 'Tạo phân đoạn mới' },
+    ]
+  }
+  if (path.startsWith('/segments/') && path.endsWith('/edit')) {
+    return [
+      root,
+      { label: 'Đối tượng' },
+      { label: 'Phân đoạn đối tượng', href: '/segments' },
+      { label: 'Chỉnh sửa phân đoạn' },
+    ]
+  }
+  if (path.startsWith('/segments/')) {
+    return [
+      root,
+      { label: 'Đối tượng' },
+      { label: 'Phân đoạn đối tượng', href: '/segments' },
+      { label: 'Chi tiết phân đoạn' },
+    ]
+  }
+
+  // 3. Chiến dịch (Campaigns)
+  // Campaigns
+  if (path === '/campaigns') {
+    return [root, { label: 'Chiến dịch' }, { label: 'Chiến dịch email' }]
+  }
+  if (path === '/campaigns/create') {
+    return [
+      root,
+      { label: 'Chiến dịch' },
+      { label: 'Chiến dịch email', href: '/campaigns' },
+      { label: 'Tạo chiến dịch mới' },
+    ]
+  }
+  if (path.startsWith('/campaigns/') && path.endsWith('/edit')) {
+    return [
+      root,
+      { label: 'Chiến dịch' },
+      { label: 'Chiến dịch email', href: '/campaigns' },
+      { label: 'Chỉnh sửa chiến dịch' },
+    ]
+  }
+  if (path.startsWith('/campaigns/') && path.endsWith('/report')) {
+    return [
+      root,
+      { label: 'Chiến dịch' },
+      { label: 'Chiến dịch email', href: '/campaigns' },
+      { label: 'Báo cáo chiến dịch' },
+    ]
+  }
+  if (path.startsWith('/campaigns/')) {
+    return [
+      root,
+      { label: 'Chiến dịch' },
+      { label: 'Chiến dịch email', href: '/campaigns' },
+      { label: 'Chi tiết chiến dịch' },
+    ]
+  }
+
+  // Templates
+  if (path === '/templates') {
+    return [root, { label: 'Chiến dịch' }, { label: 'Mẫu email' }]
+  }
+  if (path === '/templates/create') {
+    return [
+      root,
+      { label: 'Chiến dịch' },
+      { label: 'Mẫu email', href: '/templates' },
+      { label: 'Thiết kế mẫu mới' },
+    ]
+  }
+  if (path.startsWith('/templates/') && path.endsWith('/edit')) {
+    return [
+      root,
+      { label: 'Chiến dịch' },
+      { label: 'Mẫu email', href: '/templates' },
+      { label: 'Chỉnh sửa mẫu' },
+    ]
+  }
+  if (path.startsWith('/templates/')) {
+    return [
+      root,
+      { label: 'Chiến dịch' },
+      { label: 'Mẫu email', href: '/templates' },
+      { label: 'Chi tiết mẫu' },
+    ]
+  }
+
+  // 4. Phân tích (Analytics)
+  if (path === '/analytics' || path === '/reports') {
+    return [root, { label: 'Phân tích' }, { label: 'Báo cáo & Phân tích' }]
+  }
+
+  // 5. Quản trị (Management)
+  if (path === '/settings/members' || path === '/members') {
+    return [root, { label: 'Quản trị' }, { label: 'Thành viên & Phân quyền' }]
+  }
+
+  // 6. Cấu hình (Settings)
+  // Senders
+  if (path === '/settings/senders' || path === '/senders') {
+    return [root, { label: 'Cấu hình' }, { label: 'Người gửi & SMTP' }]
+  }
+
+  // Domains
+  if (path === '/settings/domains' || path === '/domains') {
+    return [root, { label: 'Cấu hình' }, { label: 'Xác thực tên miền (DNS)' }]
+  }
+
+  // Billing
+  if (path.startsWith('/settings/billing') || path.startsWith('/billing')) {
+    if (path.endsWith('/usage')) {
+      return [
+        root,
+        { label: 'Cấu hình' },
+        { label: 'Gói cước & Thanh toán', href: '/settings/billing' },
+        { label: 'Mức độ sử dụng' },
+      ]
+    }
+    if (path.endsWith('/invoices')) {
+      return [
+        root,
+        { label: 'Cấu hình' },
+        { label: 'Gói cước & Thanh toán', href: '/settings/billing' },
+        { label: 'Lịch sử hóa đơn' },
+      ]
+    }
+    return [root, { label: 'Cấu hình' }, { label: 'Gói cước & Thanh toán' }]
+  }
+
+  // Workspace
+  if (path === '/settings/workspace' || path === '/workspace') {
+    return [root, { label: 'Cấu hình' }, { label: 'Cài đặt không gian làm việc' }]
+  }
+
+  // Notifications
+  if (path === '/notifications' || path === '/settings/notifications') {
+    return [root, { label: 'Cấu hình' }, { label: 'Trung tâm thông báo' }]
+  }
+
+  // Profile
+  if (path === '/settings/profile' || path === '/profile') {
+    return [root, { label: 'Cấu hình' }, { label: 'Hồ sơ cá nhân & Bảo mật' }]
+  }
+
+  // Fallback for configured routes in ROUTE_CONFIGS
+  const cfg = ROUTE_CONFIGS[path]
+  if (cfg) {
+    return [
+      root,
+      { label: cfg.section },
+      { label: cfg.title.split('(')[0].trim() },
+    ]
+  }
+
+  return [root, { label: 'Tổng quan' }, { label: 'Dashboard' }]
 }
 
 export function AppContent() {
@@ -307,11 +616,21 @@ export function AppContent() {
   // 2. MAIN APP SHELL WITH PROTECTED ROUTES
   const currentRoute = ROUTE_CONFIGS[basePath] || ROUTE_CONFIGS['/dashboard']
 
-  const breadcrumbItems = [
-    { label: 'MailFlow', href: '#' },
-    { label: currentRoute.section, href: '#' },
-    { label: currentRoute.title.split('(')[0].trim() },
-  ]
+  const breadcrumbItems = getBreadcrumbItems(basePath)
+
+  const getContainerVariant = (path: string): 'narrow' | 'default' | 'wide' | 'full' => {
+    if (
+      path === '/contacts' ||
+      path === '/campaigns' ||
+      path === '/members' ||
+      path.startsWith('/settings/members') ||
+      path === '/lists' ||
+      path === '/segments'
+    ) {
+      return 'full'
+    }
+    return 'wide'
+  }
 
   return (
     <AppShell
@@ -322,7 +641,7 @@ export function AppContent() {
       onNavigate={handleNavigate}
       onLogout={handleLogout}
     >
-      <PageContainer variant="wide" className="py-6">
+      <PageContainer variant={getContainerVariant(basePath)} className="py-6">
         <ProtectedRoute path={basePath} onNavigateHome={() => handleNavigate('/dashboard')}>
           {basePath === '/dashboard' ? (
             /* REAL DASHBOARD (PROMPT 05) */

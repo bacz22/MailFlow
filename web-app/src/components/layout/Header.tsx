@@ -51,7 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         <div className="hidden sm:block truncate">
-          <Breadcrumb items={breadcrumbs} />
+          <Breadcrumb items={breadcrumbs} onNavigate={onNavigate} />
         </div>
       </div>
 

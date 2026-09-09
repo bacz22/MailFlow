@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { BarChart3, TrendingUp, Calendar, Inbox } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/Card'
 import { Skeleton } from '../ui/Skeleton'
+import { cn } from '../../utils/cn'
 
 export interface ChartDataPoint {
   date: string
@@ -96,10 +97,15 @@ export const ChartCard: React.FC<ChartCardProps> = ({
     )
   }
 
-  const maxVal = Math.max(...activeData.map((d) => d.sent)) * 1.15 || 1
+  const maxVal = Math.max(...activeData.map((d) => d.sent)) * 1.3 || 1
   const totalSent = activeData.reduce((acc, d) => acc + d.sent, 0)
   const totalOpened = activeData.reduce((acc, d) => acc + d.opened, 0)
   const avgOpenRate = totalSent > 0 ? `${((totalOpened / totalSent) * 100).toFixed(1)}%` : '0%'
+
+  // Determine density based on number of points (e.g. 7d vs 30d/month)
+  const isDense = activeData.length > 14
+  const isVeryDense = activeData.length > 25
+  const labelStep = isVeryDense ? 5 : isDense ? 3 : 1
 
   return (
     <Card className={className}>
@@ -138,80 +144,112 @@ export const ChartCard: React.FC<ChartCardProps> = ({
 
       <CardContent className="space-y-4 pt-2">
         {/* Interactive Chart Container */}
-        <div className="h-64 sm:h-72 w-full flex items-end gap-2 sm:gap-4 pt-8 pb-2 relative select-none">
-          {/* Y-axis background grid lines */}
-          <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-30 dark:opacity-20 pb-6">
-            <div className="border-b border-slate-300 dark:border-slate-600 border-dashed w-full" />
-            <div className="border-b border-slate-300 dark:border-slate-600 border-dashed w-full" />
-            <div className="border-b border-slate-300 dark:border-slate-600 border-dashed w-full" />
-          </div>
+        <div className="w-full">
+          <div
+            className={cn(
+              "h-64 sm:h-72 w-full flex items-end pt-12 pb-1 relative select-none",
+              isDense ? "gap-1 sm:gap-1.5" : "gap-2 sm:gap-4"
+            )}
+          >
+            {/* Y-axis background grid lines */}
+            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-30 dark:opacity-20 pb-6">
+              <div className="border-b border-slate-300 dark:border-slate-600 border-dashed w-full" />
+              <div className="border-b border-slate-300 dark:border-slate-600 border-dashed w-full" />
+              <div className="border-b border-slate-300 dark:border-slate-600 border-dashed w-full" />
+            </div>
 
-          {/* Bars */}
-          {activeData.map((d, idx) => {
-            const sentHeight = (d.sent / maxVal) * 100
-            const openedHeight = (d.opened / maxVal) * 100
-            const isHovered = hoveredIdx === idx
+            {/* Bars */}
+            {activeData.map((d, idx) => {
+              const sentHeight = (d.sent / maxVal) * 100
+              const openedHeight = (d.opened / maxVal) * 100
+              const isHovered = hoveredIdx === idx
+              const isStep = idx % labelStep === 0
+              const isLast = idx === activeData.length - 1
+              const isFirst = idx === 0
+              const showLabel = !isDense || isFirst || isLast || isStep || isHovered
 
-            return (
-              <div
-                key={idx}
-                className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-pointer"
-                onMouseEnter={() => setHoveredIdx(idx)}
-                onMouseLeave={() => setHoveredIdx(null)}
-              >
-                {/* Floating Tooltip */}
-                {isHovered && (
-                  <div className="absolute -top-20 z-20 bg-slate-900 text-white dark:bg-slate-800 dark:text-slate-100 border border-slate-700 rounded-xl p-2.5 shadow-xl text-xs whitespace-nowrap pointer-events-none animate-in fade-in-0 zoom-in-95 space-y-1">
-                    <div className="font-bold text-slate-300 border-b border-slate-700 pb-1 flex items-center gap-1.5">
-                      <Calendar className="w-3 h-3 text-blue-400" />
-                      <span>{d.date}</span>
+              return (
+                <div
+                  key={idx}
+                  className="flex-1 min-w-0 h-full flex flex-col items-center group relative cursor-pointer"
+                  onMouseEnter={() => setHoveredIdx(idx)}
+                  onMouseLeave={() => setHoveredIdx(null)}
+                >
+                  {/* Floating Tooltip — securely positioned inside chart bounds */}
+                  {isHovered && (
+                    <div
+                      className={cn(
+                        "absolute z-30 top-1 bg-slate-900 text-white dark:bg-slate-800 dark:text-slate-100 border border-slate-700 rounded-xl p-2.5 shadow-xl text-xs whitespace-nowrap pointer-events-none animate-in fade-in-0 zoom-in-95 space-y-1",
+                        idx < 3 ? "left-0" : idx > activeData.length - 4 ? "right-0" : "left-1/2 -translate-x-1/2"
+                      )}
+                    >
+                      <div className="font-bold text-slate-300 border-b border-slate-700 pb-1 flex items-center gap-1.5">
+                        <Calendar className="w-3 h-3 text-blue-400" />
+                        <span>{d.date}</span>
+                      </div>
+                      <div className="space-y-0.5 font-mono text-[11px]">
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-blue-400">Đã gửi:</span>
+                          <strong className="font-bold">{d.sent.toLocaleString()}</strong>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-emerald-400">Đã mở:</span>
+                          <strong className="font-bold">{d.opened.toLocaleString()}</strong>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-amber-400">Nhấp (CTR):</span>
+                          <strong className="font-bold">{d.clicked.toLocaleString()}</strong>
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-0.5 font-mono text-[11px]">
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-blue-400">Đã gửi:</span>
-                        <strong className="font-bold">{d.sent.toLocaleString()}</strong>
-                      </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-emerald-400">Đã mở:</span>
-                        <strong className="font-bold">{d.opened.toLocaleString()}</strong>
-                      </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-amber-400">Nhấp (CTR):</span>
-                        <strong className="font-bold">{d.clicked.toLocaleString()}</strong>
-                      </div>
-                    </div>
+                  )}
+
+                  {/* Column Bars: flex-1 min-h-0 takes all height above date label */}
+                  <div
+                    className={cn(
+                      "w-full flex-1 min-h-0 flex items-end justify-center gap-0.5 sm:gap-1 pb-1",
+                      isDense ? "max-w-[28px]" : "max-w-[44px]"
+                    )}
+                  >
+                    {/* Sent Bar */}
+                    <div
+                      style={{ height: `${sentHeight}%` }}
+                      className={cn(
+                        "w-1/2 transition-all",
+                        isDense ? "rounded-t-xs" : "rounded-t-md",
+                        isHovered
+                          ? 'bg-blue-600 dark:bg-blue-500 shadow-md shadow-blue-500/20 scale-y-105'
+                          : 'bg-blue-500/80 hover:bg-blue-600 dark:bg-blue-600/80'
+                      )}
+                    />
+                    {/* Opened Bar */}
+                    <div
+                      style={{ height: `${openedHeight}%` }}
+                      className={cn(
+                        "w-1/2 transition-all",
+                        isDense ? "rounded-t-xs" : "rounded-t-md",
+                        isHovered
+                          ? 'bg-emerald-600 dark:bg-emerald-400 shadow-md shadow-emerald-500/20 scale-y-105'
+                          : 'bg-emerald-500/80 hover:bg-emerald-600 dark:bg-emerald-500/80'
+                      )}
+                    />
                   </div>
-                )}
 
-                {/* Column Bars */}
-                <div className="w-full max-w-[44px] flex items-end justify-center gap-1 h-full">
-                  {/* Sent Bar */}
+                  {/* X-axis Date label: shows date on hover or on sampled steps */}
                   <div
-                    style={{ height: `${sentHeight}%` }}
-                    className={`w-1/2 rounded-t-md transition-all ${
+                    className={cn(
+                      "shrink-0 h-5 w-auto overflow-visible whitespace-nowrap flex items-center justify-center text-[10px] sm:text-[11px] text-center select-none pt-0.5 transition-all duration-150",
                       isHovered
-                        ? 'bg-blue-600 dark:bg-blue-500 shadow-md shadow-blue-500/20 scale-y-105'
-                        : 'bg-blue-500/80 hover:bg-blue-600 dark:bg-blue-600/80'
-                    }`}
-                  />
-                  {/* Opened Bar */}
-                  <div
-                    style={{ height: `${openedHeight}%` }}
-                    className={`w-1/2 rounded-t-md transition-all ${
-                      isHovered
-                        ? 'bg-emerald-600 dark:bg-emerald-400 shadow-md shadow-emerald-500/20 scale-y-105'
-                        : 'bg-emerald-500/80 hover:bg-emerald-600 dark:bg-emerald-500/80'
-                    }`}
-                  />
+                        ? "text-blue-600 dark:text-blue-400 font-bold z-10 bg-white/95 dark:bg-slate-900/95 px-1.5 rounded-md shadow-xs ring-1 ring-blue-500/20"
+                        : "font-medium text-slate-500 dark:text-slate-400"
+                    )}
+                  >
+                    {showLabel ? d.date : ''}
+                  </div>
                 </div>
-
-                {/* X-axis Date label */}
-                <div className="mt-2 text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
-                  {d.date}
-                </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
 
         {/* Legend Footer */}

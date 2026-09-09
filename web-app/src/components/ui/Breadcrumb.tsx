@@ -12,6 +12,7 @@ export interface BreadcrumbProps extends React.ComponentPropsWithoutRef<'nav'> {
   items?: BreadcrumbItem[]
   separator?: React.ReactNode
   children?: React.ReactNode
+  onNavigate?: (path: string) => void
 }
 
 export const Breadcrumb: React.FC<BreadcrumbProps> = ({
@@ -19,6 +20,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({
   separator = <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />,
   children,
   className,
+  onNavigate,
   ...props
 }) => {
   if (children) {
@@ -42,7 +44,13 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({
                 {item.href && !isLast ? (
                   <a
                     href={item.href}
-                    className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors inline-flex items-center gap-1"
+                    onClick={(e) => {
+                      if (onNavigate && item.href && item.href !== '#') {
+                        e.preventDefault()
+                        onNavigate(item.href)
+                      }
+                    }}
+                    className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors inline-flex items-center gap-1 cursor-pointer"
                   >
                     {item.icon}
                     <span>{item.label}</span>

@@ -29,6 +29,7 @@ interface WorkspaceContextValue {
   createWorkspace: (name: string) => Promise<void>
   deleteCurrentWorkspace: () => Promise<void>
   acceptInvitation: (rawToken: string) => Promise<SwitchWorkspaceResponse>
+  updateWorkspaceSummary: (workspaceId: string, partial: Partial<WorkspaceSummary>) => void
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | undefined>(undefined)
@@ -259,6 +260,42 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     await refreshWorkspaces()
   }, [currentWorkspaceId, refreshWorkspaces])
 
+  const updateWorkspaceSummary = useCallback(
+    (workspaceId: string, partial: Partial<WorkspaceSummary>) => {
+      setWorkspaces((prev) =>
+        prev.map((ws) => (ws.id === workspaceId ? { ...ws, ...partial } : ws))
+      )
+    },
+    []
+  )
+
+  useEffect(() => {
+    if (!currentWorkspaceId) return
+    let cancelled = false
+    workspaceService
+      .getSettings(currentWorkspaceId)
+      .then((settings) => {
+        if (!cancelled && settings) {
+          setWorkspaces((prev) =>
+            prev.map((ws) =>
+              ws.id === currentWorkspaceId
+                ? {
+                    ...ws,
+                    name: settings.name || ws.name,
+                    brandColor: settings.brandColor || ws.brandColor,
+                    logoUrl: settings.logoUrl ?? ws.logoUrl,
+                  }
+                : ws
+            )
+          )
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [currentWorkspaceId])
+
   const clearInviteNotice = useCallback(() => setInviteNotice(null), [])
 
   const value = useMemo(
@@ -274,6 +311,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       createWorkspace,
       deleteCurrentWorkspace,
       acceptInvitation,
+      updateWorkspaceSummary,
     }),
     [
       workspaces,
@@ -287,6 +325,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       createWorkspace,
       deleteCurrentWorkspace,
       acceptInvitation,
+      updateWorkspaceSummary,
     ]
   )
 

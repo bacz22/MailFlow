@@ -17,7 +17,6 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../co
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { FormField, FormLabel } from '../components/ui/FormGroup'
-import { SimpleSelect } from '../components/ui/Select'
 import {
   Dialog,
   DialogContent,
@@ -80,7 +79,7 @@ export interface WorkspaceSettingsPageProps {
 export const WorkspaceSettingsPage: React.FC<WorkspaceSettingsPageProps> = ({ onNavigate }) => {
   const { showToast } = useToast()
   const { hasPermission } = usePermission()
-  const { currentWorkspaceId, refreshWorkspaces, deleteCurrentWorkspace } = useWorkspace()
+  const { currentWorkspaceId, refreshWorkspaces, deleteCurrentWorkspace, updateWorkspaceSummary } = useWorkspace()
 
   const [settings, setSettings] = useState<WorkspaceSettings>(EMPTY_SETTINGS)
   const [initialSettings, setInitialSettings] = useState<WorkspaceSettings>(EMPTY_SETTINGS)
@@ -146,6 +145,11 @@ export const WorkspaceSettingsPage: React.FC<WorkspaceSettingsPageProps> = ({ on
       const next = { ...saved, timezone: normalizeTimezone(saved.timezone), industry: saved.industry || '' }
       setSettings(next)
       setInitialSettings(next)
+      updateWorkspaceSummary(currentWorkspaceId, {
+        name: saved.name,
+        brandColor: saved.brandColor,
+        logoUrl: saved.logoUrl,
+      })
       await refreshWorkspaces()
       showToast({
         type: 'success',
@@ -212,6 +216,10 @@ export const WorkspaceSettingsPage: React.FC<WorkspaceSettingsPageProps> = ({ on
       const saved = await workspaceService.uploadLogo(currentWorkspaceId, pendingLogoFile)
       setSettings((prev) => ({ ...prev, logoUrl: saved.logoUrl }))
       setInitialSettings((prev) => ({ ...prev, logoUrl: saved.logoUrl }))
+      updateWorkspaceSummary(currentWorkspaceId, {
+        logoUrl: saved.logoUrl,
+        brandColor: saved.brandColor,
+      })
       await refreshWorkspaces()
       closeLogoConfirmDialog()
       showToast({
@@ -250,7 +258,7 @@ export const WorkspaceSettingsPage: React.FC<WorkspaceSettingsPageProps> = ({ on
   }
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto pb-12">
+    <div className="space-y-8 max-w-7xl mx-auto pb-12">
       {/* 1. Page Header with Save Action */}
       <PageHeader
         title="Cài Đặt Không Gian Làm Việc (Workspace Settings)"
@@ -438,16 +446,11 @@ export const WorkspaceSettingsPage: React.FC<WorkspaceSettingsPageProps> = ({ on
         <CardContent className="p-5 space-y-4 text-xs">
           <FormField>
             <FormLabel>Múi Giờ Mặc Định (Default Timezone)</FormLabel>
-            <SimpleSelect
-              value={settings.timezone}
-              onValueChange={(val) => setSettings({ ...settings, timezone: val })}
-              disabled={!canUpdate}
-              options={[
-                { value: 'Asia/Bangkok', label: 'Asia/Bangkok (UTC+07:00 - Việt Nam / Thái Lan)' },
-                { value: 'Asia/Singapore', label: 'Asia/Singapore (UTC+08:00)' },
-                { value: 'Asia/Tokyo', label: 'Asia/Tokyo (UTC+09:00 - Nhật Bản)' },
-                { value: 'UTC', label: 'UTC (UTC+00:00 - Tiêu chuẩn quốc tế)' },
-              ]}
+            <Input
+              value="UTC+07:00 (Asia/Bangkok - Giờ Việt Nam)"
+              readOnly
+              disabled
+              className="bg-slate-50/80 dark:bg-slate-900/60 font-medium text-slate-700 dark:text-slate-300 cursor-not-allowed"
             />
           </FormField>
 

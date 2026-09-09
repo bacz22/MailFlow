@@ -321,7 +321,7 @@ export const ContactTable: React.FC<ContactTableProps> = ({
               )}
 
               {!compact && (
-                <th className="py-3 px-4 text-right whitespace-nowrap">
+                <th className="py-3 px-4 text-right whitespace-nowrap sticky right-0 bg-slate-50 dark:bg-slate-800/80 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)] z-20">
                   <span>Thao Tác</span>
                 </th>
               )}
@@ -442,7 +442,7 @@ export const ContactTable: React.FC<ContactTableProps> = ({
                   )}
 
                   {!compact && (
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-4 text-right sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-slate-50/80 dark:group-hover:bg-slate-800/30 group-data-[state=selected]:bg-blue-50/60 dark:group-data-[state=selected]:bg-blue-950/30 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">
                       <ContactRowActions
                         contact={contact}
                         onView={onViewContact}

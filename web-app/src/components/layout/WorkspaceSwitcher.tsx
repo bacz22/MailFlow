@@ -43,15 +43,23 @@ function roleLabel(role: string): string {
 function WorkspaceMark({
   name,
   logoUrl,
+  brandColor,
   className,
 }: {
   name?: string
   logoUrl?: string
-  className: string
+  brandColor?: string
+  className?: string
 }) {
   const letter = name?.charAt(0)?.toUpperCase() || 'W'
   return (
-    <div className={cn(className, 'overflow-hidden shrink-0')}>
+    <div
+      className={cn(
+        'w-7 h-7 rounded-md text-white flex items-center justify-center font-bold text-xs overflow-hidden shrink-0 shadow-xs',
+        className
+      )}
+      style={!logoUrl ? { backgroundColor: brandColor || '#2563eb' } : undefined}
+    >
       {logoUrl ? (
         <img src={logoUrl} alt="" className="w-full h-full object-cover" />
       ) : (
@@ -167,7 +175,10 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
           title={collapsed ? currentWorkspace?.name : undefined}
           aria-label="Chuyển đổi workspace"
         >
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-xs shrink-0 overflow-hidden">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-xs shrink-0 overflow-hidden"
+            style={!currentWorkspace?.logoUrl ? { backgroundColor: currentWorkspace?.brandColor || '#2563eb' } : undefined}
+          >
             {busy ? (
               <Loader2 className="w-4 h-4 animate-spin text-white" />
             ) : currentWorkspace ? (
@@ -243,7 +254,7 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
                   <WorkspaceMark
                     name={ws.name}
                     logoUrl={ws.logoUrl}
-                    className="w-7 h-7 rounded-md bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-xs"
+                    brandColor={ws.brandColor}
                   />
 
                   <div className="flex-1 min-w-0">

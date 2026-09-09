@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { MailOpen, MousePointerClick, Send } from 'lucide-react'
+import { MailOpen, MousePointerClick, Send, UserMinus } from 'lucide-react'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Card, CardContent } from '../components/ui/Card'
 import { AcceptInviteForm } from '../components/workspace/AcceptInviteForm'
@@ -60,7 +60,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
     }
   }, [canAnalytics, currentWorkspaceId])
 
-  const metrics = overview ? overviewToMetrics(overview).slice(0, 3) : []
+  const metrics = overview ? overviewToMetrics(overview) : []
 
   return (
     <div className="space-y-6">
@@ -112,7 +112,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           {loading && <p className="text-xs text-slate-500">Đang tải số liệu…</p>}
 
           {!loading && metrics.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {metrics.map((m) => (
                 <MetricWidget
                   key={m.key}
@@ -126,8 +126,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                       <Send className="w-4 h-4" />
                     ) : m.key === 'openRate' ? (
                       <MailOpen className="w-4 h-4" />
-                    ) : (
+                    ) : m.key === 'clickRate' ? (
                       <MousePointerClick className="w-4 h-4" />
+                    ) : (
+                      <UserMinus className="w-4 h-4" />
                     )
                   }
                   onClick={() => onNavigate?.('/analytics')}

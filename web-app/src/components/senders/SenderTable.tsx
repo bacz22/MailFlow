@@ -74,7 +74,7 @@ export const SenderTable: React.FC<SenderTableProps> = ({
               <th className="py-3 px-4">Trạng Thái Xác Minh</th>
               <th className="py-3 px-4">Xác Thực Tên Miền</th>
               <th className="py-3 px-4">Ngày Tạo</th>
-              <th className="py-3 px-4 text-center">Thao Tác</th>
+              <th className="py-3 px-4 text-center sticky right-0 bg-slate-50/95 dark:bg-slate-800/95 backdrop-blur-xs shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">Thao Tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -137,7 +137,7 @@ export const SenderTable: React.FC<SenderTableProps> = ({
                 <td className="py-3 px-4 text-slate-500 font-mono">{s.createdAt}</td>
 
                 {/* Actions Context Menu */}
-                <td className="py-3 px-4 text-center relative">
+                <td className="py-3 px-4 text-center sticky right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">
                   <div className="flex items-center justify-center gap-1">
                     {/* Quick Resend button if pending */}
                     {isPending && canManage && (

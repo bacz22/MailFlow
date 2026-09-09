@@ -256,7 +256,7 @@ export const TemplatesPage: React.FC<TemplatesPageProps> = ({ onNavigate }) => {
           Chưa có mẫu email nào. Tạo mẫu đầu tiên để tái sử dụng nội dung chiến dịch.
         </div>
       ) : viewMode === 'grid' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5 gap-6">
           {paginatedTemplates.map((template) => (
             <Card
               key={template.id}

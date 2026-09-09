@@ -20,6 +20,7 @@ public class WorkspaceSummaryResponse {
     private UUID id;
     private String name;
     private String logoUrl;
+    private String brandColor;
     @Builder.Default
     private String plan = "Free";
     private WorkspaceRole role;

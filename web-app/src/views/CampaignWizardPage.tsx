@@ -313,7 +313,7 @@ export const CampaignWizardPage: React.FC<CampaignWizardPageProps> = ({ campaign
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto pb-24">
       {/* 1. Page Header with Draft Indicator */}
       <PageHeader
         title="Trình Tạo Chiến Dịch (Campaign Wizard)"

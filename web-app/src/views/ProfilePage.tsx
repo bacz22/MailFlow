@@ -121,7 +121,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   if (!profile) {
     return (
-      <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="space-y-6 max-w-7xl mx-auto">
         <PageHeader
           title="Hồ Sơ & Cài Đặt Tài Khoản (Profile & Security)"
           description="Không tải được thông tin tài khoản. Hãy đăng nhập lại."
@@ -138,7 +138,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto">
       <PageHeader
         title="Hồ Sơ & Cài Đặt Tài Khoản (Profile & Security)"
         description="Quản lý định danh cá nhân, đổi mật khẩu bảo mật, quản lý liên kết tài khoản OAuth và giám sát các phiên làm việc đang hoạt động."

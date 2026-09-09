@@ -12,6 +12,7 @@ function mapSummary(item: WorkspaceSummary): WorkspaceSummary {
     ...item,
     isCurrent: !!(item.isCurrent ?? item.current),
     plan: item.plan || 'Free',
+    brandColor: item.brandColor || '#2563eb',
   }
 }
 

@@ -81,7 +81,7 @@ export const CampaignTable: React.FC<CampaignTableProps> = ({
               <th className="py-3 px-3 min-w-[100px]">Tỷ Lệ Click</th>
               <th className="py-3 px-3">Lịch Gửi</th>
               <th className="py-3 px-3">Người Tạo</th>
-              <th className="py-3 px-4 text-right">Thao Tác</th>
+              <th className="py-3 px-4 text-right whitespace-nowrap sticky right-0 bg-slate-50 dark:bg-slate-800/80 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)] z-20">Thao Tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -182,7 +182,7 @@ export const CampaignTable: React.FC<CampaignTableProps> = ({
                   </td>
 
                   {/* Actions */}
-                  <td className="py-3.5 px-4 text-right">
+                  <td className="py-3.5 px-4 text-right whitespace-nowrap sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-slate-50/80 dark:group-hover:bg-slate-800/30 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">
                     <CampaignRowActions
                       campaign={c}
                       onView={onViewCampaign}

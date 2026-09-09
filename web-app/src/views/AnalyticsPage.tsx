@@ -150,7 +150,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
         title="Analytics & Báo cáo"
         description={`Hiệu suất gửi / mở / click — ${activeRange.label} (GMT+7).`}
         actions={
-          <div className="flex items-center gap-2 flex-nowrap">
+          <div className="flex items-center gap-2 flex-wrap">
             {periodMode === 'month' && (
               <div className="w-[10.5rem] shrink-0">
                 <SimpleSelect

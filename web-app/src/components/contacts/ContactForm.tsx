@@ -214,7 +214,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
   return (
     <form
       onSubmit={handleSubmit(onValidSubmit)}
-      className={`space-y-6 max-w-4xl mx-auto ${className || ''}`}
+      className={`space-y-6 max-w-6xl mx-auto ${className || ''}`}
       noValidate
     >
       {/* SECTION 1: BASIC INFORMATION */}

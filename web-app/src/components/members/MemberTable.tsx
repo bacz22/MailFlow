@@ -58,7 +58,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
             <th className="py-3 px-4">Trạng Thái</th>
             <th className="py-3 px-4">Ngày Tham Gia</th>
             <th className="py-3 px-4">Hoạt Động Cuối</th>
-            <th className="py-3 px-4 text-center">Thao Tác</th>
+            <th className="py-3 px-4 text-center whitespace-nowrap sticky right-0 bg-slate-50 dark:bg-slate-800/80 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)] z-20">Thao Tác</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -125,7 +125,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                 <td className="py-3 px-4 text-slate-500 font-mono">{m.lastActiveAt}</td>
 
                 {/* Actions Context Menu */}
-                <td className="py-3 px-4 text-center">
+                <td className="py-3 px-4 text-center whitespace-nowrap sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/40 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">
                   {isPending ? (
                     <div className="flex items-center justify-center gap-1">
                       <Button

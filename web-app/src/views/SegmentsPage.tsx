@@ -170,7 +170,7 @@ export const SegmentsPage: React.FC<SegmentsPageProps> = ({ onNavigate }) => {
           Chưa có phân đoạn nào. Tạo phân đoạn đầu tiên để lọc danh bạ theo quy tắc.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 3xl:grid-cols-4 gap-4">
           {segments.map((seg) => (
             <Card
               key={seg.id}

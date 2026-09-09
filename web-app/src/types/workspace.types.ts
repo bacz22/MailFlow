@@ -17,6 +17,7 @@ export interface WorkspaceSummary {
   id: string
   name: string
   logoUrl?: string
+  brandColor?: string
   plan: 'Free' | 'Starter' | 'Pro' | 'Enterprise'
   role: string
   isCurrent?: boolean

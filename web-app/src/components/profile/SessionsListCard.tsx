@@ -203,10 +203,9 @@ export const SessionsListCard: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500 flex-wrap">
                     <span>{sess.browser} • {sess.os}</span>
                     <span>• {sess.location}</span>
-                    <span className="font-mono">({sess.ipAddress})</span>
                   </div>
 
                   <div className="text-[10px] text-slate-400 font-mono pt-0.5">

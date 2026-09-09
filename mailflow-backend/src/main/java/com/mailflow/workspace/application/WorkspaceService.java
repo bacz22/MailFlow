@@ -363,6 +363,7 @@ public class WorkspaceService {
                 .id(workspace.getId())
                 .name(workspace.getName())
                 .logoUrl(workspace.getLogoUrl())
+                .brandColor(workspace.getBrandColor())
                 .plan(PLAN_FREE)
                 .role(role)
                 .current(current)
