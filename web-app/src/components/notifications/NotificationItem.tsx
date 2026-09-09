@@ -9,6 +9,11 @@ import {
   Zap,
   Check,
   ExternalLink,
+  UserPlus,
+  UserCheck,
+  ShieldCheck,
+  UserMinus,
+  Bell,
 } from 'lucide-react'
 import type { AppNotification, NotificationType } from '../../types/notification.types'
 
@@ -33,25 +38,39 @@ export function getNotificationMeta(type: NotificationType): {
         icon: <XCircle className="w-4 h-4 text-rose-600" />,
         colorClasses: 'bg-rose-100 dark:bg-rose-950/70 border-rose-300 dark:border-rose-800',
       }
+    case 'CAMPAIGN_APPROVAL_REQUESTED':
     case 'CAMPAIGN_APPROVAL_REQUIRED':
       return {
         icon: <Clock className="w-4 h-4 text-amber-600" />,
         colorClasses: 'bg-amber-100 dark:bg-amber-950/70 border-amber-300 dark:border-amber-800',
+      }
+    case 'CAMPAIGN_APPROVED':
+      return {
+        icon: <CheckCircle2 className="w-4 h-4 text-blue-600" />,
+        colorClasses: 'bg-blue-100 dark:bg-blue-950/70 border-blue-300 dark:border-blue-800',
       }
     case 'CAMPAIGN_REJECTED':
       return {
         icon: <AlertTriangle className="w-4 h-4 text-rose-600" />,
         colorClasses: 'bg-rose-100 dark:bg-rose-950/70 border-rose-300 dark:border-rose-800',
       }
+    case 'CONTACT_IMPORT_COMPLETED':
     case 'IMPORT_COMPLETED':
       return {
         icon: <FileCheck className="w-4 h-4 text-blue-600" />,
         colorClasses: 'bg-blue-100 dark:bg-blue-950/70 border-blue-300 dark:border-blue-800',
       }
+    case 'CONTACT_IMPORT_FAILED':
     case 'IMPORT_FAILED':
       return {
         icon: <XCircle className="w-4 h-4 text-rose-600" />,
         colorClasses: 'bg-rose-100 dark:bg-rose-950/70 border-rose-300 dark:border-rose-800',
+      }
+    case 'QUOTA_EXCEEDED':
+    case 'USAGE_NEAR_LIMIT':
+      return {
+        icon: <Zap className="w-4 h-4 text-amber-600" />,
+        colorClasses: 'bg-amber-100 dark:bg-amber-950/70 border-amber-300 dark:border-amber-800',
       }
     case 'DOMAIN_VERIFIED':
       return {
@@ -63,10 +82,30 @@ export function getNotificationMeta(type: NotificationType): {
         icon: <AlertTriangle className="w-4 h-4 text-rose-600" />,
         colorClasses: 'bg-rose-100 dark:bg-rose-950/70 border-rose-300 dark:border-rose-800',
       }
-    case 'USAGE_NEAR_LIMIT':
+    case 'MEMBER_INVITED':
       return {
-        icon: <Zap className="w-4 h-4 text-amber-600" />,
-        colorClasses: 'bg-amber-100 dark:bg-amber-950/70 border-amber-300 dark:border-amber-800',
+        icon: <UserPlus className="w-4 h-4 text-indigo-600" />,
+        colorClasses: 'bg-indigo-100 dark:bg-indigo-950/70 border-indigo-300 dark:border-indigo-800',
+      }
+    case 'MEMBER_JOINED':
+      return {
+        icon: <UserCheck className="w-4 h-4 text-teal-600" />,
+        colorClasses: 'bg-teal-100 dark:bg-teal-950/70 border-teal-300 dark:border-teal-800',
+      }
+    case 'MEMBER_ROLE_UPDATED':
+      return {
+        icon: <ShieldCheck className="w-4 h-4 text-purple-600" />,
+        colorClasses: 'bg-purple-100 dark:bg-purple-950/70 border-purple-300 dark:border-purple-800',
+      }
+    case 'MEMBER_REMOVED':
+      return {
+        icon: <UserMinus className="w-4 h-4 text-slate-600" />,
+        colorClasses: 'bg-slate-100 dark:bg-slate-800/70 border-slate-300 dark:border-slate-700',
+      }
+    case 'SYSTEM_ALERT':
+      return {
+        icon: <Bell className="w-4 h-4 text-blue-600" />,
+        colorClasses: 'bg-blue-100 dark:bg-blue-950/70 border-blue-300 dark:border-blue-800',
       }
     default:
       return {

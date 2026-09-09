@@ -8,7 +8,14 @@ export interface NotificationBellDropdownProps {
 }
 
 export const NotificationBellDropdown: React.FC<NotificationBellDropdownProps> = ({ onNavigate }) => {
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications()
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    hasNewNotification,
+    clearNewNotificationFlag,
+  } = useNotifications()
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -32,19 +39,32 @@ export const NotificationBellDropdown: React.FC<NotificationBellDropdownProps> =
     if (n.targetPath) onNavigate(n.targetPath)
   }
 
+  const handleToggle = () => {
+    if (!isOpen) {
+      clearNewNotificationFlag()
+    }
+    setIsOpen(!isOpen)
+  }
+
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Bell Button with Badge */}
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         className="relative p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
         title="Thông báo hệ thống"
       >
-        <Bell className="w-5 h-5" />
+        <Bell className={`w-5 h-5 ${hasNewNotification ? 'text-blue-600 dark:text-blue-400 animate-bounce' : ''}`} />
         {unreadCount > 0 && (
           <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-rose-600 text-white text-[9px] font-extrabold flex items-center justify-center shadow-xs">
             {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+        {hasNewNotification && (
+          <span className="absolute top-1 right-1 flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
           </span>
         )}
       </button>

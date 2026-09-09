@@ -27,6 +27,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import com.mailflow.notification.application.event.NotificationEvents;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,6 +69,7 @@ public class ContactService {
     private final WorkspaceAccessService accessService;
     private final AudienceListService audienceListService;
     private final AudienceSegmentService audienceSegmentService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public ContactPageResponse list(
@@ -339,13 +342,17 @@ public class ContactService {
             created++;
         }
 
-        return ImportContactsResponse.builder()
+        ImportContactsResponse response = ImportContactsResponse.builder()
                 .created(created)
                 .updated(updated)
                 .skipped(skipped)
                 .invalid(invalid)
                 .errors(errors)
                 .build();
+        eventPublisher.publishEvent(new NotificationEvents.ContactImportCompleted(
+                workspaceId, userId, created + updated, invalid
+        ));
+        return response;
     }
 
     @Transactional(readOnly = true)

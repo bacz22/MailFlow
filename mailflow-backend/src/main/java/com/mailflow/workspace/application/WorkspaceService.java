@@ -9,6 +9,7 @@ import com.mailflow.infrastructure.storage.ImageStorageService;
 import com.mailflow.infrastructure.storage.ImageStorageService.StoredImage;
 import com.mailflow.user.domain.model.User;
 import com.mailflow.user.domain.repository.UserRepository;
+import com.mailflow.notification.application.event.NotificationEvents;
 import com.mailflow.workspace.api.request.CreateWorkspaceRequest;
 import com.mailflow.workspace.api.request.InviteMemberRequest;
 import com.mailflow.workspace.api.request.UpdateMemberRoleRequest;
@@ -233,6 +234,8 @@ public class WorkspaceService {
         memberRepository.save(target);
         User user = userRepository.findById(target.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng", target.getUserId().toString()));
+        eventPublisher.publishEvent(new NotificationEvents.MemberRoleUpdated(
+                workspaceId, actorId, target.getUserId(), resolveUserName(user), request.getRole().name()));
         return toMemberResponse(target, user, actorId);
     }
 
@@ -246,7 +249,11 @@ public class WorkspaceService {
             throw new AppException(HttpStatus.BAD_REQUEST, "LAST_OWNER",
                     "Không thể xóa chủ sở hữu cuối cùng.");
         }
+        User user = userRepository.findById(target.getUserId()).orElse(null);
+        String name = resolveUserName(user);
         memberRepository.delete(target);
+        eventPublisher.publishEvent(new NotificationEvents.MemberRemoved(
+                workspaceId, actorId, target.getUserId(), name));
     }
 
     @Transactional
@@ -277,6 +284,8 @@ public class WorkspaceService {
         Workspace workspace = requireWorkspace(workspaceId);
         eventPublisher.publishEvent(new WorkspaceMemberInvitedEvent(
                 email, workspace.getName(), rawToken, request.getRole().name()));
+        eventPublisher.publishEvent(new NotificationEvents.MemberInvited(
+                workspaceId, actorId, email, request.getRole().name()));
     }
 
     @Transactional
@@ -306,6 +315,8 @@ public class WorkspaceService {
         invitationRepository.save(invitation);
         memberRepository.save(new WorkspaceMember(
                 invitation.getWorkspaceId(), userId, invitation.getRole()));
+        eventPublisher.publishEvent(new NotificationEvents.MemberJoined(
+                invitation.getWorkspaceId(), userId, resolveUserName(user), user.getEmail(), invitation.getRole().name()));
         return switchWorkspace(userId, invitation.getWorkspaceId(), sessionId);
     }
 
@@ -374,11 +385,20 @@ public class WorkspaceService {
                 .build();
     }
 
+    private static String resolveUserName(User user) {
+        if (user == null) {
+            return "Thành viên";
+        }
+        String name = ((user.getLastName() != null ? user.getLastName() : "") + " "
+                + (user.getFirstName() != null ? user.getFirstName() : "")).trim();
+        return name.isEmpty() ? user.getEmail() : name;
+    }
+
     private static WorkspaceMemberResponse toMemberResponse(WorkspaceMember member, User user, UUID actorId) {
         return WorkspaceMemberResponse.builder()
                 .id(member.getId())
                 .userId(member.getUserId())
-                .name((user.getLastName() + " " + user.getFirstName()).trim())
+                .name(resolveUserName(user))
                 .email(user.getEmail())
                 .role(member.getRole())
                 .status(member.getStatus())

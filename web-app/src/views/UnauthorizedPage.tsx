@@ -1,14 +1,12 @@
 import React from 'react'
 import {
   ShieldAlert,
-  Mail,
   Home,
   Lock,
 } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { usePermission } from '../permissions/PermissionContext'
-import { useToast } from '../components/ui/Toast'
 
 export interface UnauthorizedPageProps {
   attemptedPath?: string
@@ -22,15 +20,6 @@ export const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
   onNavigateHome,
 }) => {
   const { roleMetadata } = usePermission()
-  const { showToast } = useToast()
-
-  const handleRequestAccess = () => {
-    showToast({
-      type: 'info',
-      title: 'Đã gửi yêu cầu',
-      description: 'Yêu cầu mở rộng quyền hạn đã được gửi tới Quản trị viên (Admin/Owner) của Workspace.',
-    })
-  }
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center p-4 sm:p-8 animate-in fade-in-0 duration-200">
@@ -94,7 +83,7 @@ export const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+        <div className="flex items-center justify-center pt-2">
           <Button
             variant="primary"
             leftIcon={<Home className="w-4 h-4" />}
@@ -102,15 +91,6 @@ export const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
             className="w-full sm:w-auto"
           >
             Về Trang Chủ (Dashboard)
-          </Button>
-
-          <Button
-            variant="outline"
-            leftIcon={<Mail className="w-4 h-4" />}
-            onClick={handleRequestAccess}
-            className="w-full sm:w-auto"
-          >
-            Yêu Cầu Nâng Quyền
           </Button>
         </div>
       </div>

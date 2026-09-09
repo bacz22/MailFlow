@@ -67,6 +67,7 @@ class CampaignServiceTest {
     @Mock PublicTrackingUrls trackingUrls;
     @Mock EngagementService engagementService;
     @Mock WorkspaceRepository workspaceRepository;
+    @Mock org.springframework.context.ApplicationEventPublisher eventPublisher;
     @InjectMocks CampaignService campaignService;
 
     private final UUID userId = UUID.randomUUID();

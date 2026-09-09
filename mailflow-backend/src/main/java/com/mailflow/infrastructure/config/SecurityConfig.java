@@ -93,6 +93,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers("/t/**").permitAll()
                         .requestMatchers("/webhooks/brevo/**").permitAll()
+                        .requestMatchers("/ws", "/ws/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()
                 )
@@ -120,7 +121,7 @@ public class SecurityConfig {
             if (contextPath != null && !contextPath.isEmpty() && uri.startsWith(contextPath)) {
                 uri = uri.substring(contextPath.length());
             }
-            if (PUBLIC_AUTH_PATHS.contains(uri) || uri.startsWith("/t/") || uri.startsWith("/webhooks/brevo")) {
+            if (PUBLIC_AUTH_PATHS.contains(uri) || uri.startsWith("/t/") || uri.startsWith("/webhooks/brevo") || uri.startsWith("/ws")) {
                 return null;
             }
             return delegate.resolve(request);

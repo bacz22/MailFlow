@@ -93,7 +93,7 @@ export const ROLE_PERMISSIONS: Record<WorkspaceRole, Permission[]> = {
     PERMISSIONS.ANALYTICS_READ,
     PERMISSIONS.ANALYTICS_EXPORT,
     PERMISSIONS.SENDER_READ,
-    PERMISSIONS.DOMAIN_READ,
+    PERMISSIONS.SENDER_MANAGE,
   ],
 
   // 4. CAMPAIGN EDITOR: Create templates, draft campaigns, send test emails (cannot dispatch to whole list)
@@ -151,7 +151,6 @@ export const ROLE_PERMISSIONS: Record<WorkspaceRole, Permission[]> = {
     PERMISSIONS.DASHBOARD_READ,
     PERMISSIONS.BILLING_READ,
     PERMISSIONS.BILLING_MANAGE,
-    PERMISSIONS.WORKSPACE_READ,
   ],
 
   // 8. VIEWER: Read-only access to basic dashboards and campaigns
@@ -177,10 +176,10 @@ export const ROUTE_REQUIRED_PERMISSIONS: Record<string, Permission> = {
   '/analytics': PERMISSIONS.ANALYTICS_READ,
   '/members': PERMISSIONS.MEMBER_READ,
   '/settings/members': PERMISSIONS.MEMBER_READ,
-  '/settings/senders': PERMISSIONS.SENDER_READ,
-  '/senders': PERMISSIONS.SENDER_READ,
-  '/settings/domains': PERMISSIONS.DOMAIN_READ,
-  '/domains': PERMISSIONS.DOMAIN_READ,
+  '/settings/senders': PERMISSIONS.SENDER_MANAGE,
+  '/senders': PERMISSIONS.SENDER_MANAGE,
+  '/settings/domains': PERMISSIONS.DOMAIN_MANAGE,
+  '/domains': PERMISSIONS.DOMAIN_MANAGE,
   '/settings/billing': PERMISSIONS.BILLING_READ,
   '/settings/billing/usage': PERMISSIONS.BILLING_READ,
   '/settings/billing/invoices': PERMISSIONS.BILLING_READ,

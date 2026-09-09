@@ -27,7 +27,7 @@ import {
 } from '../components/ui/DropdownMenu'
 import { TemplatePreviewDialog } from '../components/templates/TemplatePreviewDialog'
 import { ReadOnlyBanner } from '../components/ui/ReadOnlyBanner'
-import { PermissionGate, PERMISSIONS } from '../permissions'
+import { PermissionGate, PERMISSIONS, usePermission } from '../permissions'
 import { useToast } from '../components/ui/Toast'
 import { ApiError } from '../services/apiClient'
 import { SimpleSelect, type SelectOption } from '../components/ui/Select'
@@ -56,6 +56,13 @@ export interface TemplatesPageProps {
 
 export const TemplatesPage: React.FC<TemplatesPageProps> = ({ onNavigate }) => {
   const { showToast } = useToast()
+  const { hasPermission } = usePermission()
+
+  const canReadTemplate = hasPermission(PERMISSIONS.TEMPLATE_READ)
+  const canUpdateTemplate = hasPermission(PERMISSIONS.TEMPLATE_UPDATE)
+  const canCreateTemplate = hasPermission(PERMISSIONS.TEMPLATE_CREATE)
+  const canDeleteTemplate = hasPermission(PERMISSIONS.TEMPLATE_DELETE)
+  const hasAnyTemplateAction = canReadTemplate || canUpdateTemplate || canCreateTemplate || canDeleteTemplate
 
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -310,47 +317,56 @@ export const TemplatesPage: React.FC<TemplatesPageProps> = ({ onNavigate }) => {
               </CardContent>
 
               {/* Card Footer Actions */}
-              <CardFooter className="p-3 bg-slate-50/70 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end">
-                {/* More Dropdown */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                      title="Tùy chọn khác"
-                      aria-label="Tùy chọn khác"
-                    >
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44 text-xs">
-                    <PermissionGate permission={PERMISSIONS.TEMPLATE_UPDATE}>
-                      <DropdownMenuItem onClick={() => onNavigate(`/templates/${template.id}/edit`)}>
-                        <Edit3 className="w-3.5 h-3.5 mr-2 text-blue-600" />
-                        <span>Chỉnh sửa</span>
-                      </DropdownMenuItem>
-                    </PermissionGate>
-
-                    <PermissionGate permission={PERMISSIONS.TEMPLATE_CREATE}>
-                      <DropdownMenuItem onClick={() => handleDuplicate(template)}>
-                        <Copy className="w-3.5 h-3.5 mr-2 text-emerald-600" />
-                        <span>Nhân bản</span>
-                      </DropdownMenuItem>
-                    </PermissionGate>
-
-                    <PermissionGate permission={PERMISSIONS.TEMPLATE_DELETE}>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => setDeleting({ id: template.id, name: template.name })}
-                        className="text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium"
+              {hasAnyTemplateAction && (
+                <CardFooter className="p-3 bg-slate-50/70 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end">
+                  {/* More Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                        title="Tùy chọn khác"
+                        aria-label="Tùy chọn khác"
                       >
-                        <Trash2 className="w-3.5 h-3.5 mr-2" />
-                        <span>Xóa mẫu</span>
-                      </DropdownMenuItem>
-                    </PermissionGate>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </CardFooter>
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44 text-xs">
+                      {canReadTemplate && (
+                        <DropdownMenuItem onClick={() => setPreviewTemplate(template)}>
+                          <Eye className="w-3.5 h-3.5 mr-2 text-slate-500" />
+                          <span>Xem trước</span>
+                        </DropdownMenuItem>
+                      )}
+
+                      <PermissionGate permission={PERMISSIONS.TEMPLATE_UPDATE}>
+                        <DropdownMenuItem onClick={() => onNavigate(`/templates/${template.id}/edit`)}>
+                          <Edit3 className="w-3.5 h-3.5 mr-2 text-blue-600" />
+                          <span>Chỉnh sửa</span>
+                        </DropdownMenuItem>
+                      </PermissionGate>
+
+                      <PermissionGate permission={PERMISSIONS.TEMPLATE_CREATE}>
+                        <DropdownMenuItem onClick={() => handleDuplicate(template)}>
+                          <Copy className="w-3.5 h-3.5 mr-2 text-emerald-600" />
+                          <span>Nhân bản</span>
+                        </DropdownMenuItem>
+                      </PermissionGate>
+
+                      <PermissionGate permission={PERMISSIONS.TEMPLATE_DELETE}>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setDeleting({ id: template.id, name: template.name })}
+                          className="text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-2" />
+                          <span>Xóa mẫu</span>
+                        </DropdownMenuItem>
+                      </PermissionGate>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </CardFooter>
+              )}
             </Card>
           ))}
         </div>
@@ -403,49 +419,53 @@ export const TemplatesPage: React.FC<TemplatesPageProps> = ({ onNavigate }) => {
                     </td>
                     <td className="py-3 px-3 font-mono text-slate-500">{template.updatedAt}</td>
                     <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            type="button"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                            title="Tùy chọn khác"
-                            aria-label="Tùy chọn khác"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44 text-xs">
-                          <DropdownMenuItem onClick={() => setPreviewTemplate(template)}>
-                            <Eye className="w-3.5 h-3.5 mr-2 text-slate-500" />
-                            <span>Xem trước</span>
-                          </DropdownMenuItem>
-
-                          <PermissionGate permission={PERMISSIONS.TEMPLATE_UPDATE}>
-                            <DropdownMenuItem onClick={() => onNavigate(`/templates/${template.id}/edit`)}>
-                              <Edit3 className="w-3.5 h-3.5 mr-2 text-blue-600" />
-                              <span>Chỉnh sửa</span>
-                            </DropdownMenuItem>
-                          </PermissionGate>
-
-                          <PermissionGate permission={PERMISSIONS.TEMPLATE_CREATE}>
-                            <DropdownMenuItem onClick={() => handleDuplicate(template)}>
-                              <Copy className="w-3.5 h-3.5 mr-2 text-emerald-600" />
-                              <span>Nhân bản</span>
-                            </DropdownMenuItem>
-                          </PermissionGate>
-
-                          <PermissionGate permission={PERMISSIONS.TEMPLATE_DELETE}>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => setDeleting({ id: template.id, name: template.name })}
-                              className="text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium"
+                      {hasAnyTemplateAction && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                              title="Tùy chọn khác"
+                              aria-label="Tùy chọn khác"
                             >
-                              <Trash2 className="w-3.5 h-3.5 mr-2" />
-                              <span>Xóa mẫu</span>
-                            </DropdownMenuItem>
-                          </PermissionGate>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44 text-xs">
+                            {canReadTemplate && (
+                              <DropdownMenuItem onClick={() => setPreviewTemplate(template)}>
+                                <Eye className="w-3.5 h-3.5 mr-2 text-slate-500" />
+                                <span>Xem trước</span>
+                              </DropdownMenuItem>
+                            )}
+
+                            <PermissionGate permission={PERMISSIONS.TEMPLATE_UPDATE}>
+                              <DropdownMenuItem onClick={() => onNavigate(`/templates/${template.id}/edit`)}>
+                                <Edit3 className="w-3.5 h-3.5 mr-2 text-blue-600" />
+                                <span>Chỉnh sửa</span>
+                              </DropdownMenuItem>
+                            </PermissionGate>
+
+                            <PermissionGate permission={PERMISSIONS.TEMPLATE_CREATE}>
+                              <DropdownMenuItem onClick={() => handleDuplicate(template)}>
+                                <Copy className="w-3.5 h-3.5 mr-2 text-emerald-600" />
+                                <span>Nhân bản</span>
+                              </DropdownMenuItem>
+                            </PermissionGate>
+
+                            <PermissionGate permission={PERMISSIONS.TEMPLATE_DELETE}>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => setDeleting({ id: template.id, name: template.name })}
+                                className="text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 mr-2" />
+                                <span>Xóa mẫu</span>
+                              </DropdownMenuItem>
+                            </PermissionGate>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </td>
                   </tr>
                 ))}

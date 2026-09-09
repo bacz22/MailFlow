@@ -39,13 +39,20 @@ public class WorkspaceAccessService {
     private static final Set<WorkspaceRole> TAG_MUTATE_ROLES = CONTACT_MUTATE_ROLES;
     private static final Set<WorkspaceRole> SEGMENT_READ_ROLES = CONTACT_READ_ROLES;
     private static final Set<WorkspaceRole> SEGMENT_MUTATE_ROLES = CONTACT_MUTATE_ROLES;
-    private static final Set<WorkspaceRole> TEMPLATE_READ_ROLES = CONTACT_READ_ROLES;
+    private static final Set<WorkspaceRole> TEMPLATE_READ_ROLES = Set.of(
+            WorkspaceRole.OWNER,
+            WorkspaceRole.ADMIN,
+            WorkspaceRole.MARKETING_MANAGER,
+            WorkspaceRole.CAMPAIGN_EDITOR,
+            WorkspaceRole.CONTACT_MANAGER,
+            WorkspaceRole.ANALYST,
+            WorkspaceRole.VIEWER);
     private static final Set<WorkspaceRole> TEMPLATE_MUTATE_ROLES = Set.of(
             WorkspaceRole.OWNER,
             WorkspaceRole.ADMIN,
             WorkspaceRole.MARKETING_MANAGER,
             WorkspaceRole.CAMPAIGN_EDITOR);
-    private static final Set<WorkspaceRole> CAMPAIGN_READ_ROLES = CONTACT_READ_ROLES;
+    private static final Set<WorkspaceRole> CAMPAIGN_READ_ROLES = TEMPLATE_READ_ROLES;
     private static final Set<WorkspaceRole> CAMPAIGN_MUTATE_ROLES = TEMPLATE_MUTATE_ROLES;
     private static final Set<WorkspaceRole> CAMPAIGN_APPROVE_ROLES = Set.of(
             WorkspaceRole.OWNER,
@@ -56,6 +63,9 @@ public class WorkspaceAccessService {
             WorkspaceRole.OWNER,
             WorkspaceRole.ADMIN,
             WorkspaceRole.MARKETING_MANAGER);
+    private static final Set<WorkspaceRole> DOMAIN_MANAGE_ROLES = Set.of(
+            WorkspaceRole.OWNER,
+            WorkspaceRole.ADMIN);
 
     private final WorkspaceMemberRepository memberRepository;
 
@@ -197,12 +207,12 @@ public class WorkspaceAccessService {
     }
 
     public WorkspaceMember requireDomainRead(UUID userId, UUID workspaceId) {
-        return requireRoles(userId, workspaceId, SENDER_READ_ROLES,
+        return requireRoles(userId, workspaceId, DOMAIN_MANAGE_ROLES,
                 "Bạn không có quyền xem tên miền gửi thư workspace này.");
     }
 
     public WorkspaceMember requireDomainWrite(UUID userId, UUID workspaceId) {
-        return requireRoles(userId, workspaceId, SENDER_MUTATE_ROLES,
+        return requireRoles(userId, workspaceId, DOMAIN_MANAGE_ROLES,
                 "Bạn không có quyền quản lý tên miền gửi thư workspace này.");
     }
 

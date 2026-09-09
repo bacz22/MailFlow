@@ -62,7 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   className,
 }) => {
   const { canAccessRoute } = usePermission()
-  const { currentWorkspaceId } = useWorkspace()
+  const { currentWorkspaceId, currentRole } = useWorkspace()
   const [contactCount, setContactCount] = useState<number | null>(null)
   const [campaignCount, setCampaignCount] = useState<number | null>(null)
 
@@ -294,6 +294,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-2 border-t border-slate-100 dark:border-slate-800 space-y-1 bg-slate-50/50 dark:bg-slate-900/50">
         <UserMenu
           collapsed={collapsed}
+          role={currentRole}
           isDark={isDark}
           onToggleTheme={onToggleTheme}
           onNavigate={handleNav}

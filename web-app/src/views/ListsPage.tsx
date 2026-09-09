@@ -13,6 +13,7 @@ import {
   LayoutGrid,
   List as ListIcon,
   ArrowRight,
+  Eye,
 } from 'lucide-react'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/Button'
@@ -28,7 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from '../components/ui/DropdownMenu'
-import { PermissionGate, PERMISSIONS } from '../permissions'
+import { PermissionGate, PERMISSIONS, usePermission } from '../permissions'
 import { ReadOnlyBanner } from '../components/ui/ReadOnlyBanner'
 import { useToast } from '../components/ui/Toast'
 import { ApiError } from '../services/apiClient'
@@ -42,6 +43,14 @@ export interface ListsPageProps {
 
 export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
   const { showToast } = useToast()
+  const { hasPermission } = usePermission()
+
+  const canReadList = hasPermission(PERMISSIONS.LIST_READ)
+  const canUpdateList = hasPermission(PERMISSIONS.LIST_UPDATE)
+  const canCreateList = hasPermission(PERMISSIONS.LIST_CREATE)
+  const canDeleteList = hasPermission(PERMISSIONS.LIST_DELETE)
+  const hasAnyListAction = canReadList || canUpdateList || canCreateList || canDeleteList
+
   const [lists, setLists] = useState<AudienceList[]>([])
   const [tags, setTags] = useState<AudienceTag[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -286,42 +295,52 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
                   </div>
 
                   {/* Actions Dropdown */}
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44 text-xs">
-                        <PermissionGate permission={PERMISSIONS.LIST_UPDATE}>
-                          <DropdownMenuItem onClick={() => onNavigate(`/lists/${list.id}/edit`)}>
-                            <Edit3 className="w-3.5 h-3.5 mr-2 text-blue-600" />
-                            <span>Chỉnh sửa</span>
-                          </DropdownMenuItem>
-                        </PermissionGate>
-                        <PermissionGate permission={PERMISSIONS.LIST_CREATE}>
-                          <DropdownMenuItem onClick={() => void handleDuplicate(list)}>
-                            <Copy className="w-3.5 h-3.5 mr-2 text-emerald-600" />
-                            <span>Nhân bản</span>
-                          </DropdownMenuItem>
-                        </PermissionGate>
-                        <PermissionGate permission={PERMISSIONS.LIST_DELETE}>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => void handleDelete(list.id, list.name)}
-                            className="text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium"
+                  {hasAnyListAction && (
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                            title="Tùy chọn khác"
+                            aria-label="Tùy chọn khác"
                           >
-                            <Trash2 className="w-3.5 h-3.5 mr-2" />
-                            <span>Xóa</span>
-                          </DropdownMenuItem>
-                        </PermissionGate>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44 text-xs">
+                          {canReadList && (
+                            <DropdownMenuItem onClick={() => onNavigate(`/lists/${list.id}`)}>
+                              <Eye className="w-3.5 h-3.5 mr-2 text-slate-500" />
+                              <span>Xem chi tiết</span>
+                            </DropdownMenuItem>
+                          )}
+                          <PermissionGate permission={PERMISSIONS.LIST_UPDATE}>
+                            <DropdownMenuItem onClick={() => onNavigate(`/lists/${list.id}/edit`)}>
+                              <Edit3 className="w-3.5 h-3.5 mr-2 text-blue-600" />
+                              <span>Chỉnh sửa</span>
+                            </DropdownMenuItem>
+                          </PermissionGate>
+                          <PermissionGate permission={PERMISSIONS.LIST_CREATE}>
+                            <DropdownMenuItem onClick={() => void handleDuplicate(list)}>
+                              <Copy className="w-3.5 h-3.5 mr-2 text-emerald-600" />
+                              <span>Nhân bản</span>
+                            </DropdownMenuItem>
+                          </PermissionGate>
+                          <PermissionGate permission={PERMISSIONS.LIST_DELETE}>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => void handleDelete(list.id, list.name)}
+                              className="text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 mr-2" />
+                              <span>Xóa</span>
+                            </DropdownMenuItem>
+                          </PermissionGate>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
                 </div>
               </CardHeader>
 
@@ -433,41 +452,50 @@ export const ListsPage: React.FC<ListsPageProps> = ({ onNavigate }) => {
                     <td className="py-3 px-3 font-mono text-slate-500">{list.createdAt}</td>
                     <td className="py-3 px-3 font-mono text-slate-500">{list.updatedAt}</td>
                     <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            type="button"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                            title="Tùy chọn khác"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44 text-xs">
-                          <PermissionGate permission={PERMISSIONS.LIST_UPDATE}>
-                            <DropdownMenuItem onClick={() => onNavigate(`/lists/${list.id}/edit`)}>
-                              <Edit3 className="w-3.5 h-3.5 mr-2 text-blue-600" />
-                              <span>Chỉnh sửa</span>
-                            </DropdownMenuItem>
-                          </PermissionGate>
-                          <PermissionGate permission={PERMISSIONS.LIST_CREATE}>
-                            <DropdownMenuItem onClick={() => void handleDuplicate(list)}>
-                              <Copy className="w-3.5 h-3.5 mr-2 text-emerald-600" />
-                              <span>Nhân bản</span>
-                            </DropdownMenuItem>
-                          </PermissionGate>
-                          <PermissionGate permission={PERMISSIONS.LIST_DELETE}>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => void handleDelete(list.id, list.name)}
-                              className="text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium"
+                      {hasAnyListAction && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                              title="Tùy chọn khác"
+                              aria-label="Tùy chọn khác"
                             >
-                              <Trash2 className="w-3.5 h-3.5 mr-2" />
-                              <span>Xóa</span>
-                            </DropdownMenuItem>
-                          </PermissionGate>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44 text-xs">
+                            {canReadList && (
+                              <DropdownMenuItem onClick={() => onNavigate(`/lists/${list.id}`)}>
+                                <Eye className="w-3.5 h-3.5 mr-2 text-slate-500" />
+                                <span>Xem chi tiết</span>
+                              </DropdownMenuItem>
+                            )}
+                            <PermissionGate permission={PERMISSIONS.LIST_UPDATE}>
+                              <DropdownMenuItem onClick={() => onNavigate(`/lists/${list.id}/edit`)}>
+                                <Edit3 className="w-3.5 h-3.5 mr-2 text-blue-600" />
+                                <span>Chỉnh sửa</span>
+                              </DropdownMenuItem>
+                            </PermissionGate>
+                            <PermissionGate permission={PERMISSIONS.LIST_CREATE}>
+                              <DropdownMenuItem onClick={() => void handleDuplicate(list)}>
+                                <Copy className="w-3.5 h-3.5 mr-2 text-emerald-600" />
+                                <span>Nhân bản</span>
+                              </DropdownMenuItem>
+                            </PermissionGate>
+                            <PermissionGate permission={PERMISSIONS.LIST_DELETE}>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => void handleDelete(list.id, list.name)}
+                                className="text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40 font-medium"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 mr-2" />
+                                <span>Xóa</span>
+                              </DropdownMenuItem>
+                            </PermissionGate>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </td>
                   </tr>
                 ))}

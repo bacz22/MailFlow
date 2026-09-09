@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button'
 import { SimpleSelect, type SelectOption } from '../components/ui/Select'
 import { MetricWidget, ChartCard } from '../components/dashboard'
 import { useToast } from '../components/ui/Toast'
+import { useWorkspace } from '../context/WorkspaceContext'
 import {
   analyticsService,
   currentMonthKey,
@@ -56,6 +57,7 @@ function buildMonthOptions(monthsBack = 24): SelectOption[] {
 }
 
 export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
+  const { currentWorkspaceId } = useWorkspace()
   const [periodMode, setPeriodMode] = useState<PeriodMode>('30d')
   const [monthKey, setMonthKey] = useState(currentMonthKey)
   const [overview, setOverview] = useState<AnalyticsOverview | null>(null)
@@ -84,6 +86,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
   const hasContent = overview != null
 
   useEffect(() => {
+    if (!currentWorkspaceId) return
     let cancelled = false
     const isFirst = overview == null
     if (isFirst) setInitialLoading(true)
@@ -113,9 +116,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
     return () => {
       cancelled = true
     }
-    // overview omitted on purpose — only refetch when range changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRange])
+  }, [activeRange, currentWorkspaceId])
 
   const metrics = overview ? overviewToMetrics(overview) : []
 

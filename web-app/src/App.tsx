@@ -170,9 +170,14 @@ const ROUTE_CONFIGS: Record<string, RouteConfig> = {
 
 export function AppContent() {
   const { showToast } = useToast()
-  const { loading: authLoading, logout } = useAuth()
+  const { user, loading: authLoading, logout } = useAuth()
   const { roleMetadata } = usePermission()
-  const { inviteNotice, clearInviteNotice } = useWorkspace()
+  const {
+    inviteNotice,
+    clearInviteNotice,
+    currentWorkspaceId,
+    loading: workspaceLoading,
+  } = useWorkspace()
 
   // Track active browser path
   const [currentPath, setCurrentPath] = useState<string>(() => {
@@ -242,10 +247,18 @@ export function AppContent() {
   // Tách base path bỏ qua query params (?email=... hoặc ?token=...)
   const basePath = currentPath.split('?')[0]
 
-  if (authLoading) {
+  const isAuthRoute = [
+    '/login',
+    '/register',
+    '/forgot-password',
+    '/reset-password',
+    '/verify-email',
+  ].includes(basePath)
+
+  if (authLoading || (!isAuthRoute && user && !currentWorkspaceId && workspaceLoading)) {
     return (
       <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center">
-        <div className="text-sm font-medium text-slate-500">Đang tải phiên làm việc…</div>
+        <div className="text-sm font-medium text-slate-500">Đang tải không gian làm việc…</div>
       </div>
     )
   }
@@ -563,15 +576,15 @@ export function AppContent() {
 export function App() {
   return (
     <ToastProvider>
-      <NotificationProvider>
-        <PermissionProvider>
-          <AuthProvider>
-            <WorkspaceProvider>
+      <PermissionProvider>
+        <AuthProvider>
+          <WorkspaceProvider>
+            <NotificationProvider>
               <AppContent />
-            </WorkspaceProvider>
-          </AuthProvider>
-        </PermissionProvider>
-      </NotificationProvider>
+            </NotificationProvider>
+          </WorkspaceProvider>
+        </AuthProvider>
+      </PermissionProvider>
     </ToastProvider>
   )
 }

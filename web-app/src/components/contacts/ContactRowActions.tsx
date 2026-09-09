@@ -1,5 +1,5 @@
 import React from 'react'
-import { Edit3, ListPlus, Trash2, MoreVertical } from 'lucide-react'
+import { Eye, Edit3, ListPlus, Trash2, MoreVertical } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from '../ui/DropdownMenu'
-import { PermissionGate, PERMISSIONS } from '../../permissions'
+import { PermissionGate, PERMISSIONS, usePermission } from '../../permissions'
 import type { Permission } from '../../permissions'
 import type { Contact } from '../../types/contact.types'
 
@@ -23,13 +23,21 @@ export interface ContactRowActionsProps {
 
 export const ContactRowActions: React.FC<ContactRowActionsProps> = ({
   contact,
-  onView: _onView,
+  onView,
   onEdit,
   onAddToList,
   onDelete,
   deleteLabel = 'Xóa liên hệ',
   deletePermission = PERMISSIONS.CONTACT_DELETE,
 }) => {
+  const { hasPermission } = usePermission()
+  const canView = !!onView
+  const canEdit = hasPermission(PERMISSIONS.CONTACT_UPDATE)
+  const canDelete = !!onDelete && hasPermission(deletePermission)
+
+  if (!canView && !canEdit && !canDelete) {
+    return null
+  }
   return (
     <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
       {/* More Options Dropdown */}
@@ -46,6 +54,12 @@ export const ContactRowActions: React.FC<ContactRowActionsProps> = ({
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" className="w-48 text-xs">
+          {onView && (
+            <DropdownMenuItem onClick={() => onView(contact)}>
+              <Eye className="w-3.5 h-3.5 mr-2 text-slate-500" />
+              <span>Xem chi tiết</span>
+            </DropdownMenuItem>
+          )}
 
           <PermissionGate permission={PERMISSIONS.CONTACT_UPDATE}>
             <DropdownMenuItem onClick={() => onEdit?.(contact)}>

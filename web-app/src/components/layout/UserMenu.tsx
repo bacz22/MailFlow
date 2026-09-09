@@ -17,11 +17,14 @@ import {
 } from '../ui/DropdownMenu'
 import { useToast } from '../ui/Toast'
 import { useAuth } from '../../context/AuthContext'
+import { useWorkspace } from '../../context/WorkspaceContext'
+import { ROLES_METADATA, type WorkspaceRole } from '../../permissions/roles'
 import { displayName, formatAccountRole } from '../../services/user.service'
 
 export interface UserMenuProps {
   collapsed?: boolean
   avatarUrl?: string
+  role?: string
   isDark?: boolean
   onToggleTheme?: () => void
   onNavigate?: (path: string) => void
@@ -29,9 +32,19 @@ export interface UserMenuProps {
   className?: string
 }
 
+function getRoleBadgeLabel(role: string, meta: (typeof ROLES_METADATA)[WorkspaceRole] | null): string {
+  if (role === 'ADMIN') return 'Admin'
+  if (role === 'CAMPAIGN_EDITOR') return 'Editor'
+  if (role === 'MARKETING_MANAGER') return 'Manager'
+  if (role === 'CONTACT_MANAGER') return 'Contacts'
+  if (role === 'BILLING_MANAGER') return 'Billing'
+  return meta?.name ?? role
+}
+
 export const UserMenu: React.FC<UserMenuProps> = ({
   collapsed = false,
   avatarUrl,
+  role,
   onNavigate,
   onLogout,
   className,
@@ -39,9 +52,28 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   const { showToast } = useToast()
   const { user } = useAuth()
 
+  let workspaceRole: WorkspaceRole | undefined
+  try {
+    const ws = useWorkspace()
+    workspaceRole = ws.currentRole
+  } catch {
+    /* fallback if used outside WorkspaceProvider */
+  }
+
+  const effectiveRole = role || workspaceRole
+  const roleMeta =
+    effectiveRole && effectiveRole in ROLES_METADATA
+      ? ROLES_METADATA[effectiveRole as WorkspaceRole]
+      : null
+
   const userName = user ? displayName(user) : 'Người dùng MailFlow'
   const userEmail = user?.email ?? 'user@mailflow.vn'
-  const userRole = user ? formatAccountRole(user.roles) : 'Member'
+  const roleLabel = effectiveRole
+    ? getRoleBadgeLabel(effectiveRole, roleMeta)
+    : user
+    ? formatAccountRole(user.roles)
+    : 'Member'
+  const badgeVariant = roleMeta?.badgeVariant ?? 'default'
   const resolvedAvatar = user?.avatarUrl || avatarUrl
 
   const handleLogout = async () => {
@@ -67,7 +99,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
             collapsed && 'justify-center p-1',
             className
           )}
-          title={collapsed ? `${userName} (${userRole})` : undefined}
+          title={collapsed ? `${userName} (${roleMeta?.titleVn || roleLabel})` : undefined}
           aria-label="Menu tài khoản người dùng"
         >
           <Avatar
@@ -83,8 +115,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                 <span className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">
                   {userName}
                 </span>
-                <Badge size="sm" variant="default" className="text-[10px] px-1.5 py-0 h-4 uppercase">
-                  {userRole}
+                <Badge size="sm" variant={badgeVariant} className="text-[10px] px-1.5 py-0 h-4 uppercase">
+                  {roleLabel}
                 </Badge>
               </div>
               <p className="text-[11px] text-slate-400 truncate mt-0.5 font-mono">{userEmail}</p>
@@ -99,9 +131,14 @@ export const UserMenu: React.FC<UserMenuProps> = ({
           <div className="font-bold text-xs text-slate-900 dark:text-slate-100">{userName}</div>
           <div className="text-[11px] text-slate-500 truncate font-mono mt-0.5">{userEmail}</div>
           <div className="mt-1.5 flex items-center gap-1.5">
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold border border-blue-200 dark:border-blue-800/80 uppercase">
-              {userRole}
-            </span>
+            <Badge size="sm" variant={badgeVariant} className="text-[10px] px-1.5 py-0.5 uppercase">
+              {roleLabel}
+            </Badge>
+            {roleMeta?.titleVn && (
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                ({roleMeta.titleVn})
+              </span>
+            )}
           </div>
         </DropdownMenuLabel>
 

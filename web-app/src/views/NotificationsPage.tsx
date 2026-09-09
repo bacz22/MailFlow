@@ -4,6 +4,7 @@ import {
   CheckCheck,
   Search,
   Mail,
+  Users,
   Zap,
   Globe,
 } from 'lucide-react'
@@ -22,13 +23,14 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({ onNavigate
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications()
   const { showToast } = useToast()
 
-  const [activeCategory, setActiveCategory] = useState<'all' | 'unread' | 'campaign' | 'system' | 'billing'>('all')
+  const [activeCategory, setActiveCategory] = useState<'all' | 'unread' | 'campaign' | 'audience' | 'system' | 'billing'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
   // Filter logic
   const filteredNotifications = notifications.filter((n) => {
     if (activeCategory === 'unread' && n.isRead) return false
     if (activeCategory === 'campaign' && n.category !== 'campaign') return false
+    if (activeCategory === 'audience' && n.category !== 'audience') return false
     if (activeCategory === 'system' && n.category !== 'system') return false
     if (activeCategory === 'billing' && n.category !== 'billing') return false
     if (searchQuery) {
@@ -78,6 +80,7 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({ onNavigate
             { id: 'all', label: 'Tất Cả', count: notifications.length },
             { id: 'unread', label: 'Chưa Đọc', count: unreadCount },
             { id: 'campaign', label: 'Chiến Dịch', icon: <Mail className="w-3.5 h-3.5" /> },
+            { id: 'audience', label: 'Danh Bạ', icon: <Users className="w-3.5 h-3.5" /> },
             { id: 'system', label: 'Hệ Thống & DNS', icon: <Globe className="w-3.5 h-3.5" /> },
             { id: 'billing', label: 'Hạn Ngạch & Gói', icon: <Zap className="w-3.5 h-3.5" /> },
           ].map((tab) => (

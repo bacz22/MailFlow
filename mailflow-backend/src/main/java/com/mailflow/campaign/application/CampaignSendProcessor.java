@@ -21,11 +21,13 @@ import com.mailflow.engagement.application.PublicTrackingUrls;
 import com.mailflow.infrastructure.mail.CampaignMailHeaders;
 import com.mailflow.infrastructure.mail.CampaignMailRouter;
 import com.mailflow.infrastructure.mail.ListUnsubscribeHeaders;
+import com.mailflow.notification.application.event.NotificationEvents;
 import com.mailflow.quota.application.QuotaService;
 import com.mailflow.workspace.domain.model.Workspace;
 import com.mailflow.workspace.domain.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -55,6 +57,7 @@ public class CampaignSendProcessor {
     private final WorkspaceRepository workspaceRepository;
     private final PublicTrackingUrls trackingUrls;
     private final HtmlTrackingInjector trackingInjector;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public List<UUID> findPendingRecipientIds(int batchSize) {
@@ -116,6 +119,9 @@ public class CampaignSendProcessor {
                 campaignRepository.saveAndFlush(campaign);
                 log.warn("Campaign [{}] tạm dừng do hết hạn mức gửi demo: {}",
                         campaign.getId(), appEx.getMessage());
+                eventPublisher.publishEvent(new NotificationEvents.QuotaExceeded(
+                        campaign.getWorkspaceId(), campaign.getId(), campaign.getName(), campaign.getCreatedBy(), 50
+                ));
                 return;
             }
             String message = ex.getMessage() == null ? "SMTP_SEND_FAILED" : ex.getMessage();
@@ -158,8 +164,14 @@ public class CampaignSendProcessor {
             campaign.setCompletedAt(Instant.now());
             if (total == 0 || sent == 0) {
                 campaign.setStatus(CampaignStatus.FAILED);
+                eventPublisher.publishEvent(new NotificationEvents.CampaignFailed(
+                        campaign.getWorkspaceId(), campaign.getId(), campaign.getName(), campaign.getCreatedBy(), "Không có người nhận nào gửi thành công"
+                ));
             } else {
                 campaign.setStatus(CampaignStatus.COMPLETED);
+                eventPublisher.publishEvent(new NotificationEvents.CampaignCompleted(
+                        campaign.getWorkspaceId(), campaign.getId(), campaign.getName(), campaign.getCreatedBy(), (int) sent
+                ));
             }
             campaignRepository.save(campaign);
             log.info("Campaign [{}] finalized as {}", campaign.getId(), campaign.getStatus());

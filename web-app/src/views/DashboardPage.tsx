@@ -5,6 +5,7 @@ import { Card, CardContent } from '../components/ui/Card'
 import { AcceptInviteForm } from '../components/workspace/AcceptInviteForm'
 import { UsageCard, MetricWidget, ChartCard } from '../components/dashboard'
 import { usePermission, ROLES } from '../permissions'
+import { useWorkspace } from '../context/WorkspaceContext'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import {
@@ -21,6 +22,7 @@ export interface DashboardPageProps {
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   const { currentRole, roleMetadata, canAccessRoute } = usePermission()
+  const { currentWorkspaceId } = useWorkspace()
   const showUsage =
     currentRole === ROLES.OWNER ||
     currentRole === ROLES.ADMIN ||
@@ -32,7 +34,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!canAnalytics) return
+    if (!canAnalytics || !currentWorkspaceId) return
     let cancelled = false
     setLoading(true)
     Promise.all([
@@ -56,7 +58,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
     return () => {
       cancelled = true
     }
-  }, [canAnalytics])
+  }, [canAnalytics, currentWorkspaceId])
 
   const metrics = overview ? overviewToMetrics(overview).slice(0, 3) : []
 

@@ -37,10 +37,12 @@ import com.mailflow.sendingdomain.domain.repository.SendingDomainRepository;
 import com.mailflow.user.domain.model.User;
 import com.mailflow.user.domain.repository.UserRepository;
 import com.mailflow.workspace.application.WorkspaceAccessService;
+import com.mailflow.notification.application.event.NotificationEvents;
 import com.mailflow.workspace.domain.model.Workspace;
 import com.mailflow.workspace.domain.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,6 +85,7 @@ public class CampaignService {
     private final CampaignRecipientRepository recipientRepository;
     private final CampaignAudienceResolver audienceResolver;
     private final CampaignSendProcessor sendProcessor;
+    private final ApplicationEventPublisher eventPublisher;
     private final EmailSenderIdentityRepository senderRepository;
     private final EmailTemplateRepository templateRepository;
     private final AudienceListRepository audienceListRepository;
@@ -167,6 +170,8 @@ public class CampaignService {
         campaign.setReviewNote(null);
         campaign.setReviewedAt(null);
         campaign = campaignRepository.save(campaign);
+        eventPublisher.publishEvent(new NotificationEvents.CampaignApprovalRequested(
+                workspaceId, campaign.getId(), campaign.getName(), userId));
         return toResponses(workspaceId, List.of(campaign)).getFirst();
     }
 
@@ -194,6 +199,8 @@ public class CampaignService {
             campaign = campaignRepository.save(campaign);
             campaign = startSending(campaign);
         }
+        eventPublisher.publishEvent(new NotificationEvents.CampaignApproved(
+                workspaceId, campaign.getId(), campaign.getName(), userId, campaign.getCreatedBy()));
         return toResponses(workspaceId, List.of(campaign)).getFirst();
     }
 
@@ -219,6 +226,8 @@ public class CampaignService {
         campaign.setReviewedAt(Instant.now());
         campaign.setReviewNote(note.trim());
         campaign = campaignRepository.save(campaign);
+        eventPublisher.publishEvent(new NotificationEvents.CampaignRejected(
+                workspaceId, campaign.getId(), campaign.getName(), userId, campaign.getCreatedBy(), note.trim()));
         return toResponses(workspaceId, List.of(campaign)).getFirst();
     }
 

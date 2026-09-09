@@ -8,6 +8,7 @@ import com.mailflow.infrastructure.brevo.BrevoDomainDtos.AuthenticateOutcome;
 import com.mailflow.infrastructure.brevo.BrevoDomainDtos.DnsRecordItem;
 import com.mailflow.infrastructure.brevo.BrevoDomainDtos.DnsRecords;
 import com.mailflow.infrastructure.brevo.BrevoDomainDtos.DomainSnapshot;
+import com.mailflow.notification.application.event.NotificationEvents;
 import com.mailflow.sendingdomain.api.request.CreateSendingDomainRequest;
 import com.mailflow.sendingdomain.api.response.SendingDomainResponse;
 import com.mailflow.sendingdomain.domain.model.DnsRecordPurpose;
@@ -20,6 +21,7 @@ import com.mailflow.sendingdomain.domain.repository.SendingDomainRepository;
 import com.mailflow.workspace.application.WorkspaceAccessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +50,7 @@ public class SendingDomainService {
     private final WorkspaceAccessService accessService;
     private final BrevoDomainClient brevoDomainClient;
     private final TransactionTemplate transactionTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public List<SendingDomainResponse> list(UUID userId, UUID workspaceId, String q, String status) {
@@ -138,6 +141,7 @@ public class SendingDomainService {
                 throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR, "DOMAIN_VERIFY_FAILED",
                         "Không lưu được kết quả xác thực.");
             }
+            eventPublisher.publishEvent(new NotificationEvents.DomainVerified(workspaceId, domainId, domainName));
             return verified;
         }
 
@@ -175,6 +179,12 @@ public class SendingDomainService {
         if (pending == null) {
             throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR, "DOMAIN_VERIFY_FAILED",
                     "Không lưu được kết quả xác thực.");
+        }
+        if ("VERIFIED".equalsIgnoreCase(pending.getStatus())) {
+            eventPublisher.publishEvent(new NotificationEvents.DomainVerified(workspaceId, domainId, domainName));
+        } else if ("FAILED".equalsIgnoreCase(pending.getStatus())) {
+            eventPublisher.publishEvent(new NotificationEvents.DomainVerificationFailed(
+                    workspaceId, domainId, domainName, "Không tìm thấy hoặc cấu hình sai bản ghi DNS (DKIM/Brevo code)."));
         }
         return pending;
     }
